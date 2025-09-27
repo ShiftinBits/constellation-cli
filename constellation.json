@@ -1,0 +1,13 @@
+{
+	"namespace": "constellation-cli",
+	"branch": "feat/api-mvp",
+	"apiUrl": "http://localhost:3000",
+	"languages": {
+		"typescript": {
+			"fileExtensions": [
+				".ts",
+				".tsx"
+			]
+		}
+	}
+}

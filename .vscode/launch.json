@@ -17,9 +17,10 @@
 	"inputs": [
 		{
 			"id": "cmd",
-			"type": "promptString",
-			"description": "CLI command and flags",
-			"default": ""
+			"type": "pickString",
+			"description": "Select CLI command",
+			"options": ["index", "init", "auth"],
+			"default": "index"
 		}
 	]
 }

@@ -1,6 +1,6 @@
 {
 	"namespace": "constellation-cli",
-	"branch": "feat/api-mvp",
+	"branch": "main",
 	"apiUrl": "http://localhost:3000",
 	"languages": {
 		"typescript": {

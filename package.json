@@ -14,6 +14,7 @@
 		"start": "tsx src/index.ts",
 		"lint": "eslint",
 		"lint:fix": "eslint --fix",
+		"lint:errors": "eslint --quiet",
 		"test": "mocha --require tsx test/**/*.test.ts"
 	},
 	"dependencies": {

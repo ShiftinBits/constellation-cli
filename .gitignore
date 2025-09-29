@@ -9,6 +9,8 @@ temp/
 **/node_modules/**
 **/dist/**
 **/build/**
+**/release/**
+**/releases/**
 
 *-debug.log
 *-error.log

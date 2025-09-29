@@ -14,4 +14,7 @@ export default defineConfig({
   treeshake: true,
   bundle: true,
   outDir: 'dist',
+  banner: {
+    js: '#!/usr/bin/env node'
+  }
 })

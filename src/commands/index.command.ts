@@ -2,8 +2,8 @@ import { ConstellationClient } from '../api/constellation-client';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
 import { SerializedAST } from '../types/api';
-import { serializeAST } from '../utils/ast-serializer';
 import { ASTCompressor } from '../utils/ast-compressor';
+import { serializeAST } from '../utils/ast-serializer';
 import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
 import {
 	BLUE_INFO,
@@ -63,7 +63,7 @@ export default class IndexCommand extends BaseCommand {
 			await this.validateGitBranch();
 
 			// Step 2: Validate Git Status
-			// await this.validateGitStatus();
+			await this.validateGitStatus();
 
 			// Step 3: Synchronize Latest Changes
 			await this.synchronizeChanges();

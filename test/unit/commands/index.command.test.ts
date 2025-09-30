@@ -387,6 +387,43 @@ describe('IndexCommand', () => {
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('performing full index'));
 		});
 
+		it('should fallback to full scan when projectState has empty commit in determineIndexScope', async () => {
+			// Mock project state with empty commit field
+			mockApiClient.getProjectState.mockResolvedValue({
+				namespace: 'test-project',
+				branch: 'main',
+				commit: '' // Empty commit triggers fallback in determineIndexScope
+			});
+
+			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
+
+			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const mockScannerInstance: any = {
+				// @ts-expect-error - Jest mock typing
+				scanFiles: jest.fn().mockResolvedValue([
+					{ path: '/test/file1.ts', relativePath: 'file1.ts', language: 'typescript' }
+				]),
+				// @ts-expect-error - Jest mock typing
+				scanSpecificFiles: jest.fn().mockResolvedValue([])
+			};
+
+			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(() => mockScannerInstance as any);
+
+			command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry
+			});
+
+			await command.run(false);
+
+			// Should fall back to full scan via determineIndexScope
+			expect(mockScannerInstance.scanFiles).toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No previous index found'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('performing full index'));
+		});
+
 
 		it('should force full index when forceFullIndex is true', async () => {
 			mockApiClient.getProjectState.mockResolvedValue({

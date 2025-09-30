@@ -298,13 +298,4 @@ describe('FileUtils', () => {
 			);
 		});
 	});
-
-	describe.skip('integration tests with real file system', () => {
-		// Skipping integration test due to Jest mocking conflicts
-		// The unit tests above provide comprehensive coverage
-		it('should perform real file operations', () => {
-			// This test is skipped - the mocked tests above provide sufficient coverage
-			expect(true).toBe(true);
-		});
-	});
 });

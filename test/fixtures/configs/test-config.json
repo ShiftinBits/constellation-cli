@@ -1,0 +1,17 @@
+{
+	"version": "1.0.0",
+	"projectName": "test-project",
+	"languages": {
+		"typescript": {
+			"fileExtensions": [".ts", ".tsx"],
+			"parserPackage": "tree-sitter-typescript"
+		},
+		"javascript": {
+			"fileExtensions": [".js", ".jsx"],
+			"parserPackage": "tree-sitter-javascript"
+		}
+	},
+	"exclude": ["node_modules", ".git", "dist", "coverage", "*.test.ts", "*.spec.ts"],
+	"apiUrl": "http://localhost:3000",
+	"apiKey": "test-api-key-12345"
+}

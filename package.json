@@ -15,7 +15,10 @@
 		"lint": "eslint",
 		"lint:fix": "eslint --fix",
 		"lint:errors": "eslint --quiet",
-		"test": "mocha --require tsx test/**/*.test.ts"
+		"test": "jest",
+		"test:watch": "jest --watch",
+		"test:coverage": "jest --coverage",
+		"test:ci": "jest --ci --coverage --maxWorkers=2"
 	},
 	"dependencies": {
 		"@scure/base": "^2.0.0",
@@ -31,16 +34,16 @@
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1",
-		"@types/chai": "^5.2.2",
-		"@types/mocha": "^10.0.10",
+		"@jest/globals": "^30.2.0",
+		"@types/jest": "^30.0.0",
 		"@types/node": "^20.19.13",
-		"chai": "^6.2.0",
 		"eslint": "^9",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-prettier": "^5.5.4",
-		"mocha": "^11.7.2",
+		"jest": "^30.2.0",
 		"prettier": "^3.6.2",
 		"rimraf": "^6.0.1",
+		"ts-jest": "^29.4.4",
 		"ts-node": "^10.9.2",
 		"tsup": "^8.5.0",
 		"tsx": "^4.20.6",

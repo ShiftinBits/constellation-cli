@@ -161,7 +161,9 @@ export default class InitCommand extends BaseCommand {
 				languages: {
 					...answers.languages.reduce(
 						(acc, lang) => {
-							acc[lang] = { fileExtensions: LANGUAGE_EXTENSIONS[lang] || [] };
+							acc[lang as keyof IConstellationConfig['languages']] = {
+								fileExtensions: LANGUAGE_EXTENSIONS[lang as keyof typeof LANGUAGE_EXTENSIONS] || []
+							};
 							return acc;
 						},
 						{} as IConstellationConfig['languages'],

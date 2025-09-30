@@ -1,231 +1,298 @@
-# @constellation/cli
+<div align="center">
 
-The Constellation CLI is a powerful command-line utility that parses source code locally, extracts Abstract Syntax Trees (ASTs), and uploads the data to the Constellation service for team-wide code intelligence sharing.
+# 🌟 Constellation CLI
 
-## Overview
+**Connecting your code's stars into intelligent patterns**
 
-The Constellation CLI tool is designed with privacy and security in mind. It parses your source code locally and only transmits serialized AST structures (without the actual source code) to the central Constellation service. This ensures your proprietary code never leaves your local environment while still enabling powerful code intelligence features for your entire team.
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 
-## Installation
+[Installation](#-installation) •
+[Quick Start](#-quick-start) •
+[Commands](#-commands) •
+[Configuration](#-configuration) •
+[Development](#-development)
 
-Install the Constellation CLI utility globally using NPM:
+</div>
+
+---
+
+## 📖 Overview
+
+The Constellation CLI parses your source code locally using Tree-sitter and uploads Abstract Syntax Tree (AST) metadata to the Constellation service. This creates a shared code intelligence graph that powers AI development tools via the Constellation MCP server.
+
+**What it does**: Keeps a centralized code intelligence graph up-to-date so your team's AI assistants (like Claude) can access instant, consistent codebase understanding without local indexing overhead.
+
+**Key benefits**:
+
+- **Privacy-First**: Parse locally, transmit only AST metadata—never your source code
+- **Team-Wide Intelligence**: One shared graph serves all developers' AI tools
+- **Always Current**: Incremental indexing keeps intelligence synchronized with your codebase
+- **Zero Local Overhead**: AI assistants get instant context via MCP without indexing delays
+
+## ✨ Features
+
+### 🚀 Smart Indexing
+
+- **Incremental Updates**: Only processes files changed since last index
+- **Full Re-indexing**: Force complete project re-analysis when needed
+- **Git-Aware**: Automatically tracks changes using Git history
+- **CI/CD Ready**: Integrate into pipelines to keep intelligence current
+
+### 🌐 Multi-Language Support
+
+Currently supports:
+
+- **JavaScript**
+- **TypeScript**
+
+_Additional languages (C, C++, C#, Go, Java, JSON, PHP, Python, Ruby, Shell) coming soon_
+
+### 🔒 Security
+
+- Local parsing with Tree-sitter—source code never transmitted
+- Only AST metadata sent (compressed with gzip)
+- API key-based authentication
+- Respects `.gitignore` and Git configuration
+
+## 📦 Installation
+
+### Globally Install NPM Package
 
 ```bash
 npm install -g @constellation/cli
 ```
 
-## Commands
+### Requirements
 
-### `constellation init`
+- Node.js 20.0.0 or higher
+- Git installed and available in PATH
+- Git repository
 
-Initialize a new Constellation project configuration in your repository.
+## 🚀 Quick Start
 
-**Description:**
-This command sets up your project for Constellation by creating a `constellation.json` configuration file. It must be run from from the root directory of a project's Git repository.
-
-**Features:**
-
-- Detects Git repository and validates it's properly initialized
-- Prompts for project configuration settings
-- Automatically detects git repo remote origin URL to suggest a namespace
-- Stages the created `constellation.json` file in Git
-
-**Usage:**
+### 1. Initialize Your Project
 
 ```bash
 constellation init
 ```
 
-**Interactive Prompts:**
+Creates `constellation.json` configuration file with interactive prompts:
 
-1. **Project Namespace**: A unique identifier for your project (defaults to remote repository name)
-2. **Branch to Index**: Select which Git branch to track and index
-3. **Languages**: Multi-select the programming languages used in your project
+- Project namespace (auto-suggested from Git remote)
+- Branch to track
+- Programming languages used
 
-**Supported Languages:**
-
-- C
-- C# (C-Sharp)
-- C++
-- Go
-- Java
-- JavaScript
-- JSON
-- PHP
-- Python
-- Ruby
-- Shell (Bash)
-- TypeScript
-
-**Requirements:**
-
-- Must be run from from the root directory of a Git repository
-- Git must be installed and available in PATH
-- Creates `constellation.json` in the current directory
-
-### `constellation auth`
-
-Configure authentication for the Constellation CLI.
-
-**Description:**
-Sets up authentication credentials for connecting to your team's Constellation service.
-Stores provided Constellation Key in user environment variables.
-
-**Usage:**
+### 2. Configure Authentication
 
 ```bash
 constellation auth
 ```
 
-**Interactive Prompts:**
+Stores your Constellation access key in environment variables.
 
-1. **Constellation Key**: Prompts for user/developer Constellation Key for authentication to Constellation service
+**Alternative**: Set manually:
+
+```bash
+export CONSTELLATION_ACCESS_KEY="your-access-key"
+```
+
+### 3. Index Your Project
+
+```bash
+# Smart indexing (incremental if possible)
+constellation index
+
+# Force complete re-index
+constellation index --full
+```
+
+## 📚 Commands
+
+### `constellation init`
+
+Initialize project configuration.
+
+```bash
+constellation init
+```
+
+**Creates**: `constellation.json` file in current directory
+**Requires**: Git repository
+**Interactive**: Prompts for namespace, branch, and languages
+
+---
+
+### `constellation auth`
+
+Configure authentication credentials.
+
+```bash
+constellation auth
+```
+
+**Stores**: Access key in `CONSTELLATION_ACCESS_KEY` environment variable
+**Interactive**: Prompts for Constellation access key
+
+---
 
 ### `constellation index`
 
-Create or update the Constellation data indices for your project.
-
-**Description:**
-This is the core command that parses your source code, generates ASTs, and uploads the intelligence to the Constellation service. It supports both full and incremental indexing.
-
-**Features:**
-
-- **Privacy-First**: Parses code locally, only sends AST metadata
-- **Incremental Indexing**: Only processes changed files since last index
-- **Git Integration**: Synchronizes with Git to ensure consistent state
-- **Progress Tracking**: Shows real-time progress during processing
-- **Error Recovery**: Continues processing even if individual files fail
-- **Compression**: Uses gzip compression to minimize network transfer
-
-**Usage:**
+Parse codebase and upload intelligence to Constellation service.
 
 ```bash
-# Perform smart indexing (incremental if possible)
-constellation index
-
-# Force a full project re-index
-constellation index --full
-
-# Perform incremental update only
-constellation index --incremental
+constellation index [options]
 ```
 
-**Options:**
+**Options**:
 
-- `--full`: Forces a complete re-index of all project files
-- `--incremental`: Explicitly requests incremental indexing (default behavior when previous index exists)
+- `--full`: Force complete re-index
+- `--incremental`: Explicitly request incremental (default when previous index exists)
 
-**Process Flow:**
+**Process**:
 
-1. **Git Branch Validation**: Ensures current branch matches configuration
-2. **Repository Synchronization**: Pulls latest changes from remote
-3. **Index Scope Determination**: Decides between full or incremental index
-4. **File Discovery**: Scans project for files matching configured languages
-5. **AST Generation**: Parses each file with Tree-sitter
-6. **Data Upload**: Compresses and uploads AST data to service
+1. Validates Git branch and status
+2. Pulls latest changes from remote
+3. Determines index scope (full vs incremental)
+4. Scans and parses relevant files
+5. Compresses and uploads AST data
 
-**What Gets Indexed:**
+**What gets indexed**:
 
-- All files matching the language extensions configured in `constellation.json`
-- Only files tracked by Git (respects `.gitignore`)
-- Processes files from the configured branch
+- Files matching configured language extensions
+- Git-tracked files only (respects `.gitignore`)
+- Files from configured branch
 
-**Performance:**
+## ⚙️ Configuration
 
-- Processes files individually to optimize memory usage
-- Shows progress every 10 files or at completion
-- Handles large codebases efficiently
-- Continues processing even if individual files fail to parse
-
-**Error Handling:**
-
-- Validates Git repository state before indexing
-- Reports parsing errors but continues processing
-- Provides detailed error messages for troubleshooting
-- Returns non-zero exit code on critical failures
-
-## Configuration
-
-The CLI uses a `constellation.json` file for configuration:
+The `constellation.json` file controls indexing:
 
 ```json
 {
-	"namespace": "my-project",
+	"namespace": "project-identifier",
 	"branch": "main",
 	"languages": {
 		"typescript": {
-			"fileExtensions": [".ts"]
+			"fileExtensions": [".ts", ".tsx"]
 		},
 		"javascript": {
-			"fileExtensions": [".js"]
+			"fileExtensions": [".js", ".jsx"]
 		}
-	}
+	},
+	"exclude": ["**/node_modules/**", "**/dist/**"]
 }
 ```
 
-**Configuration Fields:**
+**Fields**:
 
-- `namespace`: Unique project identifier
-- `branch`: Git branch to track and index
-- `languages`: Language configuration with file extensions
+- **`namespace`** (required): Unique project identifier
+- **`branch`** (required): Git branch to track
+- **`languages`** (required): Language config with file extensions
+- **`exclude`** (optional): Glob patterns to exclude
 
-## Architecture
+### Supported Languages
 
-### Privacy & Security
+| Language   | Identifier   | Default Extensions            |
+| ---------- | ------------ | ----------------------------- |
+| JavaScript | `javascript` | `.js`, `.jsx`, `.mjs`, `.cjs` |
+| TypeScript | `typescript` | `.ts`, `.tsx`                 |
 
-The CLI is designed with a privacy-first architecture:
+**Coming Soon**: C, C++, C#, Go, Java, JSON, PHP, Python, Ruby, Shell, and more!
 
-- **Local Parsing**: All source code parsing happens on your machine
-- **No Source Transmission**: Only AST structure is sent, never actual code
-- **Compressed Transfer**: AST data is compressed with gzip
-- **Git Integration**: Respects your Git configuration and ignore rules
+## 🔧 Advanced Usage
 
-## Requirements
+### Environment Variables
 
-- **Node.js**: Version 18 or higher
-- **Git**: Must be installed and available in PATH
-- **Repository**: Must be run from the root directory of a Git repository
-- **Configuration**: Requires `constellation.json` (can be created by `init` command)
+- **`CONSTELLATION_ACCESS_KEY`**: API authentication key
 
-### Testing
+### CI/CD Integration (Highly Recommended)
 
-```bash
-# Run unit tests
-npm test
+**We strongly recommend setting up Constellation indexing in your CI/CD pipeline.** This enables "set it and forget it" automation, whenever code is pushed or merged into your configured branch, the index automatically updates. Your team's AI development tools stay current without any manual intervention or developer overhead.
 
-# Run with coverage
-npm run test:coverage
+**Benefits of CI/CD Automation:**
+
+- **Zero Developer Overhead**: Indexing triggers automatically
+- **Always Up-to-Date**: Intelligence graph stays synchronized with your codebase
+- **Team Confidence**: Developers trust their AI assistants to have current context
+- **Autopilot Mode**: Configure once, never worry about indexing again
+
+#### GitHub Actions Example
+
+```yaml
+name: Constellation Auto-Index
+on:
+  push:
+    branches: [main] # Match your configured branch
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  index:
+    # Only run on merged PRs or direct pushes
+    if: github.event_name == 'push' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      - name: Install Constellation CLI
+        run: npm install -g @constellation/cli
+      - name: Run Incremental Index
+        run: constellation index --incremental
+        env:
+          CONSTELLATION_ACCESS_KEY: ${{ secrets.CONSTELLATION_ACCESS_KEY }}
 ```
 
-## Troubleshooting
+**Setup Steps:**
 
-### Common Issues
+1. Add `CONSTELLATION_ACCESS_KEY` to your CI/CD secrets/environment variables
+2. Configure pipeline to run on pushes/merges to your configured branch
+3. Install CLI and run `constellation index --incremental`
+4. Let automation handle the rest, keeping your code intelligence data current
 
-1. **"Could not find git client installation"**
-   - Ensure Git is installed: https://git-scm.com/downloads
-   - Verify Git is in your PATH: `git --version`
+### Incremental vs Full Indexing
 
-2. **"Current directory is not a git repository"**
-   - Run the command from within a Git repository
-   - Initialize Git if needed: `git init`
+**Incremental** (default when previous index exists):
 
-3. **"constellation.json already exists"**
-   - Project is already initialized
-   - Update `constellation.json` if changes are necessary
+- Processes only changed files since last index
+- Faster for regular updates
+- Tracks added, modified, renamed, and deleted files
 
-4. **"Branch not configured for indexing"**
-   - Current Git branch doesn't match configuration
-   - Switch branches to configured branch or update `branch` in `constellation.json`
+**Full** (triggered with `--full` or no previous index):
 
-5. **Parse errors during indexing**
-   - Some files may have syntax errors
-   - The CLI continues processing other files
-   - Check the reported files for syntax issues
+- Processes all project files
+- Use after significant configuration changes or first-time setup
 
-## License
+## 🐛 Troubleshooting
 
-GNU Affero General Public License v3.0 (AGPL-3.0) - See LICENSE file for details
+| Issue                          | Solution                                                           |
+| ------------------------------ | ------------------------------------------------------------------ |
+| "Could not find git client"    | Install Git from [git-scm.com](https://git-scm.com/downloads)      |
+| "Not a git repository"         | Run from within a Git repository or `git init`                     |
+| "Branch not configured"        | Switch branches or update `branch` in `constellation.json`         |
+| "Outstanding changes detected" | Commit or stash changes: `git add . && git commit` or `git stash`  |
+| "Access key not found"         | Run `constellation auth` or set `CONSTELLATION_ACCESS_KEY`         |
+| Parse errors                   | Some files may have syntax errors; CLI continues processing others |
 
-Copyright (C) 2025 ShiftinBits, LLC
+**Get Help**:
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+- Documentation: `constellation --help`
+- Issues: [GitHub Issues](https://github.com/ShiftinBits/constellation-cli/issues)
+- Website: [constellationdev.io](https://constellationdev.io)
+
+## 📄 License
+
+GNU Affero General Public License v3.0 (AGPL-3.0)
+
+Copyright (C) 2025 ShiftinBits Inc.
+
+See [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) for fast, reliable parsing
+- [Commander.js](https://github.com/tj/commander.js) for CLI framework
+- [simple-git](https://github.com/steveukx/git-js) for Git operations

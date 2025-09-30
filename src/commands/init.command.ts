@@ -4,7 +4,6 @@ const { prompt } = pkg;
 
 import { IConstellationConfig } from '../config/config';
 import { LANGUAGE_EXTENSIONS } from '../languages/language.registry';
-import { } from '../utils/constants';
 import { FileUtils } from '../utils/file.utils';
 import {
 	BLUE_INFO,

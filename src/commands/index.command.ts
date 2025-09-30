@@ -141,12 +141,45 @@ export default class IndexCommand extends BaseCommand {
 
 	/**
 	 * Synchronizes local repository with remote changes.
-	 * Currently logs a warning as git pull is not yet implemented.
+	 * Handles conflicts gracefully and provides clear error messages.
+	 * @throws Process exits with error code 1 if pull fails
 	 */
 	private async synchronizeChanges(): Promise<void> {
 		console.log(`${BLUE_INFO} Synchronizing latest changes...`);
-		await this.git!.pull();
-		console.log(`  ${GREEN_CHECK} Repository synchronized`);
+
+		try {
+			const pullSuccessful = await this.git!.pull();
+
+			if (pullSuccessful) {
+				console.log(`  ${GREEN_CHECK} Repository synchronized successfully`);
+			}
+		} catch (error) {
+			// Log the error details that were already logged by GitClient
+			console.error(`  ${RED_X} Failed to synchronize repository`);
+
+			// Provide actionable guidance based on error type
+			if (error instanceof Error) {
+				if (error.message.includes('uncommitted changes')) {
+					console.error('\nTo resolve:');
+					console.error('  1. Commit your changes: git add . && git commit -m "your message"');
+					console.error('  2. Or stash them: git stash');
+					console.error('  3. Then run the index command again\n');
+				} else if (error.message.includes('merge conflicts')) {
+					console.error('\nTo resolve:');
+					console.error('  1. Fix the conflicted files manually');
+					console.error('  2. Stage the resolved files: git add <resolved-files>');
+					console.error('  3. Complete the merge: git commit');
+					console.error('  4. Then run the index command again\n');
+				} else if (error.message.includes('Network error')) {
+					console.error('\nPlease check your internet connection and try again\n');
+				} else if (error.message.includes('Authentication')) {
+					console.error('\nPlease check your git credentials and try again\n');
+				}
+			}
+
+			// Exit early with error code
+			process.exit(1);
+		}
 	}
 
 	/**

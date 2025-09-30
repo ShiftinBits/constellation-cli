@@ -196,7 +196,8 @@ export default class IndexCommand extends BaseCommand {
 
 		try {
 			// Try to get last indexed commit from API
-			const lastIndexedCommit: string = ''; //await this.apiClient!.getLastIndexedCommit();
+			const projectState = await this.apiClient!.getProjectState();
+			const lastIndexedCommit = projectState?.commit;
 
 			if (!lastIndexedCommit) {
 				console.log(`  ${BLUE_INFO} No previous index found - performing full index`);

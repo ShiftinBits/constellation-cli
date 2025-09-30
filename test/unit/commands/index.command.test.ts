@@ -273,6 +273,204 @@ describe('IndexCommand', () => {
 		});
 	});
 
+	describe('incremental indexing', () => {
+		let command: IndexCommand;
+
+		beforeEach(() => {
+			command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry
+			});
+		});
+
+		it('should perform full index when no project state exists', async () => {
+			// No previous index found
+			mockApiClient.getProjectState.mockResolvedValue(null);
+
+			await command.run(false);
+
+			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+
+			// Should call scanFiles for full index
+			expect(scannerInstance.scanFiles).toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No previous index found'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should perform incremental index when project state exists', async () => {
+			// Mock existing project state
+			mockApiClient.getProjectState.mockResolvedValue({
+				namespace: 'test-project',
+				branch: 'main',
+				commit: 'old-commit-123'
+			});
+
+			// Mock changed files
+			mockGit.getChangedFiles.mockResolvedValue({
+				added: ['src/new-file.ts'],
+				modified: ['src/existing-file.ts'],
+				deleted: ['src/deleted-file.ts'],
+				renamed: [{ from: 'src/old-name.ts', to: 'src/new-name.ts' }]
+			});
+
+			// Mock current commit
+			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
+
+			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const mockScannerInstance: any = {
+				// @ts-expect-error - Jest mock typing
+				scanFiles: jest.fn().mockResolvedValue([]),
+				// @ts-expect-error - Jest mock typing
+				scanSpecificFiles: jest.fn().mockResolvedValue([
+					{ path: '/test/src/new-file.ts', relativePath: 'src/new-file.ts', language: 'typescript' },
+					{ path: '/test/src/existing-file.ts', relativePath: 'src/existing-file.ts', language: 'typescript' },
+					{ path: '/test/src/new-name.ts', relativePath: 'src/new-name.ts', language: 'typescript' }
+				])
+			};
+
+			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(() => mockScannerInstance as any);
+
+			command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry
+			});
+
+			await command.run(false);
+
+			// Should call scanSpecificFiles for incremental index
+			expect(mockScannerInstance.scanSpecificFiles).toHaveBeenCalledWith(
+				['src/new-file.ts', 'src/existing-file.ts', 'src/new-name.ts'],
+				mockConfig
+			);
+
+			// Should delete removed files
+			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith(['src/deleted-file.ts']);
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Performing incremental index'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 3 changed files'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('1 files deleted'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should skip indexing when already up to date', async () => {
+			const currentCommit = 'same-commit-123';
+
+			mockApiClient.getProjectState.mockResolvedValue({
+				namespace: 'test-project',
+				branch: 'main',
+				commit: currentCommit
+			});
+
+			mockGit.getLatestCommitHash.mockResolvedValue(currentCommit);
+
+			await command.run(false);
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Already up to date'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should fallback to full index when getProjectState fails', async () => {
+			mockApiClient.getProjectState.mockRejectedValue(new Error('API error'));
+
+			await command.run(false);
+
+			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+
+			expect(scannerInstance.scanFiles).toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Could not determine last index'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('performing full index'));
+		});
+
+
+		it('should force full index when forceFullIndex is true', async () => {
+			mockApiClient.getProjectState.mockResolvedValue({
+				namespace: 'test-project',
+				branch: 'main',
+				commit: 'old-commit-123'
+			});
+
+			await command.run(true);
+
+			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+
+			// Should call scanFiles even though project state exists
+			expect(scannerInstance.scanFiles).toHaveBeenCalled();
+			// Should not call getProjectState since we're forcing full index
+			// (Note: getProjectState might still be called, but we shouldn't use incremental logic)
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should handle incremental index with only added files', async () => {
+			mockApiClient.getProjectState.mockResolvedValue({
+				namespace: 'test-project',
+				branch: 'main',
+				commit: 'old-commit-123'
+			});
+
+			mockGit.getChangedFiles.mockResolvedValue({
+				added: ['src/new-file.ts'],
+				modified: [],
+				deleted: [],
+				renamed: []
+			});
+
+			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
+
+			await command.run(false);
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 1 changed files'));
+			expect(mockApiClient.deleteFiles).not.toHaveBeenCalled();
+		});
+
+		it('should handle incremental index with only deleted files', async () => {
+			mockApiClient.getProjectState.mockResolvedValue({
+				namespace: 'test-project',
+				branch: 'main',
+				commit: 'old-commit-123'
+			});
+
+			mockGit.getChangedFiles.mockResolvedValue({
+				added: [],
+				modified: [],
+				deleted: ['src/deleted-file.ts'],
+				renamed: []
+			});
+
+			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
+
+			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const mockScannerInstance: any = {
+				// @ts-expect-error - Jest mock typing
+				scanFiles: jest.fn().mockResolvedValue([]),
+				// @ts-expect-error - Jest mock typing
+				scanSpecificFiles: jest.fn().mockResolvedValue([])
+			};
+
+			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(() => mockScannerInstance as any);
+
+			command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry
+			});
+
+			await command.run(false);
+
+			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith(['src/deleted-file.ts']);
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('1 files deleted'));
+			// Found 0 changed files because only deleted files exist
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 0 changed files'));
+		});
+	});
+
 	describe('integration', () => {
 		it('should handle upload failure', async () => {
 			mockApiClient.streamToApi.mockResolvedValue(false);

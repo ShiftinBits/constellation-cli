@@ -1,10 +1,9 @@
-import { promisify } from 'node:util';
-import { gzip } from 'node:zlib';
 import { ConstellationClient } from '../api/constellation-client';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
 import { SerializedAST } from '../types/api';
-import { serializeAST, SerializedNode } from '../utils/ast-serializer';
+import { serializeAST } from '../utils/ast-serializer';
+import { ASTCompressor } from '../utils/ast-compressor';
 import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
 import {
 	BLUE_INFO,
@@ -15,8 +14,6 @@ import {
 } from '../utils/unicode-chars';
 import { BaseCommand } from './base.command';
 import { CommandDeps } from './command.deps';
-
-const gzipAsync = promisify(gzip);
 
 /**
  * Command to index project files by parsing ASTs and uploading to the Constellation service.
@@ -29,6 +26,8 @@ export default class IndexCommand extends BaseCommand {
 	private parser: SourceParser;
 	/** Client for communicating with the Constellation API */
 	private apiClient?: ConstellationClient;
+	/** Compressor for optimizing AST data transmission */
+	private compressor: ASTCompressor;
 
 	/**
 	 * Creates a new IndexCommand instance.
@@ -42,6 +41,7 @@ export default class IndexCommand extends BaseCommand {
 		}
 		this.scanner = new FileScanner(process.cwd());
 		this.parser = new SourceParser(this.langRegistry);
+		this.compressor = new ASTCompressor();
 	}
 
 	/**
@@ -260,7 +260,7 @@ export default class IndexCommand extends BaseCommand {
 
 				const serializedAstNode = serializeAST(tree.rootNode);
 
-				const compressedAst = await this.compressAST(serializedAstNode);
+				const compressedAst = await this.compressor.compress(serializedAstNode);
 
 				// Create serialized AST structure (without source code)
 				const serializedAST: SerializedAST = {
@@ -297,16 +297,5 @@ export default class IndexCommand extends BaseCommand {
 		const uploadSuccess = await this.apiClient!.streamToApi(astDataStream, 'ast', this.config!.namespace, this.config!.branch);
 		console.log(`${!uploadSuccess ? `${RED_X} Failed to upload` : `${GREEN_CHECK} Successfully uploaded`} data to Constellation Service...`);
 		return uploadSuccess;
-	}
-
-	/**
-	 * Compresses AST node data using gzip and encodes as base64.
-	 * @param astNode The AST node object to compress
-	 * @returns Base64-encoded compressed AST data
-	 */
-	private async compressAST(astNode: SerializedNode): Promise<string> {
-		const astJsonString = JSON.stringify(astNode);
-		const compressedAstBuffer = await gzipAsync(Buffer.from(astJsonString, 'utf8'));
-		return compressedAstBuffer.toString('base64');
 	}
 }

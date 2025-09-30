@@ -39,6 +39,7 @@ export class FileScanner {
 	/**
 	 * Performs a full scan of all project files matching configured languages.
 	 * Respects .gitignore rules and filters by file extensions.
+	 * Also applies custom exclude patterns from configuration.
 	 * @param config Constellation configuration containing language settings
 	 * @returns Array of file information for files to be parsed
 	 */
@@ -46,6 +47,11 @@ export class FileScanner {
 		// Load .gitignore rules from all levels
 		const ig = ignore();
 		await this.loadGitignoreRules(ig, this.rootPath);
+
+		// Add exclude patterns from configuration
+		if (config.exclude && config.exclude.length > 0) {
+			ig.add(config.exclude);
+		}
 
 		// Walk directory tree
 		const allFiles = await this.walkDirectory(this.rootPath);
@@ -63,12 +69,19 @@ export class FileScanner {
 	/**
 	 * Scans specific files for incremental indexing operations.
 	 * Only processes existing files that match configured language extensions.
+	 * Also applies custom exclude patterns from configuration.
 	 * @param filePaths Array of file paths to scan (absolute or relative)
 	 * @param config Constellation configuration containing language settings
 	 * @returns Array of file information for existing files that match language filters
 	 */
 	async scanSpecificFiles(filePaths: string[], config: ConstellationConfig): Promise<FileInfo[]> {
 		const fileInfos: FileInfo[] = [];
+
+		// Create an ignore instance for exclude patterns
+		let ig: Ignore | null = null;
+		if (config.exclude && config.exclude.length > 0) {
+			ig = ignore().add(config.exclude);
+		}
 
 		for (const filePath of filePaths) {
 			try {
@@ -85,6 +98,11 @@ export class FileScanner {
 
 				// Get relative path
 				const relativePath = path.relative(this.rootPath, absolutePath);
+
+				// Check if file is excluded by exclude patterns
+				if (ig && ig.ignores(relativePath)) {
+					continue; // Skip excluded files
+				}
 
 				// Detect language from extension
 				const language = this.detectLanguage(relativePath, config.languages);

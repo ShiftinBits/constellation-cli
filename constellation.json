@@ -9,5 +9,13 @@
 				".tsx"
 			]
 		}
-	}
+	},
+	"exclude": [
+		"**/*.test.ts",
+		"**/*.spec.ts",
+		"test/**",
+		"tests/**",
+		"__tests__/**",
+		"dist/**"
+	]
 }

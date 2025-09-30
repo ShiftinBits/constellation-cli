@@ -26,6 +26,8 @@ export interface IConstellationConfig {
 	readonly languages: IConstellationLanguageConfig;
 	/** Project namespace identifier (typically project name) */
 	readonly namespace: string;
+	/** Glob patterns to exclude from indexing (optional) */
+	readonly exclude?: string[];
 }
 
 /**
@@ -40,12 +42,14 @@ export class ConstellationConfig implements IConstellationConfig {
 	 * @param branch Git branch to track and index
 	 * @param languages Language-specific configuration including file extensions
 	 * @param namespace Project namespace identifier
+	 * @param exclude Glob patterns to exclude from indexing (optional)
 	 */
 	constructor(
 		readonly apiUrl: string,
 		readonly branch: string,
 		readonly languages: IConstellationLanguageConfig,
-		readonly namespace: string
+		readonly namespace: string,
+		readonly exclude?: string[]
 	) {}
 
 	/**
@@ -67,7 +71,8 @@ export class ConstellationConfig implements IConstellationConfig {
 				parsed.apiUrl,
 				parsed.branch,
 				parsed.languages,
-				parsed.namespace
+				parsed.namespace,
+				parsed.exclude
 			);
 			// Validate the configuration immediately after loading
 			config.validate();
@@ -112,6 +117,19 @@ export class ConstellationConfig implements IConstellationConfig {
 			for (const ext of config.fileExtensions) {
 				if (!ext.startsWith('.')) {
 					throw new Error(`Invalid configuration: file extension "${ext}" for language "${lang}" must start with a dot`);
+				}
+			}
+		}
+
+		// Validate exclude patterns if present
+		if (this.exclude && this.exclude.length > 0) {
+			// Ensure exclude is an array of strings
+			if (!Array.isArray(this.exclude)) {
+				throw new Error('Invalid configuration: exclude must be an array of strings');
+			}
+			for (const pattern of this.exclude) {
+				if (typeof pattern !== 'string') {
+					throw new Error('Invalid configuration: exclude patterns must be strings');
 				}
 			}
 		}

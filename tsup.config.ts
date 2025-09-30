@@ -10,7 +10,7 @@ export default defineConfig({
   clean: true,
   minify: true,
   splitting: false,
-  external: ['@constellation/cli'],
+  external: [],
   treeshake: true,
   bundle: true,
   outDir: 'dist',

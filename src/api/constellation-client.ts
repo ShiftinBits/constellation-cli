@@ -2,6 +2,8 @@ import { ConstellationConfig } from "../config/config";
 import { ProjectState, SerializedAST } from "../types/api";
 import { generateAstId } from "../utils/id.utils";
 import { NdJsonStreamWriter } from "../utils/ndjson-streamwriter";
+import { SerializedASTSchema } from "../schemas/ast.schema";
+import { z } from "zod";
 
 /**
  * Client for communicating with the Constellation central service.
@@ -40,16 +42,32 @@ export class ConstellationClient {
 	 * Uploads a serialized AST to the central service for processing.
 	 * The AST contains no source code, only syntax tree metadata.
 	 * @param serializedAST The compressed AST data to upload
-	 * @throws Error if upload fails
+	 * @throws Error if upload fails or validation fails
 	 */
 	async uploadAST(serializedAST: SerializedAST): Promise<void> {
-		// Send SerializedAST object to server for processing
-		// The AST structure contains no source code, only syntax tree metadata
-		// The ast property is already compressed as base64 string
-		const projectFileId = generateAstId(this.config.namespace, this.config.branch, serializedAST.file);
+		try {
+			// Validate AST structure with Zod to ensure data integrity
+			const validated = SerializedASTSchema.parse(serializedAST);
 
-		// Upload SerializedAST object for server-side intelligence extraction
-		await this.post(`/ast/${projectFileId}`, serializedAST);
+			// Generate unique ID for this file's AST
+			const projectFileId = generateAstId(
+				this.config.namespace,
+				this.config.branch,
+				validated.file
+			);
+
+			// Upload validated AST object for server-side intelligence extraction
+			await this.post(`/ast/${projectFileId}`, validated);
+		} catch (error) {
+			if (error instanceof z.ZodError) {
+				// Format validation errors for clear debugging
+				const issues = error.errors
+					.map(e => `  - ${e.path.join('.')}: ${e.message}`)
+					.join('\n');
+				throw new Error(`AST validation failed:\n${issues}`);
+			}
+			throw error;
+		}
 	}
 
 	/**
@@ -94,7 +112,13 @@ export class ConstellationClient {
 			});
 			return response.ok === true;
 		} catch (error: any) {
-			throw new Error(`Failed to upload data to Constellation Service due to error:\n    ${error.message}`);
+			// Preserve original error stack and context for debugging
+			const errorMessage = `Failed to upload data to Constellation Service`;
+			const originalError = error instanceof Error ? error : new Error(String(error));
+			const enhancedError = new Error(`${errorMessage}: ${originalError.message}`);
+			enhancedError.cause = originalError;
+			enhancedError.stack = `${enhancedError.stack}\nCaused by: ${originalError.stack}`;
+			throw enhancedError;
 		}
 }
 
@@ -163,8 +187,12 @@ export class ConstellationClient {
 
 				return response;
 			} catch (error: Error | any) {
+				// Log with full error context for debugging
+				const errorDetails = error instanceof Error
+					? `${error.message}${error.cause ? ` (Cause: ${error.cause})` : ''}`
+					: String(error);
 				console.log(
-					`HTTP request attempt ${i}/${retries} failed due to error: ${error.message}`
+					`HTTP request attempt ${i}/${retries} failed: ${errorDetails}`
 				);
 
 				// Only retry RetryableError, everything else gets thrown immediately

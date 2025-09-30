@@ -1,8 +1,8 @@
-import { ConstellationConfig } from "../config/config.js";
-import { CrossPlatformEnvironment } from "../env/env-manager.js";
-import { LanguageDetector } from "../languages/language.detector.js";
-import { LanguageRegistry } from "../languages/language.registry.js";
-import { GitClient } from "../utils/git-client.js";
+import { ConstellationConfig } from "../config/config";
+import { CrossPlatformEnvironment } from "../env/env-manager";
+import { LanguageDetector } from "../languages/language.detector";
+import { LanguageRegistry } from "../languages/language.registry";
+import { GitClient } from "../utils/git-client";
 
 /**
  * Dependencies injected into command constructors.

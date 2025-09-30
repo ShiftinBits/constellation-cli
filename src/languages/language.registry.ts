@@ -1,7 +1,7 @@
 import jsTreeSitter from "tree-sitter-javascript";
 import tsTreeSitter from "tree-sitter-typescript";
 
-import { ConstellationConfig } from "../config/config.js";
+import { ConstellationConfig } from "../config/config";
 
 /**
  * Supported programming languages for Tree-sitter parsing.

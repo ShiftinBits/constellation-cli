@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import * as fs from 'node:fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -14,6 +14,20 @@ abstract class EnvironmentManager {
 			return Promise.resolve(process.env[key]);
 		};
 
+    // Check if running in CI/CD environment
+    protected isCI(): boolean {
+        return !!(
+            process.env.CI ||
+            process.env.GITHUB_ACTIONS ||
+            process.env.GITLAB_CI ||
+            process.env.JENKINS_URL ||
+            process.env.CIRCLECI ||
+            process.env.TRAVIS ||
+            process.env.BUILDKITE ||
+            process.env.DRONE
+        );
+    }
+
     // Template method pattern for validation
     protected validateInput(key: string, value: string): void {
         if (!key || typeof key !== 'string') {
@@ -22,6 +36,22 @@ abstract class EnvironmentManager {
         if (value === undefined || value === null) {
             throw new Error('Invalid value provided');
         }
+
+        // Validate key format (alphanumeric + underscore only)
+        if (!/^[A-Z_][A-Z0-9_]*$/i.test(key)) {
+            throw new Error('Environment variable name must contain only letters, numbers, and underscores');
+        }
+
+        // Reject values with null bytes (prevents many attacks)
+        if (value.includes('\0')) {
+            throw new Error('Value contains invalid characters');
+        }
+    }
+
+    // Shell escape helper for Unix-like systems
+    protected escapeShellValue(value: string): string {
+        // Escape special characters that could be interpreted by the shell
+        return value.replace(/[\\'\"$`]/g, '\\$&');
     }
 }
 
@@ -63,18 +93,40 @@ class WindowsEnvironmentManager extends EnvironmentManager {
     async setVariable(key: string, value: string): Promise<void> {
         this.validateInput(key, value);
 
-				const commands: string[] = [
-						// Set persistent (User scope)
-						`setx ${key} "${value}"`,
-						// Set for current process
-						`set ${key}=${value}`
-				];
+        // In CI environments, only set in current process
+        if (this.isCI()) {
+            process.env[key] = value;
+            return;
+        }
 
-				try {
-						for (const cmd of commands) {
-							await execAsync(cmd);
-						}
-						process.env[key] = value; // Also set in Node.js process
+        try {
+            // Use spawn to avoid shell interpretation - prevents command injection
+            await new Promise<void>((resolve, reject) => {
+                const proc = spawn('setx', [key, value], {
+                    shell: false,  // Critical: no shell interpretation
+                    windowsHide: true
+                });
+
+                let stderr = '';
+                proc.stderr?.on('data', (data) => {
+                    stderr += data.toString();
+                });
+
+                proc.on('close', (code) => {
+                    if (code === 0) {
+                        resolve();
+                    } else {
+                        reject(new Error(`setx failed with code ${code}: ${stderr}`));
+                    }
+                });
+
+                proc.on('error', (err) => {
+                    reject(err);
+                });
+            });
+
+            // Also set in Node.js process for immediate use
+            process.env[key] = value;
         } catch (error) {
             throw new Error(`Failed to set environment variable ${key}: ${error}`);
         }
@@ -82,10 +134,36 @@ class WindowsEnvironmentManager extends EnvironmentManager {
 
 		private async queryRegistry(path: string, key: string): Promise<string | undefined> {
         try {
-            const { stdout } = await execAsync(
-                `reg query "${path}" /v ${key}`,
-                { windowsHide: true }
-            );
+            // Use spawn for safer execution
+            const stdout = await new Promise<string>((resolve, reject) => {
+                const proc = spawn('reg', ['query', path, '/v', key], {
+                    shell: false,
+                    windowsHide: true
+                });
+
+                let output = '';
+                let stderr = '';
+
+                proc.stdout?.on('data', (data) => {
+                    output += data.toString();
+                });
+
+                proc.stderr?.on('data', (data) => {
+                    stderr += data.toString();
+                });
+
+                proc.on('close', (code) => {
+                    if (code === 0) {
+                        resolve(output);
+                    } else {
+                        reject(new Error(`reg query failed: ${stderr}`));
+                    }
+                });
+
+                proc.on('error', (err) => {
+                    reject(err);
+                });
+            });
 
             // Parse the output - handles REG_SZ and REG_EXPAND_SZ
             const match = stdout.match(/REG_(?:SZ|EXPAND_SZ)\s+(.+?)(?:\r?\n|$)/);
@@ -128,7 +206,15 @@ class UnixEnvironmentManager extends EnvironmentManager {
     async setVariable(key: string, value: string): Promise<void> {
         this.validateInput(key, value);
 
-        const exportLine = `export ${key}="${value}"`;
+        // In CI environments, only set in current process
+        if (this.isCI()) {
+            process.env[key] = value;
+            return;
+        }
+
+        // Properly escape the value for shell safety
+        const escapedValue = this.escapeShellValue(value);
+        const exportLine = `export ${key}="${escapedValue}"`;
 
         try {
             // Read existing content
@@ -140,7 +226,9 @@ class UnixEnvironmentManager extends EnvironmentManager {
             }
 
             // Check if variable already exists and update it
-            const regex = new RegExp(`^export ${key}=.*$`, 'gm');
+            // Use escaped key in regex to prevent regex injection
+            const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`^export ${escapedKey}=.*$`, 'gm');
             if (regex.test(content)) {
                 content = content.replace(regex, exportLine);
             } else {

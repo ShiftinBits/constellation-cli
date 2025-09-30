@@ -4,7 +4,7 @@ import { ConstellationClient } from '../api/constellation-client';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
 import { SerializedAST } from '../types/api';
-import { serializeAST } from '../utils/ast-serializer';
+import { serializeAST, SerializedNode } from '../utils/ast-serializer';
 import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
 import {
 	BLUE_INFO,
@@ -14,6 +14,7 @@ import {
 	YELLOW_WARN
 } from '../utils/unicode-chars';
 import { BaseCommand } from './base.command';
+import { CommandDeps } from './command.deps';
 
 const gzipAsync = promisify(gzip);
 
@@ -29,14 +30,12 @@ export default class IndexCommand extends BaseCommand {
 	/** Client for communicating with the Constellation API */
 	private apiClient?: ConstellationClient;
 
-	// Process files individually (no batching needed for AST uploads)
-
 	/**
 	 * Creates a new IndexCommand instance.
 	 * @param dependencies Injected command dependencies
 	 * @throws Error if configuration or language registry is not available
 	 */
-	constructor(dependencies: any) {
+	constructor(dependencies: CommandDeps) {
 		super(dependencies);
 		if (!this.config || !this.langRegistry) {
 			throw new Error('index command requires a valid configuration');
@@ -305,7 +304,7 @@ export default class IndexCommand extends BaseCommand {
 	 * @param astNode The AST node object to compress
 	 * @returns Base64-encoded compressed AST data
 	 */
-	private async compressAST(astNode: any): Promise<string> {
+	private async compressAST(astNode: SerializedNode): Promise<string> {
 		const astJsonString = JSON.stringify(astNode);
 		const compressedAstBuffer = await gzipAsync(Buffer.from(astJsonString, 'utf8'));
 		return compressedAstBuffer.toString('base64');

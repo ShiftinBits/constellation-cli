@@ -29,7 +29,6 @@ describe('FileScanner', () => {
 
 		// Create a basic test configuration
 		mockConfig = new ConstellationConfig(
-			'http://localhost:3000',
 			'main',
 			createTestLanguageConfig({
 				typescript: { fileExtensions: ['.ts', '.tsx'] },
@@ -143,7 +142,6 @@ describe('FileScanner', () => {
 
 		it('should apply custom exclude patterns from config', async () => {
 			const configWithExcludes = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				createTestLanguageConfig({
 					typescript: { fileExtensions: ['.ts'] },
@@ -367,7 +365,6 @@ describe('FileScanner', () => {
 
 		it('should apply exclude patterns to specific files', async () => {
 			const configWithExcludes = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				createTestLanguageConfig({
 					typescript: { fileExtensions: ['.ts'] },
@@ -434,7 +431,6 @@ describe('FileScanner', () => {
 
 		it('should work when no exclude patterns are configured', async () => {
 			const configNoExcludes = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				createTestLanguageConfig({
 					typescript: { fileExtensions: ['.ts'] },
@@ -534,7 +530,6 @@ describe('FileScanner', () => {
 
 		it('should handle configuration with no languages', async () => {
 			const emptyConfig = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				createTestLanguageConfig({}),
 				'test-project'
@@ -598,7 +593,6 @@ describe('FileScanner', () => {
 
 		it('should handle files with unusual extensions', async () => {
 			const configWithCustomExts = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				createTestLanguageConfig({
 					typescript: { fileExtensions: ['.ts', '.mts', '.cts'] },

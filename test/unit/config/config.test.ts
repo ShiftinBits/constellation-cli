@@ -33,7 +33,6 @@ describe('ConstellationConfig', () => {
 			});
 
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				languages,
 				'test-project',
@@ -53,13 +52,12 @@ describe('ConstellationConfig', () => {
 			});
 
 			const config = new ConstellationConfig(
-				'https://api.constellation.dev',
 				'develop',
 				languages,
 				'my-project'
 			);
 
-			expect(config.apiUrl).toBe('https://api.constellation.dev');
+			expect(config.apiUrl).toBe('http://localhost:3000');
 			expect(config.branch).toBe('develop');
 			expect(config.languages).toBe(languages);
 			expect(config.namespace).toBe('my-project');
@@ -70,7 +68,6 @@ describe('ConstellationConfig', () => {
 	describe('loadFromFile', () => {
 		it('should load valid configuration from file', async () => {
 			const configData: IConstellationConfig = {
-				apiUrl: 'http://localhost:3000',
 				branch: 'main',
 				languages: createTestLanguageConfig({
 					typescript: { fileExtensions: ['.ts', '.tsx'] },
@@ -85,7 +82,7 @@ describe('ConstellationConfig', () => {
 
 			const config = await ConstellationConfig.loadFromFile('/path/to/config.json');
 
-			expect(config.apiUrl).toBe(configData.apiUrl);
+			expect(config.apiUrl).toBe('http://localhost:3000');
 			expect(config.branch).toBe(configData.branch);
 			expect(config.languages).toEqual(configData.languages);
 			expect(config.namespace).toBe(configData.namespace);
@@ -118,7 +115,6 @@ describe('ConstellationConfig', () => {
 
 		it('should validate configuration after loading', async () => {
 			const invalidConfigData = {
-				apiUrl: 'http://localhost:3000',
 				branch: 'main',
 				languages: {},  // Empty languages should fail validation
 				namespace: 'test-project',
@@ -134,7 +130,6 @@ describe('ConstellationConfig', () => {
 
 		it('should load configuration without optional exclude field', async () => {
 			const configData = {
-				apiUrl: 'http://localhost:3000',
 				branch: 'main',
 				languages: createTestLanguageConfig({
 					typescript: { fileExtensions: ['.ts'] },
@@ -163,7 +158,6 @@ describe('ConstellationConfig', () => {
 
 		it('should pass validation for valid configuration', () => {
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				validLanguages,
 				'test-project',
@@ -173,20 +167,18 @@ describe('ConstellationConfig', () => {
 			expect(() => config.validate()).not.toThrow();
 		});
 
-		it('should throw error if apiUrl is missing', () => {
+		it('should verify apiUrl is set to default value', () => {
 			const config = new ConstellationConfig(
-				'',
 				'main',
 				validLanguages,
 				'test-project'
 			);
 
-			expect(() => config.validate()).toThrow('Invalid configuration: apiUrl is missing');
+			expect(config.apiUrl).toBe('http://localhost:3000');
 		});
 
 		it('should throw error if branch is missing', () => {
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'',
 				validLanguages,
 				'test-project'
@@ -197,7 +189,6 @@ describe('ConstellationConfig', () => {
 
 		it('should throw error if namespace is missing', () => {
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				validLanguages,
 				''
@@ -208,7 +199,6 @@ describe('ConstellationConfig', () => {
 
 		it('should throw error if languages is empty', () => {
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				{} as IConstellationLanguageConfig,
 				'test-project'
@@ -217,26 +207,12 @@ describe('ConstellationConfig', () => {
 			expect(() => config.validate()).toThrow('Invalid configuration: no languages configured');
 		});
 
-		it('should throw error if apiUrl is not a valid URL', () => {
-			const config = new ConstellationConfig(
-				'not-a-valid-url',
-				'main',
-				validLanguages,
-				'test-project'
-			);
-
-			expect(() => config.validate()).toThrow(
-				'Invalid configuration: apiUrl "not-a-valid-url" is not a valid URL'
-			);
-		});
-
 		it('should throw error if language has no file extensions', () => {
 			const invalidLanguages = createTestLanguageConfig({
 				typescript: { fileExtensions: [] },
 			});
 
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				invalidLanguages,
 				'test-project'
@@ -253,7 +229,6 @@ describe('ConstellationConfig', () => {
 			});
 
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				invalidLanguages,
 				'test-project'
@@ -266,7 +241,6 @@ describe('ConstellationConfig', () => {
 
 		it('should throw error if exclude is not an array', () => {
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				validLanguages,
 				'test-project',
@@ -280,7 +254,6 @@ describe('ConstellationConfig', () => {
 
 		it('should throw error if exclude contains non-string values', () => {
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				validLanguages,
 				'test-project',
@@ -292,26 +265,6 @@ describe('ConstellationConfig', () => {
 			);
 		});
 
-		it('should pass validation with valid URL variations', () => {
-			const urls = [
-				'http://localhost:3000',
-				'https://api.constellation.dev',
-				'https://api.constellation.dev:8080',
-				'https://api.constellation.dev/api/v1',
-			];
-
-			urls.forEach(url => {
-				const config = new ConstellationConfig(
-					url,
-					'main',
-					validLanguages,
-					'test-project'
-				);
-
-				expect(() => config.validate()).not.toThrow();
-			});
-		});
-
 		it('should handle multiple languages with different extensions', () => {
 			const multiLanguages = createTestLanguageConfig({
 				typescript: { fileExtensions: ['.ts', '.tsx'] },
@@ -319,7 +272,6 @@ describe('ConstellationConfig', () => {
 			});
 
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				multiLanguages,
 				'test-project'
@@ -330,7 +282,6 @@ describe('ConstellationConfig', () => {
 
 		it('should validate configuration without exclude field', () => {
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				validLanguages,
 				'test-project'
@@ -341,7 +292,6 @@ describe('ConstellationConfig', () => {
 
 		it('should validate configuration with empty exclude array', () => {
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				validLanguages,
 				'test-project',
@@ -361,7 +311,6 @@ describe('ConstellationConfig', () => {
 			});
 
 			config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				languages,
 				'test-project'
@@ -387,7 +336,6 @@ describe('ConstellationConfig', () => {
 
 		it('should handle different branch names', () => {
 			const developConfig = new ConstellationConfig(
-				'http://localhost:3000',
 				'develop',
 				createTestLanguageConfig({ typescript: { fileExtensions: ['.ts'] } }),
 				'test-project'
@@ -401,7 +349,6 @@ describe('ConstellationConfig', () => {
 
 		it('should handle feature branch names', () => {
 			const featureConfig = new ConstellationConfig(
-				'http://localhost:3000',
 				'feature/new-parser',
 				createTestLanguageConfig({ typescript: { fileExtensions: ['.ts'] } }),
 				'test-project'
@@ -421,7 +368,6 @@ describe('ConstellationConfig', () => {
 			});
 
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				languages,
 				'test-project@2024'
@@ -446,7 +392,6 @@ describe('ConstellationConfig', () => {
 			];
 
 			const config = new ConstellationConfig(
-				'http://localhost:3000',
 				'main',
 				languages,
 				'test-project',
@@ -457,54 +402,14 @@ describe('ConstellationConfig', () => {
 			expect(config.exclude).toEqual(complexExclude);
 		});
 
-		it('should validate URLs with various protocols', () => {
-			const validUrls = [
-				'http://localhost:3000',
-				'https://api.example.com',
-				'http://127.0.0.1:8080',
-				'https://subdomain.domain.com:443/path',
-			];
+		it('should verify default apiUrl is set correctly', () => {
+			const config = new ConstellationConfig(
+				'main',
+				createTestLanguageConfig({ typescript: { fileExtensions: ['.ts'] } }),
+				'test-project'
+			);
 
-			const languages = createTestLanguageConfig({
-				typescript: { fileExtensions: ['.ts'] },
-			});
-
-			validUrls.forEach(url => {
-				const config = new ConstellationConfig(
-					url,
-					'main',
-					languages,
-					'test-project'
-				);
-
-				expect(() => config.validate()).not.toThrow();
-			});
-		});
-
-		it('should reject invalid URL formats', () => {
-			const invalidUrls = [
-				'not-a-url',
-				'',
-				'//example.com',
-				'ht/tp://invalid',
-				'http://',
-				'://missing-scheme',
-			];
-
-			const languages = createTestLanguageConfig({
-				typescript: { fileExtensions: ['.ts'] },
-			});
-
-			invalidUrls.forEach(url => {
-				const config = new ConstellationConfig(
-					url,
-					'main',
-					languages,
-					'test-project'
-				);
-
-				expect(() => config.validate()).toThrow(/Invalid configuration: apiUrl/);
-			});
+			expect(config.apiUrl).toBe('http://localhost:3000');
 		});
 	});
 });

@@ -13,7 +13,6 @@ describe('LanguageDetector', () => {
 
 	beforeEach(() => {
 		config = new ConstellationConfig(
-			'https://api.test.com',
 			'main',
 			createTestLanguageConfig({
 				javascript: {
@@ -98,7 +97,6 @@ describe('LanguageDetector', () => {
 	describe('edge cases', () => {
 		it('should handle empty language config', () => {
 			const emptyConfig = new ConstellationConfig(
-				'https://api.test.com',
 				'main',
 				createTestLanguageConfig({}),
 				'test'
@@ -110,7 +108,6 @@ describe('LanguageDetector', () => {
 
 		it('should handle language with no extensions', () => {
 			const noExtConfig = new ConstellationConfig(
-				'https://api.test.com',
 				'main',
 				createTestLanguageConfig({
 					javascript: {
@@ -126,7 +123,6 @@ describe('LanguageDetector', () => {
 
 		it('should handle overlapping extensions (last one wins)', () => {
 			const overlapConfig = new ConstellationConfig(
-				'https://api.test.com',
 				'main',
 				createTestLanguageConfig({
 					javascript: {

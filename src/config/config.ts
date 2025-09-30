@@ -18,8 +18,6 @@ export type IConstellationLanguageConfig = {
  * Loaded from constellation.json file in project root.
  */
 export interface IConstellationConfig {
-	/** API endpoint URL for the Constellation service */
-	readonly apiUrl: string;
 	/** Git branch to track and index */
 	readonly branch: string;
 	/** Language-specific configuration including file extensions */
@@ -35,22 +33,24 @@ export interface IConstellationConfig {
  * Manages configuration state and provides validation for project settings.
  */
 export class ConstellationConfig implements IConstellationConfig {
+	/** API endpoint URL for the Constellation service (from env or default) */
+	readonly apiUrl: string;
 
 	/**
 	 * Creates a new ConstellationConfig instance.
-	 * @param apiUrl API endpoint URL for the Constellation service
 	 * @param branch Git branch to track and index
 	 * @param languages Language-specific configuration including file extensions
 	 * @param namespace Project namespace identifier
 	 * @param exclude Glob patterns to exclude from indexing (optional)
 	 */
 	constructor(
-		readonly apiUrl: string,
 		readonly branch: string,
 		readonly languages: IConstellationLanguageConfig,
 		readonly namespace: string,
 		readonly exclude?: string[]
-	) {}
+	) {
+		this.apiUrl = process.env.CONSTELLATION_API_URL || 'http://localhost:3000';
+	}
 
 	/**
 	 * Loads and validates configuration from a JSON file.
@@ -68,7 +68,6 @@ export class ConstellationConfig implements IConstellationConfig {
 			const fileContents = await FileUtils.readFile(filePath);
 			const parsed = JSON.parse(fileContents) as IConstellationConfig;
 			const config = new ConstellationConfig(
-				parsed.apiUrl,
 				parsed.branch,
 				parsed.languages,
 				parsed.namespace,

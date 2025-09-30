@@ -18,8 +18,6 @@ import { BaseCommand } from './base.command';
  * Results from user prompts during initialization.
  */
 interface PromptResults {
-	/** API endpoint URL for the Constellation service */
-	apiUrl: string;
 	/** Git branch to index and track */
 	branch: string;
 	/** Selected programming languages to parse */
@@ -142,12 +140,6 @@ export default class InitCommand extends BaseCommand {
 						});
 					},
 				},
-				{
-					initial: 'http://localhost:3000',
-					message: 'Constellation API URL:',
-					name: 'apiUrl',
-					type: 'input',
-				},
 			];
 
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -157,7 +149,6 @@ export default class InitCommand extends BaseCommand {
 			const constellationSettings: IConstellationConfig = {
 				namespace: answers.namespace.replaceAll(' ', ''),
 				branch: answers.branch,
-				apiUrl: answers.apiUrl,
 				languages: {
 					...answers.languages.reduce(
 						(acc, lang) => {

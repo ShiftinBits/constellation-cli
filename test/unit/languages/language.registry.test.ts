@@ -13,7 +13,6 @@ describe('LanguageRegistry', () => {
 
 	beforeEach(() => {
 		config = new ConstellationConfig(
-			'https://api.test.com',
 			'main',
 			createTestLanguageConfig({
 				javascript: {
@@ -54,7 +53,6 @@ describe('LanguageRegistry', () => {
 
 		it('should use default extensions when not configured', () => {
 			const configWithoutExtensions = new ConstellationConfig(
-				'https://api.test.com',
 				'main',
 				createTestLanguageConfig({}),
 				'test-project'
@@ -86,7 +84,6 @@ describe('LanguageRegistry', () => {
 
 		it('should use default extensions when not configured', () => {
 			const configWithoutExtensions = new ConstellationConfig(
-				'https://api.test.com',
 				'main',
 				createTestLanguageConfig({}),
 				'test-project'
@@ -144,7 +141,6 @@ describe('LanguageRegistry', () => {
 	describe('configuration override', () => {
 		it('should use custom extensions from config over defaults', () => {
 			const customConfig = new ConstellationConfig(
-				'https://api.test.com',
 				'main',
 				createTestLanguageConfig({
 					javascript: {
@@ -161,7 +157,6 @@ describe('LanguageRegistry', () => {
 
 		it('should fallback to defaults when language not in config', () => {
 			const minimalConfig = new ConstellationConfig(
-				'https://api.test.com',
 				'main',
 				createTestLanguageConfig({
 					javascript: {

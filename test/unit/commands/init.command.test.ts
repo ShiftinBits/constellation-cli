@@ -66,8 +66,7 @@ describe('InitCommand', () => {
 		mockPrompt.mockResolvedValue({
 			namespace: 'test-project',
 			branch: 'main',
-			languages: ['typescript', 'javascript'],
-			apiUrl: 'http://localhost:3000'
+			languages: ['typescript', 'javascript']
 		});
 
 		// Create command instance
@@ -198,21 +197,12 @@ describe('InitCommand', () => {
 			]);
 		});
 
-		it('should default to localhost:3000 for API URL', async () => {
-			await command.run();
-
-			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
-			const apiUrlQuestion = promptQuestions[3];
-			expect(apiUrlQuestion.initial).toBe('http://localhost:3000');
-		});
-
 		it('should remove spaces from namespace', async () => {
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
 				namespace: 'my test project',
 				branch: 'main',
-				languages: ['typescript'],
-				apiUrl: 'http://localhost:3000'
+				languages: ['typescript']
 			});
 
 			await command.run();
@@ -227,8 +217,7 @@ describe('InitCommand', () => {
 			mockPrompt.mockResolvedValue({
 				namespace: 'test-project',
 				branch: 'main',
-				languages: ['typescript', 'python'],
-				apiUrl: 'http://localhost:3000'
+				languages: ['typescript', 'python']
 			});
 
 			await command.run();
@@ -247,8 +236,7 @@ describe('InitCommand', () => {
 			mockPrompt.mockResolvedValue({
 				namespace: 'test-project',
 				branch: 'main',
-				languages: ['unknown-language'],
-				apiUrl: 'http://localhost:3000'
+				languages: ['unknown-language']
 			});
 
 			await command.run();
@@ -276,8 +264,7 @@ describe('InitCommand', () => {
 			mockPrompt.mockResolvedValue({
 				namespace: 'test-project',
 				branch: 'develop',
-				languages: ['javascript'],
-				apiUrl: 'https://api.example.com'
+				languages: ['javascript']
 			});
 
 			await command.run();
@@ -287,7 +274,6 @@ describe('InitCommand', () => {
 
 			expect(configContent).toHaveProperty('namespace', 'test-project');
 			expect(configContent).toHaveProperty('branch', 'develop');
-			expect(configContent).toHaveProperty('apiUrl', 'https://api.example.com');
 			expect(configContent).toHaveProperty('languages');
 		});
 
@@ -407,8 +393,7 @@ describe('InitCommand', () => {
 			mockPrompt.mockResolvedValue({
 				namespace: 'multi-lang-project',
 				branch: 'main',
-				languages: ['typescript', 'javascript', 'python', 'go'],
-				apiUrl: 'http://localhost:3000'
+				languages: ['typescript', 'javascript', 'python', 'go']
 			});
 
 			await command.run();
@@ -428,8 +413,7 @@ describe('InitCommand', () => {
 			mockPrompt.mockResolvedValue({
 				namespace: 'single-lang-project',
 				branch: 'main',
-				languages: ['ruby'],
-				apiUrl: 'http://localhost:3000'
+				languages: ['ruby']
 			});
 
 			await command.run();
@@ -479,8 +463,7 @@ describe('InitCommand', () => {
 			mockPrompt.mockResolvedValue({
 				namespace: longName,
 				branch: 'main',
-				languages: ['typescript'],
-				apiUrl: 'http://localhost:3000'
+				languages: ['typescript']
 			});
 
 			await command.run();
@@ -495,8 +478,7 @@ describe('InitCommand', () => {
 			mockPrompt.mockResolvedValue({
 				namespace: 'test-project_v2.0',
 				branch: 'main',
-				languages: ['typescript'],
-				apiUrl: 'http://localhost:3000'
+				languages: ['typescript']
 			});
 
 			await command.run();
@@ -504,22 +486,6 @@ describe('InitCommand', () => {
 			const writeCall = (FileUtils.writeFile as jest.Mock).mock.calls[0];
 			const configContent = JSON.parse(writeCall[1] as string);
 			expect(configContent.namespace).toBe('test-project_v2.0');
-		});
-
-		it('should handle custom API URLs', async () => {
-			// @ts-expect-error - Jest mock typing
-			mockPrompt.mockResolvedValue({
-				namespace: 'test-project',
-				branch: 'main',
-				languages: ['typescript'],
-				apiUrl: 'https://custom-api.example.com:8080/api/v1'
-			});
-
-			await command.run();
-
-			const writeCall = (FileUtils.writeFile as jest.Mock).mock.calls[0];
-			const configContent = JSON.parse(writeCall[1] as string);
-			expect(configContent.apiUrl).toBe('https://custom-api.example.com:8080/api/v1');
 		});
 	});
 });

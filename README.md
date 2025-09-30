@@ -41,7 +41,6 @@ constellation init
 1. **Project Namespace**: A unique identifier for your project (defaults to remote repository name)
 2. **Branch to Index**: Select which Git branch to track and index
 3. **Languages**: Multi-select the programming languages used in your project
-4. **API URL**: The Constellation service endpoint (defaults to `http://localhost:3000`)
 
 **Supported Languages:**
 
@@ -153,7 +152,6 @@ The CLI uses a `constellation.json` file for configuration:
 {
 	"namespace": "my-project",
 	"branch": "main",
-	"apiUrl": "http://localhost:3000",
 	"languages": {
 		"typescript": {
 			"fileExtensions": [".ts"]
@@ -169,7 +167,6 @@ The CLI uses a `constellation.json` file for configuration:
 
 - `namespace`: Unique project identifier
 - `branch`: Git branch to track and index
-- `apiUrl`: Constellation service endpoint
 - `languages`: Language configuration with file extensions
 
 ## Architecture

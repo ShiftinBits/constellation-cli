@@ -324,4 +324,212 @@ describe('CrossPlatformEnvironment', () => {
 			expect(FileUtils.writeFile).not.toHaveBeenCalled();
 		});
 	});
+
+	describe('setKey - Windows (win32)', () => {
+		let mockSpawn: jest.Mock;
+		let mockProcess: MockChildProcess;
+
+		beforeEach(() => {
+			(os.platform as jest.Mock).mockReturnValue('win32');
+			delete process.env.CI;
+
+			// Mock child_process.spawn
+			mockProcess = new MockChildProcess();
+			mockSpawn = jest.fn().mockReturnValue(mockProcess);
+
+			// Mock the spawn function
+			const childProcess = require('child_process');
+			childProcess.spawn = mockSpawn;
+
+			env = new CrossPlatformEnvironment();
+		});
+
+		it('should set environment variable using setx command', async () => {
+			const promise = env.setKey('test_key', 'test-value');
+
+			// Simulate successful setx execution
+			setImmediate(() => {
+				mockProcess.emit('close', 0);
+			});
+
+			await promise;
+
+			expect(mockSpawn).toHaveBeenCalledWith('setx', ['TEST_KEY', 'test-value'], {
+				shell: false,
+				windowsHide: true
+			});
+			expect(process.env.TEST_KEY).toBe('test-value');
+		});
+
+		it('should handle setx command failure', async () => {
+			const promise = env.setKey('test_key', 'test-value');
+
+			// Simulate setx failure
+			setImmediate(() => {
+				if (mockProcess.stderr) {
+					mockProcess.stderr.emit('data', Buffer.from('Access denied'));
+				}
+				mockProcess.emit('close', 1);
+			});
+
+			await expect(promise).rejects.toThrow('Failed to set environment variable TEST_KEY');
+		});
+
+		it('should handle spawn error', async () => {
+			const promise = env.setKey('test_key', 'test-value');
+
+			// Simulate spawn error
+			setImmediate(() => {
+				mockProcess.emit('error', new Error('Command not found'));
+			});
+
+			await expect(promise).rejects.toThrow('Failed to set environment variable TEST_KEY');
+		});
+
+		it('should only set in process.env when in CI environment', async () => {
+			process.env.CI = 'true';
+			env = new CrossPlatformEnvironment();
+
+			await env.setKey('test_key', 'test-value');
+
+			expect(process.env.TEST_KEY).toBe('test-value');
+			expect(mockSpawn).not.toHaveBeenCalled();
+		});
+
+		it('should escape special characters properly', async () => {
+			const promise = env.setKey('test_key', 'value with spaces');
+
+			setImmediate(() => {
+				mockProcess.emit('close', 0);
+			});
+
+			await promise;
+
+			expect(mockSpawn).toHaveBeenCalledWith('setx', ['TEST_KEY', 'value with spaces'], expect.any(Object));
+		});
+	});
+
+	describe('getKey - Windows registry', () => {
+		let mockSpawn: jest.Mock;
+		let mockProcess: MockChildProcess;
+
+		beforeEach(() => {
+			(os.platform as jest.Mock).mockReturnValue('win32');
+
+			mockProcess = new MockChildProcess();
+			mockSpawn = jest.fn().mockReturnValue(mockProcess);
+
+			const childProcess = require('child_process');
+			childProcess.spawn = mockSpawn;
+
+			env = new CrossPlatformEnvironment();
+		});
+
+		it('should retrieve value from user registry', async () => {
+			const promise = env.getKey('TEST_KEY');
+
+			// Simulate successful registry query
+			setImmediate(() => {
+				if (mockProcess.stdout) {
+					mockProcess.stdout.emit('data', Buffer.from('TEST_KEY    REG_SZ    test-value\r\n'));
+				}
+				mockProcess.emit('close', 0);
+			});
+
+			const result = await promise;
+			expect(result).toBe('test-value');
+			expect(mockSpawn).toHaveBeenCalledWith('reg', ['query', 'HKCU\\Environment', '/v', 'TEST_KEY'], {
+				shell: false,
+				windowsHide: true
+			});
+		});
+
+		it('should fallback to system registry if not in user registry', async () => {
+			let callCount = 0;
+			mockSpawn = jest.fn().mockImplementation(() => {
+				callCount++;
+				const proc = new MockChildProcess();
+
+				if (callCount === 1) {
+					// First call (user registry) - not found
+					setImmediate(() => {
+						proc.emit('close', 1);
+					});
+				} else if (callCount === 2) {
+					// Second call (system registry) - found
+					setImmediate(() => {
+						if (proc.stdout) {
+							proc.stdout.emit('data', Buffer.from('TEST_KEY    REG_SZ    system-value\r\n'));
+						}
+						proc.emit('close', 0);
+					});
+				}
+
+				return proc;
+			});
+
+			const childProcess = require('child_process');
+			childProcess.spawn = mockSpawn;
+			env = new CrossPlatformEnvironment();
+
+			const result = await env.getKey('TEST_KEY');
+
+			expect(result).toBe('system-value');
+			expect(mockSpawn).toHaveBeenCalledTimes(2);
+			expect(mockSpawn).toHaveBeenNthCalledWith(2, 'reg',
+				['query', 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', '/v', 'TEST_KEY'],
+				expect.any(Object)
+			);
+		});
+
+		it('should return undefined when key not found in either registry', async () => {
+			mockSpawn = jest.fn().mockImplementation(() => {
+				const proc = new MockChildProcess();
+				setImmediate(() => {
+					proc.emit('close', 1);
+				});
+				return proc;
+			});
+
+			const childProcess = require('child_process');
+			childProcess.spawn = mockSpawn;
+			env = new CrossPlatformEnvironment();
+
+			const result = await env.getKey('NONEXISTENT_KEY');
+
+			expect(result).toBeUndefined();
+			expect(process.env.NONEXISTENT_KEY).toBeUndefined();
+		});
+
+		it('should handle REG_EXPAND_SZ type', async () => {
+			const promise = env.getKey('PATH');
+
+			setImmediate(() => {
+				if (mockProcess.stdout) {
+					mockProcess.stdout.emit('data', Buffer.from('PATH    REG_EXPAND_SZ    C:\\Windows\\System32\r\n'));
+				}
+				mockProcess.emit('close', 0);
+			});
+
+			const result = await promise;
+			expect(result).toBe('C:\\Windows\\System32');
+		});
+
+		it('should handle registry query errors', async () => {
+			mockSpawn = jest.fn().mockImplementation(() => {
+				const proc = new MockChildProcess();
+				setImmediate(() => {
+					proc.emit('error', new Error('Registry access denied'));
+				});
+				return proc;
+			});
+
+			const childProcess = require('child_process');
+			childProcess.spawn = mockSpawn;
+			env = new CrossPlatformEnvironment();
+
+			const result = await env.getKey('TEST_KEY');
+			expect(result).toBeUndefined();
+		});
+	});
 });

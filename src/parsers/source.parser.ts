@@ -46,7 +46,10 @@ export class SourceParser {
 			// Most files (<10MB): Read entire file asynchronously, parse synchronously
 			// This eliminates blocking I/O for 99% of source files
 			const content = await FileUtils.readFile(filePath);
-			return parser.parse(content);
+			const options: Parser.Options = {
+      bufferSize: 1024 * 1024, // Set the bufferSize to 1 MB (1024 KB)
+    };
+			return parser.parse(content, undefined, options);
 		} else {
 			// Large files (>10MB): Use streaming with callback
 			// Tree-sitter's API requires sync callbacks, so we minimize blocking

@@ -70,7 +70,6 @@ export function createMockGitClient(): jest.Mocked<GitClient> {
  */
 export function createMockApiClient(): jest.Mocked<ConstellationClient> {
 	const mock: Partial<jest.Mocked<ConstellationClient>> = {
-		uploadAST: jest.fn().mockResolvedValue({ success: true }),
 		uploadBatch: jest.fn().mockResolvedValue({ success: true }),
 		getProject: jest.fn().mockResolvedValue({
 			id: 'test-project',

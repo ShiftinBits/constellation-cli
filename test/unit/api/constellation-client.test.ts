@@ -142,71 +142,6 @@ describe('ConstellationClient', () => {
 		});
 	});
 
-	describe('uploadAST', () => {
-		it('should successfully upload valid AST', async () => {
-			const testAST = createTestAST();
-			const mockResponse = createMockResponse(200, true, testAST);
-			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(mockResponse);
-
-			await client.uploadAST(testAST);
-
-			expect(generateAstId).toHaveBeenCalledWith('test-project', 'main', 'src/test.ts');
-			expect(mockFetch).toHaveBeenCalledWith(
-				'https://api.constellation.test/v1//ast/mock-project-id',
-				expect.objectContaining({
-					method: 'POST',
-					headers: expect.objectContaining({
-						'Content-Type': 'application/json; charset=utf-8',
-						Authorization: mockAccessKey
-					}),
-					body: JSON.stringify(testAST)
-				})
-			);
-		});
-
-		it('should throw validation error for invalid AST', async () => {
-			const invalidAST = createTestAST({
-				commit: 'invalid-commit', // Invalid SHA-1
-			});
-
-			await expect(client.uploadAST(invalidAST)).rejects.toThrow(
-				/AST validation failed/
-			);
-
-			expect(mockFetch).not.toHaveBeenCalled();
-		});
-
-		it('should format validation errors clearly', async () => {
-			const invalidAST = createTestAST({
-				file: '', // Empty file path
-				language: 'invalid-lang', // Invalid language
-				commit: 'short' // Invalid commit hash
-			});
-
-			await expect(client.uploadAST(invalidAST)).rejects.toThrow(/AST validation failed/);
-		});
-
-		it('should propagate non-validation errors', async () => {
-			const testAST = createTestAST();
-			// @ts-expect-error - Jest mock typing
-		mockFetch.mockRejectedValue(new Error('Network error'));
-
-			await expect(client.uploadAST(testAST)).rejects.toThrow('Network error');
-		});
-
-		it('should handle server errors during upload', async () => {
-			const testAST = createTestAST();
-			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(500, false));
-
-			// Use real timers for this test since we want actual retry behavior
-			jest.useRealTimers();
-			await expect(client.uploadAST(testAST)).rejects.toThrow();
-			jest.useFakeTimers();
-		});
-	});
-
 	describe('deleteFiles', () => {
 		it('should delete single file', async () => {
 			const filePaths = ['src/deleted.ts'];
@@ -288,7 +223,8 @@ describe('ConstellationClient', () => {
 				mockStream as any,
 				'upload',
 				'test-namespace',
-				'test-branch'
+				'test-branch',
+				false
 			);
 
 			expect(result).toBe(true);
@@ -332,7 +268,8 @@ describe('ConstellationClient', () => {
 				mockStream as any,
 				'upload',
 				'test-namespace',
-				'test-branch'
+				'test-branch',
+				false
 			);
 
 			expect(result).toBe(false);
@@ -352,7 +289,8 @@ describe('ConstellationClient', () => {
 				mockStream as any,
 				'upload',
 				'test-namespace',
-				'test-branch'
+				'test-branch',
+				false
 			)).rejects.toThrow(/Failed to upload data to Constellation Service/);
 		});
 	});
@@ -476,11 +414,10 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should merge custom headers with defaults', async () => {
-			const testAST = createTestAST();
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(200, true, testAST));
+		mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
 
-			await client.uploadAST(testAST);
+			await client.getProjectState();
 
 			expect(mockFetch).toHaveBeenCalledWith(
 				expect.any(String),

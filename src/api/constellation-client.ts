@@ -2,8 +2,6 @@ import { ConstellationConfig } from "../config/config";
 import { ProjectState, SerializedAST } from "../types/api";
 import { generateAstId } from "../utils/id.utils";
 import { NdJsonStreamWriter } from "../utils/ndjson-streamwriter";
-import { SerializedASTSchema } from "../schemas/ast.schema";
-import { z } from "zod";
 
 /**
  * Client for communicating with the Constellation central service.
@@ -41,38 +39,6 @@ export class ConstellationClient {
 	}
 
 	/**
-	 * Uploads a serialized AST to the central service for processing.
-	 * The AST contains no source code, only syntax tree metadata.
-	 * @param serializedAST The compressed AST data to upload
-	 * @throws Error if upload fails or validation fails
-	 */
-	async uploadAST(serializedAST: SerializedAST): Promise<void> {
-		try {
-			// Validate AST structure with Zod to ensure data integrity
-			const validated = SerializedASTSchema.parse(serializedAST);
-
-			// Generate unique ID for this file's AST
-			const projectFileId = generateAstId(
-				this.config.namespace,
-				this.config.branch,
-				validated.file
-			);
-
-			// Upload validated AST object for server-side intelligence extraction
-			await this.post(`/ast/${projectFileId}`, validated);
-		} catch (error) {
-			if (error instanceof z.ZodError) {
-				// Format validation errors for clear debugging
-				const issues = error.errors
-					.map(e => `  - ${e.path.join('.')}: ${e.message}`)
-					.join('\n');
-				throw new Error(`AST validation failed:\n${issues}`);
-			}
-			throw error;
-		}
-	}
-
-	/**
 	 * Removes AST data for deleted files from the central service.
 	 * @param deletedFiles Array of file paths that have been deleted
 	 * @throws Error if deletion fails for any file
@@ -95,7 +61,7 @@ export class ConstellationClient {
 	 * @returns True if upload successful, false otherwise
 	 * @throws Error if stream fails to upload
 	 */
-	async streamToApi(dataStream: AsyncGenerator<SerializedAST>, path: string, namespace: string, branchName: string): Promise<boolean> {
+	async streamToApi(dataStream: AsyncGenerator<SerializedAST>, path: string, namespace: string, branchName: string, incrementalIndex: boolean): Promise<boolean> {
 		try {
 			const { Readable } = await import('stream');
 			const stream = new NdJsonStreamWriter(dataStream);
@@ -106,7 +72,7 @@ export class ConstellationClient {
 						'Content-Type': 'application/x-ndjson; charset=utf-8', // Newline-delimited JSON
 						'x-project-id': namespace,
 						'x-branch-name': branchName,
-						// 'Transfer-Encoding': 'chunked',
+						'x-constellation-index': incrementalIndex ? 'incremental' : 'full',
 						Authorization: this.accessKey
 					},
 					body: Readable.toWeb(stream),
@@ -230,34 +196,6 @@ export class ConstellationClient {
 
 		if (!response.ok) {
 			throw new Error(`Failed to load`);
-		}
-
-		const data = await response.json();
-		return data as T;
-	}
-
-	/**
-	 * Sends a POST request to the API.
-	 * @param path URL path to post to
-	 * @param body Request body data
-	 * @returns The response from the API or null if request fails
-	 * @throws Error if request fails with non-retryable error
-	 */
-	private async post<T>(path: string, body: T): Promise<T | null> {
-
-		const response = await this.sendRequest(
-			path,
-			body,
-			"POST"
-		);
-
-		// Handle 401 responses gracefully
-		if (!response) {
-			return null;
-		}
-
-		if (!response.ok) {
-			throw new Error(`Failed sending HTTP POST to ${path}`);
 		}
 
 		const data = await response.json();

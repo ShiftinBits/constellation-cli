@@ -76,7 +76,7 @@ export default class IndexCommand extends BaseCommand {
 			const astDataStream = this.generateASTs(files);
 
 			// Step 6: Transmit to API
-			await this.uploadToAPI(astDataStream);
+			await this.uploadToAPI(astDataStream, isIncrementalIndex);
 
 			console.log(`\n${GREEN_CHECK} Indexing complete!`);
 		} catch (error) {
@@ -327,8 +327,8 @@ export default class IndexCommand extends BaseCommand {
 	 * Processes files individually with compression to optimize network transfer.
 	 * @param astData Array of serialized AST data to upload
 	 */
-	private async uploadToAPI(astDataStream: AsyncGenerator<SerializedAST>): Promise<boolean> {
-		const uploadSuccess = await this.apiClient!.streamToApi(astDataStream, 'ast', this.config!.namespace, this.config!.branch);
+	private async uploadToAPI(astDataStream: AsyncGenerator<SerializedAST>, incremental: boolean): Promise<boolean> {
+		const uploadSuccess = await this.apiClient!.streamToApi(astDataStream, 'ast', this.config!.namespace, this.config!.branch, incremental);
 		console.log(`${!uploadSuccess ? `${RED_X} Failed to upload` : `${GREEN_CHECK} Successfully uploaded`} data to Constellation Service...`);
 		return uploadSuccess;
 	}

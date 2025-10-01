@@ -93,8 +93,6 @@ describe('IndexCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			getProjectState: jest.fn().mockResolvedValue(null),
 			// @ts-expect-error - Jest mock typing
-			uploadAST: jest.fn().mockResolvedValue(undefined),
-			// @ts-expect-error - Jest mock typing
 			deleteFiles: jest.fn().mockResolvedValue(undefined),
 			// @ts-expect-error - Jest mock typing
 			streamToApi: jest.fn().mockResolvedValue(true)

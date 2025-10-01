@@ -1,9 +1,9 @@
 import {
+	PullResult,
 	simpleGit,
 	SimpleGit,
 	SimpleGitOptions,
 	StatusResult,
-	PullResult,
 } from 'simple-git';
 
 /**
@@ -59,7 +59,6 @@ export class GitClient {
 		if (!log.latest) {
 			throw new Error('No commits found in repository');
 		}
-
 		return log.latest.hash;
 	}
 

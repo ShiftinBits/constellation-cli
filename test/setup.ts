@@ -16,8 +16,7 @@ global.console = {
 	debug: jest.fn(),
 	info: jest.fn(),
 	warn: jest.fn(),
-	// Keep error for debugging failed tests
-	error: console.error,
+	error: jest.fn(),
 };
 
 // Clean up after each test

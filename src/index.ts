@@ -77,7 +77,7 @@ program.command('index')
 				Environment: cpEnvironment
 			};
 
-			const fullIndex = params.full || !params.incremental || false;
+			const fullIndex = params.full || false;
 			const indexCommand = new IndexCommand(commandDeps);
 			await indexCommand.run(fullIndex);
 		} catch (error) {

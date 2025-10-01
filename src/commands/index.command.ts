@@ -69,14 +69,21 @@ export default class IndexCommand extends BaseCommand {
 			await this.synchronizeChanges();
 
 			// Step 4: Determine Index Scope
-			const isIncrementalIndex = await this.determineIndexScope(forceFullIndex);
+			const indexScopeResult = await this.determineIndexScope(forceFullIndex);
+
+			// Exit early if already up-to-date
+			if (indexScopeResult.upToDate) {
+				const currentCommit = await this.git!.getLatestCommitHash();
+				console.log(`\n${GREEN_CHECK} Index is already up-to-date for ${this.config!.namespace} on ${this.config!.branch} commit ${currentCommit.substring(0, 8)}`);
+				return;
+			}
 
 			// Step 5: Analyze Codebase
-			const files = await this.discoverFiles(isIncrementalIndex);
+			const files = await this.discoverFiles(indexScopeResult.isIncremental);
 			const astDataStream = this.generateASTs(files);
 
 			// Step 6: Transmit to API
-			await this.uploadToAPI(astDataStream, isIncrementalIndex);
+			await this.uploadToAPI(astDataStream, indexScopeResult.isIncremental);
 
 			console.log(`\n${GREEN_CHECK} Indexing complete!`);
 		} catch (error) {
@@ -185,11 +192,11 @@ export default class IndexCommand extends BaseCommand {
 	/**
 	 * Determines whether to perform a full or incremental index.
 	 * @param forceFullIndex If true, forces a full index
-	 * @returns True if incremental indexing should be used, false for full index
+	 * @returns Object indicating if index is up-to-date and whether to use incremental mode
 	 */
-	private async determineIndexScope(forceFullIndex: boolean): Promise<boolean> {
+	private async determineIndexScope(forceFullIndex: boolean): Promise<{ isIncremental: boolean; upToDate: boolean }> {
 		if (forceFullIndex) {
-			return false; // Not incremental
+			return { isIncremental: false, upToDate: false }; // Not incremental
 		}
 
 		console.log(`${BLUE_INFO} Determining index scope...`);
@@ -201,24 +208,24 @@ export default class IndexCommand extends BaseCommand {
 
 			if (!lastIndexedCommit) {
 				console.log(`  ${BLUE_INFO} No previous index found - performing full index`);
-				return false; // Full index needed
+				return { isIncremental: false, upToDate: false }; // Full index needed
 			}
 
 			// Check if commit still exists in history
 			const currentCommit = await this.git!.getLatestCommitHash();
 			if (lastIndexedCommit === currentCommit) {
 				console.log(`  ${GREEN_CHECK} Already up to date`);
-				return true; // Nothing to do
+				return { isIncremental: true, upToDate: true }; // Nothing to do
 			}
 
 			console.log(`  ${BLUE_INFO} Last indexed commit: ${lastIndexedCommit.substring(0, 8)}`);
 			console.log(`  ${BLUE_INFO} Current commit: ${currentCommit.substring(0, 8)}`);
 
-			console.log(`${BLUE_INFO} Performing incremental index from ${lastIndexedCommit.substring(0, 8)}`);
-			return true; // Incremental index
+			console.log(`${BLUE_INFO} Performing incremental index starting from commit ${lastIndexedCommit.substring(0, 8)}`);
+			return { isIncremental: true, upToDate: false }; // Incremental index
 		} catch (error) {
 			console.log(`${YELLOW_WARN} Could not determine last index - performing full index`);
-			return false; // Default to full index
+			return { isIncremental: false, upToDate: false }; // Default to full index
 		}
 	}
 
@@ -310,7 +317,7 @@ export default class IndexCommand extends BaseCommand {
 
 			} catch (error) {
 				errorCount++;
-				console.log(`    ${YELLOW_WARN} Failed to parse ${file.relativePath}: ${(error as Error).message}`);
+				console.error(`    ${YELLOW_WARN} Failed to parse ${file.relativePath}: ${(error as Error).message}`, error);
 			}
 		}
 

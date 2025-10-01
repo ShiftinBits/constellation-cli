@@ -2,6 +2,7 @@ import { ConstellationConfig } from "../config/config";
 import { ProjectState, SerializedAST } from "../types/api";
 import { generateAstId } from "../utils/id.utils";
 import { NdJsonStreamWriter } from "../utils/ndjson-streamwriter";
+import { RED_X } from "../utils/unicode-chars";
 
 /**
  * Client for communicating with the Constellation central service.
@@ -32,8 +33,17 @@ export class ConstellationClient {
 			const params = new URLSearchParams({
 				branchName: this.config.branch
 			});
-			return await this.get<ProjectState>(`/project/${this.config.namespace}?${params.toString()}`);
+			const headers = {
+						'Content-Type': 'application/x-ndjson; charset=utf-8', // Newline-delimited JSON
+						'x-project-id': this.config.namespace,
+						'x-branch-name': this.config.branch,
+						Authorization: this.accessKey
+					};
+			const response = await this.sendRequest('project', undefined, 'GET', headers);
+			const state = response?.ok ? response.json() as unknown as ProjectState : null;
+			return state;
 		} catch (error) {
+			console.error(`${RED_X} Failed to query current project state`, error);
 			return null;
 		}
 	}
@@ -132,7 +142,6 @@ export class ConstellationClient {
 					method,
 					headers: requestHeaders,
 					body: data ? JSON.stringify(data) : undefined,
-					credentials: "include",
 					signal: controller.signal,
 				});
 
@@ -172,34 +181,6 @@ export class ConstellationClient {
 				}
 			}
 		}
-	}
-
-	/**
-	 * Sends a GET request to the API.
-	 * @param path URL path to request
-	 * @returns The fetched entity or null if not found
-	 * @throws Error if request fails with non-retryable error
-	 */
-	private async get<T>(
-		path: string
-	): Promise<T | null> {
-		const response = await this.sendRequest(
-			path,
-			undefined,
-			"GET"
-		);
-
-		// Handle 401 responses gracefully
-		if (!response) {
-			return null;
-		}
-
-		if (!response.ok) {
-			throw new Error(`Failed to load`);
-		}
-
-		const data = await response.json();
-		return data as T;
 	}
 
 	/**

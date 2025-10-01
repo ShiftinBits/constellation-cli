@@ -375,7 +375,7 @@ describe('IndexCommand', () => {
 			await command.run(false);
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Already up to date'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Index is already up-to-date'));
 		});
 
 		it('should fallback to full index when getProjectState fails', async () => {

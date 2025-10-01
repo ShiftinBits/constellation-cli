@@ -1,10 +1,9 @@
-import { jest, describe, it, beforeEach, afterEach, expect } from '@jest/globals';
-import { ConstellationClient, RetryableError, AuthenticationError } from '../../../src/api/constellation-client';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { AuthenticationError, ConstellationClient, RetryableError } from '../../../src/api/constellation-client';
 import { ConstellationConfig } from '../../../src/config/config';
 import { ProjectState, SerializedAST } from '../../../src/types/api';
 import { generateAstId } from '../../../src/utils/id.utils';
 import { NdJsonStreamWriter } from '../../../src/utils/ndjson-streamwriter';
-import { z } from 'zod';
 
 // Mock dependencies
 jest.mock('../../../src/utils/id.utils', () => ({
@@ -101,11 +100,13 @@ describe('ConstellationClient', () => {
 			const result = await client.getProjectState();
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				'https://api.constellation.test/v1//project/test-project?branchName=main',
+				'https://api.constellation.test/v1/project',
 				expect.objectContaining({
 					method: 'GET',
 					headers: expect.objectContaining({
 						'Content-Type': 'application/json; charset=utf-8',
+						'x-project-id': 'test-project',
+						'x-branch-name': 'main',
 						Accepts: 'application/json; charset=utf-8',
 						Authorization: mockAccessKey
 					})
@@ -134,7 +135,7 @@ describe('ConstellationClient', () => {
 
 		it('should return null when authentication fails', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockRejectedValue(new AuthenticationError('Authentication failed'));
+			mockFetch.mockRejectedValue(new AuthenticationError('Authentication failed'));
 
 			const result = await client.getProjectState();
 
@@ -406,9 +407,10 @@ describe('ConstellationClient', () => {
 					headers: {
 						'Content-Type': 'application/json; charset=utf-8',
 						Accepts: 'application/json; charset=utf-8',
-						Authorization: mockAccessKey
-					},
-					credentials: 'include'
+						Authorization: mockAccessKey,
+						'x-branch-name': 'main',
+						'x-project-id': 'test-project'
+					}
 				})
 			);
 		});
@@ -441,40 +443,33 @@ describe('ConstellationClient', () => {
 			expect(result).toBeNull();
 		});
 
-		it('should preserve error context in retry logic', async () => {
+		it('should log errors when sendRequest fails', async () => {
 			const originalError = new Error('Original error');
 			// @ts-expect-error - Jest mock typing
 		mockFetch.mockRejectedValue(originalError);
-
-			// Mock console.log to capture retry messages
-			const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
 			// getProjectState catches all errors and returns null
 			const result = await client.getProjectState();
 			expect(result).toBeNull();
 
-			expect(consoleSpy).toHaveBeenCalledWith(
+			// Should log the error once (no retries for non-RetryableError)
+			expect(console.log).toHaveBeenCalledWith(
 				expect.stringContaining('HTTP request attempt 1/3 failed: Original error')
 			);
-
-			consoleSpy.mockRestore();
 		});
 
 		it('should handle non-Error objects in catch blocks', async () => {
 			// @ts-expect-error - Jest mock typing
 		mockFetch.mockRejectedValue('String error');
 
-			const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
-
 			// getProjectState catches all errors and returns null
 			const result = await client.getProjectState();
 			expect(result).toBeNull();
 
-			expect(consoleSpy).toHaveBeenCalledWith(
+			// Should log the string error once
+			expect(console.log).toHaveBeenCalledWith(
 				expect.stringContaining('HTTP request attempt 1/3 failed: String error')
 			);
-
-			consoleSpy.mockRestore();
 		});
 	});
 
@@ -486,7 +481,7 @@ describe('ConstellationClient', () => {
 			await client.getProjectState();
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				'https://api.constellation.test/v1//project/test-project?branchName=main',
+				'https://api.constellation.test/v1/project',
 				expect.any(Object)
 			);
 		});

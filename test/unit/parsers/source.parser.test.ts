@@ -1,10 +1,10 @@
-import { jest, describe, it, beforeEach, afterEach, expect } from '@jest/globals';
-import { SourceParser } from '../../../src/parsers/source.parser';
-import { LanguageRegistry, ParserLanguage } from '../../../src/languages/language.registry';
-import { FileUtils } from '../../../src/utils/file.utils';
-import Parser, { Tree, Input } from 'tree-sitter';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
+import Parser, { Input, Tree } from 'tree-sitter';
+import { ParserLanguage } from '../../../src/languages/language.registry';
+import { SourceParser } from '../../../src/parsers/source.parser';
+import { FileUtils } from '../../../src/utils/file.utils';
 
 // Mock dependencies
 jest.mock('../../../src/utils/file.utils');
@@ -127,7 +127,7 @@ describe('SourceParser', () => {
 			expect(mockParser.setLanguage).toHaveBeenCalledWith(mockLanguage);
 			expect(FileUtils.getFileStats).toHaveBeenCalledWith(filePath);
 			expect(FileUtils.readFile).toHaveBeenCalledWith(filePath);
-			expect(mockParser.parse).toHaveBeenCalledWith(fileContent);
+			expect(mockParser.parse).toHaveBeenCalledWith(fileContent, undefined, {"bufferSize": 1048576});
 			expect(result).toBe(mockTree);
 		});
 
@@ -258,7 +258,7 @@ describe('SourceParser', () => {
 
 			// Should use direct reading (not streaming) for files <= threshold
 			expect(FileUtils.readFile).toHaveBeenCalledWith(filePath);
-			expect(mockParser.parse).toHaveBeenCalledWith(fileContent);
+			expect(mockParser.parse).toHaveBeenCalledWith(fileContent, undefined, {"bufferSize": 1048576});
 			expect(result).toBe(mockTree);
 		});
 	});

@@ -10,7 +10,8 @@ import { FileScanner } from '../../src/scanners/file-scanner';
 export function createMockConfig(overrides?: Partial<ConstellationConfig>): ConstellationConfig {
 	return {
 		version: '1.0.0',
-		projectName: 'test-project',
+		namespace: 'test-project',
+		branch: 'main',
 		languages: {
 			typescript: {
 				fileExtensions: ['.ts', '.tsx'],

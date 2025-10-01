@@ -4,12 +4,18 @@
  * Used to track indexing progress and determine incremental update needs.
  */
 export interface ProjectState {
-	/** Project namespace identifier (typically project name) */
-	namespace: string;
+	/** Project identifier */
+	projectId: string;
 	/** Git branch being tracked */
 	branch: string;
 	/** Last commit hash that was successfully indexed */
-	commit: string;
+	latestCommit: string;
+	/** Number of indexed files */
+	fileCount: number;
+	/** ISO timestamp when project was last indexed */
+	lastIndexedAt: string;
+	/** List of programming languages detected in the project */
+	languages: string[];
 }
 
 /**

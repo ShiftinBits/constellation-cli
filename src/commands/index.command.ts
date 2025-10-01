@@ -197,7 +197,7 @@ export default class IndexCommand extends BaseCommand {
 		try {
 			// Try to get last indexed commit from API
 			const projectState = await this.apiClient!.getProjectState();
-			const lastIndexedCommit = projectState?.commit;
+			const lastIndexedCommit = projectState?.latestCommit;
 
 			if (!lastIndexedCommit) {
 				console.log(`  ${BLUE_INFO} No previous index found - performing full index`);
@@ -235,12 +235,12 @@ export default class IndexCommand extends BaseCommand {
 		if (isIncremental) {
 			// Get changed files since last indexed commit
 			const projectState = await this.apiClient!.getProjectState();
-			if (!projectState?.commit) {
+			if (!projectState?.latestCommit) {
 				// Fallback to full scan if we can't get last commit
 				console.log(`  ${YELLOW_WARN} Cannot determine changes - falling back to full scan`);
 				files = await this.scanner.scanFiles(this.config!);
 			} else {
-				const changes = await this.git!.getChangedFiles(projectState.commit);
+				const changes = await this.git!.getChangedFiles(projectState.latestCommit);
 				const changedPaths = [
 					...changes.added,
 					...changes.modified,

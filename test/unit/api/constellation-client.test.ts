@@ -87,9 +87,12 @@ describe('ConstellationClient', () => {
 	describe('getProjectState', () => {
 		it('should return project state when found', async () => {
 			const mockProjectState: ProjectState = {
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				commit: 'abc123'
+				latestCommit: 'abc123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript']
 			};
 
 			// @ts-expect-error - Jest mock typing
@@ -97,9 +100,8 @@ describe('ConstellationClient', () => {
 
 			const result = await client.getProjectState();
 
-			expect(generateAstId).toHaveBeenCalledWith('test-project', 'main');
 			expect(mockFetch).toHaveBeenCalledWith(
-				'https://api.constellation.test/v1//project/mock-project-id',
+				'https://api.constellation.test/v1//project/test-project?branchName=main',
 				expect.objectContaining({
 					method: 'GET',
 					headers: expect.objectContaining({
@@ -547,7 +549,7 @@ describe('ConstellationClient', () => {
 			await client.getProjectState();
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				'https://api.constellation.test/v1//project/mock-project-id',
+				'https://api.constellation.test/v1//project/test-project?branchName=main',
 				expect.any(Object)
 			);
 		});

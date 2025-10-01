@@ -303,9 +303,12 @@ describe('IndexCommand', () => {
 		it('should perform incremental index when project state exists', async () => {
 			// Mock existing project state
 			mockApiClient.getProjectState.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				commit: 'old-commit-123'
+				latestCommit: 'old-commit-123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript']
 			});
 
 			// Mock changed files
@@ -361,9 +364,12 @@ describe('IndexCommand', () => {
 			const currentCommit = 'same-commit-123';
 
 			mockApiClient.getProjectState.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				commit: currentCommit
+				latestCommit: currentCommit,
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript']
 			});
 
 			mockGit.getLatestCommitHash.mockResolvedValue(currentCommit);
@@ -390,9 +396,12 @@ describe('IndexCommand', () => {
 		it('should fallback to full scan when projectState has empty commit in determineIndexScope', async () => {
 			// Mock project state with empty commit field
 			mockApiClient.getProjectState.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				commit: '' // Empty commit triggers fallback in determineIndexScope
+				latestCommit: '', // Empty commit triggers fallback in determineIndexScope
+				fileCount: 0,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: []
 			});
 
 			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
@@ -427,9 +436,12 @@ describe('IndexCommand', () => {
 
 		it('should force full index when forceFullIndex is true', async () => {
 			mockApiClient.getProjectState.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				commit: 'old-commit-123'
+				latestCommit: 'old-commit-123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript']
 			});
 
 			await command.run(true);
@@ -446,9 +458,12 @@ describe('IndexCommand', () => {
 
 		it('should handle incremental index with only added files', async () => {
 			mockApiClient.getProjectState.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				commit: 'old-commit-123'
+				latestCommit: 'old-commit-123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript']
 			});
 
 			mockGit.getChangedFiles.mockResolvedValue({
@@ -468,9 +483,12 @@ describe('IndexCommand', () => {
 
 		it('should handle incremental index with only deleted files', async () => {
 			mockApiClient.getProjectState.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				commit: 'old-commit-123'
+				latestCommit: 'old-commit-123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript']
 			});
 
 			mockGit.getChangedFiles.mockResolvedValue({

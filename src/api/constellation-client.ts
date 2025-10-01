@@ -31,8 +31,10 @@ export class ConstellationClient {
 	 */
 	async getProjectState(): Promise<ProjectState | null> {
 		try {
-			const projectId = generateAstId(this.config.namespace, this.config.branch);
-			return await this.get<ProjectState>(`/project/${projectId}`);
+			const params = new URLSearchParams({
+				branchName: this.config.branch
+			});
+			return await this.get<ProjectState>(`/project/${this.config.namespace}?${params.toString()}`);
 		} catch (error) {
 			return null;
 		}

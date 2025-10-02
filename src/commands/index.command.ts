@@ -87,9 +87,9 @@ export default class IndexCommand extends BaseCommand {
 
 			console.log(`\n${GREEN_CHECK} Indexing complete!`);
 		} catch (error) {
-			const errorMessage = (error as Error).message ?? 'An unexpected error occurred';
+			const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
 			console.error(`${RED_X} Indexing failed: ${errorMessage}`);
-			process.exit(1);
+			throw error;
 		}
 	}
 
@@ -184,8 +184,8 @@ export default class IndexCommand extends BaseCommand {
 				}
 			}
 
-			// Exit early with error code
-			process.exit(1);
+			// Re-throw to allow proper cleanup and error handling
+			throw error;
 		}
 	}
 

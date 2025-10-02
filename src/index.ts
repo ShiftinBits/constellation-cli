@@ -36,24 +36,33 @@ program
 program.command('init')
 	.description('Initialize a new constellation project configuration')
 	.action(async () => {
-
-		const git = new GitClient(cwd);
-		// Create minimal deps for init command
-		const initDeps: CommandDeps = {
-			GitClient: git,
-		};
-		const initCommand = new InitCommand(initDeps);
-		await initCommand.run();
+		try {
+			const git = new GitClient(cwd);
+			// Create minimal deps for init command
+			const initDeps: CommandDeps = {
+				GitClient: git,
+			};
+			const initCommand = new InitCommand(initDeps);
+			await initCommand.run();
+		} catch (error) {
+			console.error(`${RED_X} Failed to initialize project: ${error instanceof Error ? error.message : String(error)}`);
+			process.exit(1);
+		}
 	});
 
 program.command('auth')
 	.description('Configure authentication for the Constellation CLI')
 	.action(async () => {
-		const commandDeps: CommandDeps = {
-			Environment: cpEnvironment
-		};
-		const authCommand = new AuthCommand(commandDeps);
-		await authCommand.run();
+		try {
+			const commandDeps: CommandDeps = {
+				Environment: cpEnvironment
+			};
+			const authCommand = new AuthCommand(commandDeps);
+			await authCommand.run();
+		} catch (error) {
+			console.error(`${RED_X} Failed to configure authentication: ${error instanceof Error ? error.message : String(error)}`);
+			process.exit(1);
+		}
 	});
 
 // Index command needs config - load it lazily
@@ -81,7 +90,7 @@ program.command('index')
 			const indexCommand = new IndexCommand(commandDeps);
 			await indexCommand.run(fullIndex);
 		} catch (error) {
-			console.error(`${RED_X} Failed to run index command: ${(error as Error).message}`);
+			console.error(`${RED_X} Failed to run index command: ${error instanceof Error ? error.message : String(error)}`);
 			process.exit(1);
 		}
 	});

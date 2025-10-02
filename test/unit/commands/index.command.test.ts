@@ -190,9 +190,8 @@ describe('IndexCommand', () => {
 		it('should handle missing access key', async () => {
 			mockEnv.getKey.mockResolvedValue(undefined);
 
-			await command.run();
+			await expect(command.run()).rejects.toThrow();
 
-			expect(processExitSpy).toHaveBeenCalledWith(1);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Access key not found'));
 		});
 
@@ -201,45 +200,40 @@ describe('IndexCommand', () => {
 				throw new Error('Branch not configured');
 			});
 
-			await command.run();
+			await expect(command.run()).rejects.toThrow('Branch not configured');
 
-			expect(processExitSpy).toHaveBeenCalledWith(1);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Branch not configured'));
 		});
 
 		it('should handle git pull failure with uncommitted changes', async () => {
 			mockGit.pull.mockRejectedValue(new Error('Pull failed: uncommitted changes detected'));
 
-			await command.run();
+			await expect(command.run()).rejects.toThrow();
 
-			expect(processExitSpy).toHaveBeenCalledWith(1);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to synchronize'));
 		});
 
 		it('should handle git pull failure with merge conflicts', async () => {
 			mockGit.pull.mockRejectedValue(new Error('Pull failed: merge conflicts detected'));
 
-			await command.run();
+			await expect(command.run()).rejects.toThrow();
 
-			expect(processExitSpy).toHaveBeenCalledWith(1);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Fix the conflicted files'));
 		});
 
 		it('should handle git pull failure with network error', async () => {
 			mockGit.pull.mockRejectedValue(new Error('Network error: connection timeout'));
 
-			await command.run();
+			await expect(command.run()).rejects.toThrow();
 
-			expect(processExitSpy).toHaveBeenCalledWith(1);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('check your internet connection'));
 		});
 
 		it('should handle git pull failure with authentication error', async () => {
 			mockGit.pull.mockRejectedValue(new Error('Authentication failed: invalid credentials'));
 
-			await command.run();
+			await expect(command.run()).rejects.toThrow();
 
-			expect(processExitSpy).toHaveBeenCalledWith(1);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('check your git credentials'));
 		});
 
@@ -256,18 +250,19 @@ describe('IndexCommand', () => {
 		it('should handle generic error during indexing', async () => {
 			mockGit.status.mockRejectedValue(new Error('Unexpected error'));
 
-			await command.run();
+			await expect(command.run()).rejects.toThrow('Unexpected error');
 
-			expect(processExitSpy).toHaveBeenCalledWith(1);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing failed'));
 		});
 
 		it('should handle error with no message', async () => {
-			mockGit.status.mockRejectedValue({ toString: () => 'Error object' });
+			const errorWithNoMessage = new Error();
+			errorWithNoMessage.message = '';
+			mockGit.status.mockRejectedValue(errorWithNoMessage);
 
-			await command.run();
+			await expect(command.run()).rejects.toThrow();
 
-			expect(processExitSpy).toHaveBeenCalledWith(1);
+			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing failed'));
 		});
 	});
 

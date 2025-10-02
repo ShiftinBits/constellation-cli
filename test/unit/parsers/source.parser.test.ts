@@ -490,5 +490,91 @@ describe('SourceParser', () => {
 
 			await expect(sourceParser.parseFile(filePath, language)).rejects.toThrow('Cannot open file');
 		});
+
+		it('should close file handle even if readSync throws during streaming', async () => {
+			const filePath = '/test/read-sync-error.js';
+			const language: ParserLanguage = 'javascript';
+			const largeFileSize = 15 * 1024 * 1024;
+
+			// Setup mocks
+			mockLanguageRegistry.javascript.language.mockResolvedValue(mockLanguage);
+			mockFileUtils.getFileStats.mockResolvedValue(createMockStats( largeFileSize));
+
+			// Mock file handle with close spy
+			const mockFileHandle = {
+				fd: 5,
+				// @ts-expect-error - Jest mock typing issue
+				close: jest.fn().mockResolvedValue(undefined)
+			};
+			// @ts-expect-error - Jest mock typing issue
+			(fsPromises.open as jest.Mock).mockResolvedValue(mockFileHandle);
+
+			// Mock Buffer
+			jest.spyOn(Buffer, 'alloc').mockReturnValue(Buffer.alloc(64 * 1024));
+
+			// Mock fs.readSync to throw error
+			const readError = new Error('Read operation failed');
+			(fs.readSync as jest.Mock).mockImplementation(() => {
+				throw readError;
+			});
+
+			// Mock parser to invoke callback (which will trigger readSync error)
+			mockParser.parse.mockImplementation((input: string | Input | ((index: number) => string | null)) => {
+				if (typeof input === 'function') {
+					input(0); // This will call readSync and trigger the error
+				}
+				return mockTree;
+			});
+
+			await expect(sourceParser.parseFile(filePath, language)).rejects.toThrow('Read operation failed');
+
+			// Verify file handle was closed despite the error
+			expect(mockFileHandle.close).toHaveBeenCalled();
+		});
+
+		it('should handle file close errors gracefully without masking original error', async () => {
+			const filePath = '/test/close-error.js';
+			const language: ParserLanguage = 'javascript';
+			const largeFileSize = 15 * 1024 * 1024;
+
+			// Spy on console.error to verify warning is logged
+			const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+			// Setup mocks
+			mockLanguageRegistry.javascript.language.mockResolvedValue(mockLanguage);
+			mockFileUtils.getFileStats.mockResolvedValue(createMockStats( largeFileSize));
+
+			// Mock file handle that throws error on close
+			const closeError = new Error('Cannot close file handle');
+			const parseError = new Error('Parse failed');
+			const mockFileHandle = {
+				fd: 5,
+				// @ts-expect-error - Jest mock typing issue
+				close: jest.fn().mockRejectedValue(closeError)
+			};
+			// @ts-expect-error - Jest mock typing issue
+			(fsPromises.open as jest.Mock).mockResolvedValue(mockFileHandle);
+
+			jest.spyOn(Buffer, 'alloc').mockReturnValue(Buffer.alloc(64 * 1024));
+
+			// Mock parser to throw error
+			mockParser.parse.mockImplementation(() => {
+				throw parseError;
+			});
+
+			// Should throw the original parse error, not the close error
+			await expect(sourceParser.parseFile(filePath, language)).rejects.toThrow('Parse failed');
+
+			// Should have attempted to close file
+			expect(mockFileHandle.close).toHaveBeenCalled();
+
+			// Should have logged warning about close failure
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Failed to close file handle'),
+				closeError
+			);
+
+			consoleErrorSpy.mockRestore();
+		});
 	});
 });

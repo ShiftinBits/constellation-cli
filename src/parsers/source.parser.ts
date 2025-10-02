@@ -65,22 +65,25 @@ export class SourceParser {
 	 * @param filePath Path to the large file to parse
 	 * @param fileSize Size of the file in bytes for progress tracking
 	 * @returns Parsed Tree-sitter Tree object
+	 * @throws Error if file cannot be opened or parsing fails
 	 */
 	private async parseWithStream(
 		parser: Parser,
 		filePath: string,
 		fileSize: number
 	): Promise<Tree> {
-		// Open file asynchronously to avoid initial blocking
-		const fileHandle = await fsPromises.open(filePath, 'r');
-		const fd = fileHandle.fd;
-		const bufferSize = 64 * 1024; // 64KB chunks
-		const readBuffer = Buffer.alloc(bufferSize);
-
-		// Track progress for large files
-		let lastProgress = 0;
+		let fileHandle: fsPromises.FileHandle | null = null;
 
 		try {
+			// Open file asynchronously to avoid initial blocking
+			fileHandle = await fsPromises.open(filePath, 'r');
+			const fd = fileHandle.fd;
+			const bufferSize = 64 * 1024; // 64KB chunks
+			const readBuffer = Buffer.alloc(bufferSize);
+
+			// Track progress for large files
+			let lastProgress = 0;
+
 			// Tree-sitter requires synchronous callback - unavoidable limitation
 			// But we've already opened the file asynchronously
 			const tree = parser.parse((index: number) => {
@@ -107,9 +110,27 @@ export class SourceParser {
 			});
 
 			return tree;
+		} catch (error) {
+			// Ensure file is closed even if parsing fails
+			if (fileHandle) {
+				try {
+					await fileHandle.close();
+				} catch (closeError) {
+					// Log but don't mask the original error
+					console.error(`Warning: Failed to close file handle for ${filePath}:`, closeError);
+				}
+			}
+			throw error;
 		} finally {
-			// Close file asynchronously to avoid final blocking
-			await fileHandle.close();
+			// Final cleanup - close file handle if still open
+			if (fileHandle) {
+				try {
+					await fileHandle.close();
+				} catch (closeError) {
+					// Suppress errors during final cleanup to avoid masking original errors
+					// File handle will be released when process ends
+				}
+			}
 		}
 	}
 }

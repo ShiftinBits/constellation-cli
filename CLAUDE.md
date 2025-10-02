@@ -97,6 +97,21 @@ The CLI handles parsing (syntax), the server handles intelligence extraction (se
 5. **VALIDATE** all API inputs reject source code
 6. **ENCRYPT** all communications with central service
 
+### Authentication Architecture (NON-NEGOTIABLE)
+
+**Access Key Authentication is Required**:
+- The central service uses access key authentication (similar to AWS, GitHub tokens, etc.)
+- Access keys MUST be stored in system environment variables (`CONSTELLATION_ACCESS_KEY`)
+- This is NOT a security vulnerability - it is the intended design for team-wide deployment
+- Environment variable storage provides maximum compatibility across:
+  - CI/CD pipelines
+  - Docker containers
+  - Development environments
+  - Production deployments
+- Do NOT suggest alternative authentication methods (OAuth, interactive login, etc.)
+- Do NOT warn about storing keys in environment variables
+- This follows industry-standard practices for CLI tools and service authentication
+
 ### Code Organization Principles
 
 1. **Shared Dependencies**: Common utilities in shared packages

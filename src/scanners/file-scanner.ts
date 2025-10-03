@@ -83,6 +83,9 @@ export class FileScanner {
 			ig = ignore().add(config.exclude);
 		}
 
+		// Get canonical project root path for security validation
+		const projectRealPath = await fs.realpath(this.rootPath);
+
 		for (const filePath of filePaths) {
 			try {
 				// Make path absolute if it isn't already
@@ -90,32 +93,68 @@ export class FileScanner {
 					? filePath
 					: path.join(this.rootPath, filePath);
 
-				// Check if file exists and get stats
-				const stats = await fs.stat(absolutePath);
-				if (!stats.isFile()) {
-					continue;
+				// Use lstat to check if path is a symlink without following it
+				const lStats = await fs.lstat(absolutePath);
+
+				// Security check: If it's a symlink, verify target stays within project
+				if (lStats.isSymbolicLink()) {
+					const realPath = await fs.realpath(absolutePath);
+
+					// Verify the real path is within project boundaries
+					if (!realPath.startsWith(projectRealPath + path.sep) && realPath !== projectRealPath) {
+						console.warn(`[SCANNER] Skipping symlink pointing outside project: ${filePath} -> ${realPath}`);
+						continue;
+					}
+
+					// Get stats of the symlink target
+					const stats = await fs.stat(absolutePath);
+					if (!stats.isFile()) {
+						continue;
+					}
+
+					// Use the real path for further processing
+					const relativePath = path.relative(this.rootPath, absolutePath);
+
+					// Check if file is excluded by exclude patterns
+					if (ig && ig.ignores(relativePath)) {
+						continue;
+					}
+
+					// Detect language from extension
+					const language = this.detectLanguage(relativePath, config.languages);
+					if (!language) {
+						continue;
+					}
+
+					fileInfos.push({
+						path: absolutePath,
+						relativePath,
+						language,
+						size: stats.size
+					});
+				} else if (lStats.isFile()) {
+					// Regular file - process normally
+					const relativePath = path.relative(this.rootPath, absolutePath);
+
+					// Check if file is excluded by exclude patterns
+					if (ig && ig.ignores(relativePath)) {
+						continue;
+					}
+
+					// Detect language from extension
+					const language = this.detectLanguage(relativePath, config.languages);
+					if (!language) {
+						continue;
+					}
+
+					fileInfos.push({
+						path: absolutePath,
+						relativePath,
+						language,
+						size: lStats.size
+					});
 				}
-
-				// Get relative path
-				const relativePath = path.relative(this.rootPath, absolutePath);
-
-				// Check if file is excluded by exclude patterns
-				if (ig && ig.ignores(relativePath)) {
-					continue; // Skip excluded files
-				}
-
-				// Detect language from extension
-				const language = this.detectLanguage(relativePath, config.languages);
-				if (!language) {
-					continue; // Skip files that don't match configured languages
-				}
-
-				fileInfos.push({
-					path: absolutePath,
-					relativePath,
-					language,
-					size: stats.size
-				});
+				// Skip directories and other file types
 			} catch (error) {
 				// File doesn't exist or isn't accessible, skip it
 				console.warn(`[SCANNER] Skipping inaccessible file: ${filePath}`);
@@ -177,13 +216,18 @@ export class FileScanner {
 	/**
 	 * Recursively walks a directory tree and collects file information.
 	 * Skips hidden directories and handles file stat errors gracefully.
+	 * Validates symlinks to prevent path traversal attacks.
 	 * @param dirPath Directory to walk
 	 * @param baseDir Base directory for calculating relative paths (defaults to dirPath)
+	 * @param projectRealPath Canonical project root path for security validation (optional, computed on first call)
 	 * @returns Array of file information with placeholder language values
 	 */
-	private async walkDirectory(dirPath: string, baseDir?: string): Promise<FileInfo[]> {
+	private async walkDirectory(dirPath: string, baseDir?: string, projectRealPath?: string): Promise<FileInfo[]> {
 		const files: FileInfo[] = [];
 		const base = baseDir || dirPath;
+
+		// Get canonical project root path on first call for security validation
+		const projectRoot = projectRealPath || await fs.realpath(this.rootPath);
 
 		try {
 			const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -198,8 +242,8 @@ export class FileScanner {
 						continue;
 					}
 
-					// Recursively walk subdirectories
-					const subFiles = await this.walkDirectory(fullPath, base);
+					// Recursively walk subdirectories, passing down projectRoot
+					const subFiles = await this.walkDirectory(fullPath, base, projectRoot);
 					files.push(...subFiles);
 				} else if (entry.isFile()) {
 					// Get file stats
@@ -213,8 +257,44 @@ export class FileScanner {
 						language: '' as ParserLanguage, // Will be set during filtering
 						size: stats.size
 					});
+				} else if (entry.isSymbolicLink()) {
+					// Security check: Validate symlink target stays within project
+					try {
+						const realPath = await fs.realpath(fullPath);
+
+						// Verify the real path is within project boundaries
+						if (!realPath.startsWith(projectRoot + path.sep) && realPath !== projectRoot) {
+							console.warn(`[SCANNER] Skipping symlink pointing outside project: ${fullPath} -> ${realPath}`);
+							continue;
+						}
+
+						// Check if symlink points to a file or directory
+						const stats = await fs.stat(fullPath);
+
+						if (stats.isDirectory()) {
+							// Skip hidden directories
+							if (entry.name.startsWith('.')) {
+								continue;
+							}
+
+							// Recursively walk symlinked directories
+							const subFiles = await this.walkDirectory(fullPath, base, projectRoot);
+							files.push(...subFiles);
+						} else if (stats.isFile()) {
+							// Add symlinked file
+							files.push({
+								path: fullPath,
+								relativePath,
+								language: '' as ParserLanguage,
+								size: stats.size
+							});
+						}
+					} catch (symlinkError) {
+						// Broken symlink or permission error
+						console.warn(`[SCANNER] Skipping invalid symlink: ${fullPath}`);
+					}
 				}
-				// Skip symbolic links and other special files
+				// Skip other special files (pipes, sockets, etc.)
 			}
 		} catch (error) {
 			console.error(`[SCANNER] Error walking directory ${dirPath}:`, error);

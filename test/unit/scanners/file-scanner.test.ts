@@ -22,6 +22,20 @@ describe('FileScanner', () => {
 	const mockFs = fs as jest.Mocked<typeof fs>;
 	const mockFileUtils = FileUtils as jest.Mocked<typeof FileUtils>;
 
+	// Helper function to setup common mocks for scanSpecificFiles tests
+	const setupScanSpecificFilesMocks = (rootPath?: string) => {
+		// Mock realpath for project root
+		mockFs.realpath.mockResolvedValue(rootPath || tempDir);
+
+		// Default lstat mock - returns regular files
+		mockFs.lstat.mockResolvedValue({
+			size: 1024,
+			isFile: () => true,
+			isSymbolicLink: () => false,
+			isDirectory: () => false
+		} as any);
+	};
+
 	beforeEach(async () => {
 		jest.clearAllMocks();
 		tempDir = await createTempDir();
@@ -327,15 +341,26 @@ describe('FileScanner', () => {
 				'README.md',
 			];
 
-			// Mock file stats - some files exist, some don't
-			mockFs.stat.mockImplementation(async (filePath: any) => {
+			// Mock realpath for project root
+			mockFs.realpath.mockResolvedValue(tempDir);
+
+			// Mock lstat to check file type without following symlinks
+			mockFs.lstat.mockImplementation(async (filePath: any) => {
 				if (filePath.includes('missing.ts')) {
 					throw new Error('ENOENT: no such file or directory');
 				}
 				if (filePath.includes('README.md')) {
-					return { size: 1024, isFile: () => false } as any; // Not a file
+					return {
+						size: 1024,
+						isFile: () => false,
+						isSymbolicLink: () => false
+					} as any;
 				}
-				return { size: 1024, isFile: () => true } as any;
+				return {
+					size: 1024,
+					isFile: () => true,
+					isSymbolicLink: () => false
+				} as any;
 			});
 
 			const result = await fileScanner.scanSpecificFiles(filePaths, mockConfig);
@@ -351,10 +376,7 @@ describe('FileScanner', () => {
 			const absolutePath = path.join(testRootPath, 'src/index.ts');
 			const filePaths = [absolutePath];
 
-			mockFs.stat.mockResolvedValue({
-				size: 1024,
-				isFile: () => true,
-			} as any);
+			setupScanSpecificFilesMocks(testRootPath);
 
 			const result = await testScanner.scanSpecificFiles(filePaths, mockConfig);
 
@@ -379,10 +401,7 @@ describe('FileScanner', () => {
 				'src/utils.ts',
 			];
 
-			mockFs.stat.mockResolvedValue({
-				size: 1024,
-				isFile: () => true,
-			} as any);
+			setupScanSpecificFilesMocks();
 
 			const result = await fileScanner.scanSpecificFiles(filePaths, configWithExcludes);
 
@@ -398,10 +417,7 @@ describe('FileScanner', () => {
 				'src/data.json',
 			];
 
-			mockFs.stat.mockResolvedValue({
-				size: 1024,
-				isFile: () => true,
-			} as any);
+			setupScanSpecificFilesMocks();
 
 			const result = await fileScanner.scanSpecificFiles(filePaths, mockConfig);
 
@@ -416,11 +432,16 @@ describe('FileScanner', () => {
 				'src/protected.ts',
 			];
 
-			mockFs.stat.mockImplementation(async (filePath: any) => {
+			mockFs.realpath.mockResolvedValue(tempDir);
+			mockFs.lstat.mockImplementation(async (filePath: any) => {
 				if (filePath.includes('protected.ts')) {
 					throw new Error('EACCES: permission denied');
 				}
-				return { size: 1024, isFile: () => true } as any;
+				return {
+					size: 1024,
+					isFile: () => true,
+					isSymbolicLink: () => false
+				} as any;
 			});
 
 			const result = await fileScanner.scanSpecificFiles(filePaths, mockConfig);
@@ -441,10 +462,7 @@ describe('FileScanner', () => {
 
 			const filePaths = ['src/index.ts'];
 
-			mockFs.stat.mockResolvedValue({
-				size: 1024,
-				isFile: () => true,
-			} as any);
+			setupScanSpecificFilesMocks();
 
 			const result = await fileScanner.scanSpecificFiles(filePaths, configNoExcludes);
 
@@ -463,10 +481,7 @@ describe('FileScanner', () => {
 				'unknown.py',
 			];
 
-			mockFs.stat.mockResolvedValue({
-				size: 1024,
-				isFile: () => true,
-			} as any);
+			setupScanSpecificFilesMocks();
 
 			const result = await fileScanner.scanSpecificFiles(filePaths, mockConfig);
 
@@ -607,15 +622,209 @@ describe('FileScanner', () => {
 				'unknown.xyz',
 			];
 
-			mockFs.stat.mockResolvedValue({
-				size: 1024,
-				isFile: () => true,
-			} as any);
+			setupScanSpecificFilesMocks();
 
 			const result = await fileScanner.scanSpecificFiles(filePaths, configWithCustomExts);
 
 			expect(result).toHaveLength(3); // All TypeScript variants, not .xyz
 			expect(result.every(f => f.language === 'typescript')).toBe(true);
+		});
+	});
+
+	describe('security - path traversal protection', () => {
+		it('should reject symlinks pointing outside project in scanSpecificFiles', async () => {
+			const filePaths = ['malicious-link.ts'];
+			const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+			// Mock realpath - first for project root, then for symlink target
+			let realpathCallCount = 0;
+			(mockFs.realpath as jest.Mock).mockImplementation(async (filePath: any) => {
+				realpathCallCount++;
+				if (realpathCallCount === 1 || filePath === tempDir) {
+					return tempDir;
+				}
+				// Symlink points to /etc/passwd (outside project)
+				return '/etc/passwd';
+			});
+
+			// Mock lstat to indicate it's a symlink
+			mockFs.lstat.mockResolvedValue({
+				size: 1024,
+				isFile: () => false,
+				isSymbolicLink: () => true,
+				isDirectory: () => false
+			} as any);
+
+			const result = await fileScanner.scanSpecificFiles(filePaths, mockConfig);
+
+			expect(result).toHaveLength(0); // Symlink should be rejected
+			expect(consoleWarnSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Skipping symlink pointing outside project')
+			);
+
+			consoleWarnSpy.mockRestore();
+		});
+
+		it('should allow symlinks pointing within project in scanSpecificFiles', async () => {
+			const filePaths = ['internal-link.ts'];
+
+			// Mock realpath for project root
+			(mockFs.realpath as jest.Mock).mockImplementation(async (filePath: any) => {
+				if (filePath === tempDir) {
+					return '/project/root';
+				}
+				// Symlink points to file within project
+				return '/project/root/src/actual-file.ts';
+			});
+
+			// Mock lstat to indicate it's a symlink
+			mockFs.lstat.mockResolvedValue({
+				size: 1024,
+				isFile: () => false,
+				isSymbolicLink: () => true,
+				isDirectory: () => false
+			} as any);
+
+			// Mock stat to return file info after symlink resolution
+			mockFs.stat.mockResolvedValue({
+				size: 2048,
+				isFile: () => true,
+				isDirectory: () => false
+			} as any);
+
+			const result = await fileScanner.scanSpecificFiles(filePaths, mockConfig);
+
+			expect(result).toHaveLength(1); // Symlink should be accepted
+			expect(result[0].language).toBe('typescript');
+		});
+
+		it('should reject symlinks pointing outside project in walkDirectory', async () => {
+			const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+			// Mock directory with a symlink
+			const mockDirent = (name: string, opts: any = {}) => ({
+				name,
+				isFile: () => opts.isFile || false,
+				isDirectory: () => opts.isDirectory || false,
+				isSymbolicLink: () => opts.isSymbolicLink || false
+			});
+
+			mockFs.readdir.mockResolvedValueOnce([
+				mockDirent('normal-file.ts', { isFile: true }),
+				mockDirent('evil-link', { isSymbolicLink: true })
+			] as any);
+
+			mockFs.stat.mockImplementation(async (filePath: any) => {
+				if (filePath.includes('normal-file.ts')) {
+					return { size: 1024, isFile: () => true } as any;
+				}
+				// Symlink target
+				return { size: 2048, isFile: () => true } as any;
+			});
+
+			// Mock realpath for security check - first call is for project root
+			let realpathCallCount = 0;
+			(mockFs.realpath as jest.Mock).mockImplementation(async (filePath: any) => {
+				realpathCallCount++;
+				if (realpathCallCount === 1 || filePath === tempDir || filePath.includes('normal-file')) {
+					return tempDir;
+				}
+				// Evil symlink points outside
+				return '/etc/passwd';
+			});
+
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+
+			const result = await fileScanner.scanFiles(mockConfig);
+
+			// Should only include normal file, not the evil symlink
+			expect(result.length).toBeGreaterThan(0);
+			expect(result.every(f => !f.path.includes('evil-link'))).toBe(true);
+			expect(consoleWarnSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Skipping symlink pointing outside project')
+			);
+
+			consoleWarnSpy.mockRestore();
+		});
+
+		it('should handle broken symlinks gracefully', async () => {
+			const filePaths = ['broken-link.ts'];
+			const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+			// Mock lstat to indicate it's a symlink
+			mockFs.lstat.mockResolvedValue({
+				size: 0,
+				isFile: () => false,
+				isSymbolicLink: () => true,
+				isDirectory: () => false
+			} as any);
+
+			// Mock realpath - first call for project root succeeds, second for broken symlink fails
+			let realpathCallCount = 0;
+			(mockFs.realpath as jest.Mock).mockImplementation(async (filePath: any) => {
+				realpathCallCount++;
+				if (realpathCallCount === 1 || filePath === tempDir) {
+					return tempDir;
+				}
+				// Broken symlink
+				throw new Error('ENOENT: no such file or directory');
+			});
+
+			const result = await fileScanner.scanSpecificFiles(filePaths, mockConfig);
+
+			expect(result).toHaveLength(0);
+			expect(consoleWarnSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Skipping inaccessible file')
+			);
+
+			consoleWarnSpy.mockRestore();
+		});
+
+		it('should handle symlinked directories pointing within project', async () => {
+			const mockDirent = (name: string, opts: any = {}) => ({
+				name,
+				isFile: () => opts.isFile || false,
+				isDirectory: () => opts.isDirectory || false,
+				isSymbolicLink: () => opts.isSymbolicLink || false
+			});
+
+			// Root dir has a symlinked directory
+			mockFs.readdir.mockResolvedValueOnce([
+				mockDirent('linked-src', { isSymbolicLink: true })
+			] as any);
+
+			// Symlinked directory contains files
+			mockFs.readdir.mockResolvedValueOnce([
+				mockDirent('file.ts', { isFile: true })
+			] as any);
+
+			// Mock realpath - first call is for project root (walkDirectory), subsequent calls for symlink checking
+			let realpathCallCount = 0;
+			(mockFs.realpath as jest.Mock).mockImplementation(async (filePath: any) => {
+				realpathCallCount++;
+				if (realpathCallCount === 1 || filePath === tempDir) {
+					return tempDir;
+				}
+				if (filePath.includes('linked-src')) {
+					// Points to internal directory
+					return tempDir + '/actual-src';
+				}
+				return tempDir + '/' + filePath;
+			});
+
+			mockFs.stat.mockImplementation(async (filePath: any) => {
+				if (filePath.includes('linked-src') && !filePath.includes('file.ts')) {
+					return { isDirectory: () => true, isFile: () => false } as any;
+				}
+				return { size: 1024, isFile: () => true } as any;
+			});
+
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+
+			const result = await fileScanner.scanFiles(mockConfig);
+
+			// Should include files from symlinked directory
+			expect(result.some(f => f.path.includes('file.ts'))).toBe(true);
 		});
 	});
 });

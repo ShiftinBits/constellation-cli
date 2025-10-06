@@ -61,7 +61,7 @@ _Additional languages (C, C++, C#, Go, Java, JSON, PHP, Python, Ruby, Shell) com
 ### Globally Install NPM Package
 
 ```bash
-npm install -g @constellation/cli
+npm install -g @constellationdev/cli
 ```
 
 ### Requirements
@@ -239,7 +239,7 @@ jobs:
         with:
           node-version: '20'
       - name: Install Constellation CLI
-        run: npm install -g @constellation/cli
+        run: npm install -g @constellationdev/cli
       - name: Run Incremental Index
         run: constellation index --incremental
         env:

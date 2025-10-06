@@ -23,7 +23,7 @@ Constellation creates a single, shared "code intelligence graph" for entire deve
                               Store
 ```
 
-#### 1. CLI Tool (`@constellation/cli`)
+#### 1. CLI Tool (`@constellationdev/cli`)
 
 Source: `cli/`
 
@@ -100,6 +100,7 @@ The CLI handles parsing (syntax), the server handles intelligence extraction (se
 ### Authentication Architecture (NON-NEGOTIABLE)
 
 **Access Key Authentication is Required**:
+
 - The central service uses access key authentication (similar to AWS, GitHub tokens, etc.)
 - Access keys MUST be stored in system environment variables (`CONSTELLATION_ACCESS_KEY`)
 - This is NOT a security vulnerability - it is the intended design for team-wide deployment
@@ -129,7 +130,7 @@ The CLI handles parsing (syntax), the server handles intelligence extraction (se
 
 ```
 constellation/
-├── cli/                       # @constellation/cli - Oclif CLI utility
+├── cli/                       # @constellationdev/cli - Oclif CLI utility
 │   ├── src/
 │   │   ├── commands/          # CLI command implementations
 │   │   ├── parsers/           # Tree-sitter integration
@@ -221,18 +222,18 @@ interface ApiResponse<T> {
 
 ```typescript
 // Example test structure
-describe("AST Generation", () => {
-	it("should generate valid AST from TypeScript", async () => {
-		const ast = await parseFile("sample.ts");
+describe('AST Generation', () => {
+	it('should generate valid AST from TypeScript', async () => {
+		const ast = await parseFile('sample.ts');
 		const serialized = serializeAST(ast);
-		expect(serialized.type).toBe("program");
+		expect(serialized.type).toBe('program');
 		expect(serialized.children).toBeDefined();
 	});
 });
 
 // Server-side test
-describe("Intelligence Extraction", () => {
-	it("should extract function definitions from AST", async () => {
+describe('Intelligence Extraction', () => {
+	it('should extract function definitions from AST', async () => {
 		const serializedAST = getTestAST();
 		const intelligence = extractIntelligence(serializedAST);
 		expect(intelligence.functions).toHaveLength(3);
@@ -245,7 +246,6 @@ describe("Intelligence Extraction", () => {
 ### Adding Language Support
 
 1. **CLI Side**:
-
    - Install Tree-sitter grammar: `npm install tree-sitter-{language}`
    - Create parser in `cli/src/parsers/{language}.ts`
    - Update AST serializer to handle language-specific nodes
@@ -283,10 +283,10 @@ describe("Intelligence Extraction", () => {
 
 ```typescript
 enum ErrorType {
-	PARSING_ERROR = "PARSING_ERROR",
-	NETWORK_ERROR = "NETWORK_ERROR",
-	VALIDATION_ERROR = "VALIDATION_ERROR",
-	PERMISSION_ERROR = "PERMISSION_ERROR",
+	PARSING_ERROR = 'PARSING_ERROR',
+	NETWORK_ERROR = 'NETWORK_ERROR',
+	VALIDATION_ERROR = 'VALIDATION_ERROR',
+	PERMISSION_ERROR = 'PERMISSION_ERROR',
 }
 ```
 

@@ -4,7 +4,7 @@ import { ConstellationConfig } from '../../../src/config/config';
 import { LanguageRegistry } from '../../../src/languages/language.registry';
 import { CrossPlatformEnvironment } from '../../../src/env/env-manager';
 import { GitClient } from '../../../src/utils/git-client';
-import { ConstellationClient } from '../../../src/api/constellation-client';
+import { ConstellationClient, NotFoundError } from '../../../src/api/constellation-client';
 import { FileScanner } from '../../../src/scanners/file-scanner';
 import { SourceParser } from '../../../src/parsers/source.parser';
 import { ACCESS_KEY_ENV_VAR } from '../../../src/utils/constants';
@@ -205,6 +205,72 @@ describe('IndexCommand', () => {
 			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Branch not configured'));
 		});
 
+		it('should skip git branch validation when gitDirty flag is true', async () => {
+			await command.run(false, true);
+
+			expect(mockConfig.validateBranch).not.toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping git branch validation'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should skip git status validation when gitDirty flag is true', async () => {
+			// Set up dirty working tree
+			mockGit.status.mockResolvedValue({
+				currentBranch: 'main',
+				clean: false
+			});
+
+			await command.run(false, true);
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping git status validation'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should skip git pull when gitDirty flag is true', async () => {
+			await command.run(false, true);
+
+			expect(mockGit.pull).not.toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping repository synchronization'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should perform normal validation when gitDirty flag is false', async () => {
+			await command.run(false, false);
+
+			expect(mockConfig.validateBranch).toHaveBeenCalled();
+			expect(mockGit.status).toHaveBeenCalled();
+			expect(mockGit.pull).toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should allow indexing on unconfigured branch with gitDirty flag', async () => {
+			mockGit.status.mockResolvedValue({
+				currentBranch: 'feature/unconfigured',
+				clean: true
+			});
+			mockConfig.validateBranch = jest.fn().mockImplementation(() => {
+				throw new Error('Branch not configured');
+			});
+
+			await command.run(false, true);
+
+			expect(mockConfig.validateBranch).not.toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping git branch validation'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
+		it('should allow indexing with dirty working tree when gitDirty flag is true', async () => {
+			mockGit.status.mockResolvedValue({
+				currentBranch: 'main',
+				clean: false
+			});
+
+			await command.run(false, true);
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping git status validation'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+		});
+
 		it('should handle git pull failure with uncommitted changes', async () => {
 			mockGit.pull.mockRejectedValue(new Error('Pull failed: uncommitted changes detected'));
 
@@ -371,6 +437,19 @@ describe('IndexCommand', () => {
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Already up to date'));
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Index is already up-to-date'));
+		});
+
+		it('should perform full index when project not found (404)', async () => {
+			mockApiClient.getProjectState.mockRejectedValue(new NotFoundError('Project not found'));
+
+			await command.run(false);
+
+			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+
+			expect(scannerInstance.scanFiles).toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Project not found in service'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('performing full index'));
 		});
 
 		it('should fallback to full index when getProjectState fails', async () => {

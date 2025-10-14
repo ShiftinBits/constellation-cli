@@ -48,9 +48,10 @@ export default class IndexCommand extends BaseCommand {
 	 * Executes the indexing process.
 	 * Validates git state, discovers files, generates ASTs, and uploads to the API.
 	 * @param forceFullIndex If true, performs full index regardless of incremental state
+	 * @param gitDirty If true, skips git validation checks (branch and working tree status)
 	 * @throws Error if any step of the indexing process fails
 	 */
-	public async run(forceFullIndex = false): Promise<void> {
+	public async run(forceFullIndex = false, gitDirty = false): Promise<void> {
 		try {
 
 			const accessKey = await this.getAccessKey();
@@ -59,14 +60,26 @@ export default class IndexCommand extends BaseCommand {
 
 			console.log(`${YELLOW_LIGHTNING}Starting indexing procedure...\n`);
 
-			// Step 1: Validate Git Branch
-			await this.validateGitBranch();
+			// Step 1: Validate Git Branch (skip if gitDirty flag is set)
+			if (!gitDirty) {
+				await this.validateGitBranch();
+			} else {
+				console.log(`${YELLOW_WARN} Skipping git branch validation`);
+			}
 
-			// Step 2: Validate Git Status
-			await this.validateGitStatus();
+			// Step 2: Validate Git Status (skip if gitDirty flag is set)
+			if (!gitDirty) {
+				await this.validateGitStatus();
+			} else {
+				console.log(`${YELLOW_WARN} Skipping git status validation`);
+			}
 
-			// Step 3: Synchronize Latest Changes
-			await this.synchronizeChanges();
+			// Step 3: Synchronize Latest Changes (skip if gitDirty flag is set)
+			if (!gitDirty) {
+				await this.synchronizeChanges();
+			} else {
+				console.log(`${YELLOW_WARN} Skipping repository synchronization`);
+			}
 
 			// Step 4: Determine Index Scope
 			const indexScopeResult = await this.determineIndexScope(forceFullIndex);
@@ -224,6 +237,7 @@ export default class IndexCommand extends BaseCommand {
 			console.log(`${BLUE_INFO} Performing incremental index starting from commit ${lastIndexedCommit.substring(0, 8)}`);
 			return { isIncremental: true, upToDate: false }; // Incremental index
 		} catch (error) {
+			// For errors, log and default to full index
 			console.log(`${YELLOW_WARN} Could not determine last index - performing full index`);
 			return { isIncremental: false, upToDate: false }; // Default to full index
 		}

@@ -26,7 +26,8 @@ export class ConstellationClient {
 
 	/**
 	 * Retrieves the current project state from the central service.
-	 * @returns Project state if available, null if not found or on error
+	 * @returns Project state if available, null on error
+	 * @throws NotFoundError if project has not been indexed yet (404 response)
 	 */
 	async getProjectState(): Promise<ProjectState | null> {
 		try {
@@ -40,9 +41,19 @@ export class ConstellationClient {
 						Authorization: this.accessKey
 					};
 			const response = await this.sendRequest('project', undefined, 'GET', headers);
+
+			// Handle 404 specifically - indicates project not indexed yet
+			if (response?.status === 404) {
+				throw new NotFoundError('Project not found - no previous index exists');
+			}
+
 			const state = response?.ok ? response.json() as unknown as ProjectState : null;
 			return state;
 		} catch (error) {
+			// Re-throw NotFoundError so caller can handle it
+			if (error instanceof NotFoundError) {
+				throw error;
+			}
 			console.error(`${RED_X} Failed to query current project state`, error);
 			return null;
 		}
@@ -224,5 +235,16 @@ export class AuthenticationError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = "AuthenticationError";
+	}
+}
+
+/**
+ * Error thrown when resource is not found (404 status code).
+ * Indicates that the project has not been indexed yet.
+ */
+export class NotFoundError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "NotFoundError";
 	}
 }

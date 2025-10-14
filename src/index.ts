@@ -70,6 +70,7 @@ program.command('index')
 	.description('Create or update the Constellation data indices for the current project')
 	.option('--full', 'Conduct a full project re-index')
 	.option('--incremental', 'Conduct an incremental project index update')
+	.option('--git-dirty', 'Skip git validation checks (branch and working tree status)')
 	.action(async (params) => {
 		try {
 			// Load config only when needed for this command
@@ -87,8 +88,9 @@ program.command('index')
 			};
 
 			const fullIndex = params.full || false;
+			const gitDirty = params.gitDirty || false;
 			const indexCommand = new IndexCommand(commandDeps);
-			await indexCommand.run(fullIndex);
+			await indexCommand.run(fullIndex, gitDirty);
 		} catch (error) {
 			console.error(`${RED_X} Failed to run index command: ${error instanceof Error ? error.message : String(error)}`);
 			process.exit(1);

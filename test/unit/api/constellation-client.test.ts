@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { AuthenticationError, ConstellationClient, RetryableError } from '../../../src/api/constellation-client';
+import { AuthenticationError, ConstellationClient, NotFoundError, RetryableError } from '../../../src/api/constellation-client';
 import { ConstellationConfig } from '../../../src/config/config';
 import { ProjectState, SerializedAST } from '../../../src/types/api';
 import { generateAstId } from '../../../src/utils/id.utils';
@@ -115,13 +115,12 @@ describe('ConstellationClient', () => {
 			expect(result).toEqual(mockProjectState);
 		});
 
-		it('should return null when project not found', async () => {
+		it('should throw NotFoundError when project not found (404)', async () => {
 			// @ts-expect-error - Jest mock typing
 		mockFetch.mockResolvedValue(createMockResponse(404, false));
 
-			const result = await client.getProjectState();
-
-			expect(result).toBeNull();
+			await expect(client.getProjectState()).rejects.toThrow(NotFoundError);
+			await expect(client.getProjectState()).rejects.toThrow('Project not found - no previous index exists');
 		});
 
 		it('should return null when request fails', async () => {
@@ -505,5 +504,15 @@ describe('AuthenticationError', () => {
 		expect(error).toBeInstanceOf(Error);
 		expect(error.name).toBe('AuthenticationError');
 		expect(error.message).toBe('Auth failed');
+	});
+});
+
+describe('NotFoundError', () => {
+	it('should create error with correct name and message', () => {
+		const error = new NotFoundError('Resource not found');
+
+		expect(error).toBeInstanceOf(Error);
+		expect(error.name).toBe('NotFoundError');
+		expect(error.message).toBe('Resource not found');
 	});
 });

@@ -335,14 +335,32 @@ describe('NdJsonStreamWriter', () => {
 	});
 
 	describe('stream properties', () => {
-		it('should set UTF-8 encoding', async () => {
+		it('should not set encoding (outputs Buffers)', async () => {
 			async function* testGenerator() {
 				yield { text: 'test' };
 			}
 
 			const writer = new NdJsonStreamWriter(testGenerator());
 
-			expect(writer.readableEncoding).toBe('utf8');
+			// Stream should not have encoding set since we push Buffers
+			expect(writer.readableEncoding).toBeNull();
+		});
+
+		it('should output Buffer chunks', async () => {
+			async function* testGenerator() {
+				yield { text: 'test' };
+			}
+
+			const writer = new NdJsonStreamWriter(testGenerator());
+			const chunks: any[] = [];
+
+			for await (const chunk of writer) {
+				chunks.push(chunk);
+			}
+
+			expect(chunks).toHaveLength(1);
+			expect(Buffer.isBuffer(chunks[0])).toBe(true);
+			expect(chunks[0].toString('utf8')).toBe('{"text":"test"}\n');
 		});
 
 		it('should be readable stream', async () => {

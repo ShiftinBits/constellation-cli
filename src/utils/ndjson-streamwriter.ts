@@ -6,7 +6,8 @@ export class NdJsonStreamWriter<T> extends Readable {
     private reading: boolean = false;
 
     constructor(dataSource: AsyncGenerator<T>) {
-        super({ encoding: 'utf8' });
+        // Don't set encoding - we'll push Buffers instead of strings for proper size tracking
+        super();
         this.dataSource = dataSource;
         this.sourceIterator = this.dataSource[Symbol.asyncIterator]();
     }
@@ -27,12 +28,13 @@ export class NdJsonStreamWriter<T> extends Readable {
                     break;
                 }
 
-                // Convert to NDJSON and push
+                // Convert to NDJSON and push as Buffer (not string) for proper size tracking
                 const line = JSON.stringify(value) + '\n';
+                const buffer = Buffer.from(line, 'utf8');
 
                 // push returns false when backpressure is applied
                 // Stop reading for now - Node.js will call _read() again when ready
-                if (!this.push(line)) {
+                if (!this.push(buffer)) {
                     break;
                 }
             }

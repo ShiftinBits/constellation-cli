@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import { ConstellationClient } from '../api/constellation-client';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
@@ -5,6 +6,7 @@ import { SerializedAST } from '../types/api';
 import { ASTCompressor } from '../utils/ast-compressor';
 import { serializeAST } from '../utils/ast-serializer';
 import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
+import { PromisePool } from '../utils/promise-pool';
 import {
 	BLUE_INFO,
 	GREEN_CHECK,
@@ -60,6 +62,8 @@ export default class IndexCommand extends BaseCommand {
 
 			console.log(`${YELLOW_LIGHTNING}Starting indexing procedure...\n`);
 
+			const startTime = performance.now();
+
 			// Step 1: Validate Git Branch (skip if gitDirty flag is set)
 			if (!gitDirty) {
 				await this.validateGitBranch();
@@ -98,7 +102,18 @@ export default class IndexCommand extends BaseCommand {
 			// Step 6: Transmit to API
 			await this.uploadToAPI(astDataStream, indexScopeResult.isIncremental);
 
-			console.log(`\n${GREEN_CHECK} Indexing complete!`);
+			const endTime = performance.now();
+			const execMs = endTime - startTime;
+
+			// Convert milliseconds to human-readable format
+			const totalSeconds = execMs / 1000;
+			const minutes = Math.floor(totalSeconds / 60);
+			const seconds = (totalSeconds % 60).toFixed(3);
+			const humanReadableExecTime = minutes > 0
+				? `${minutes}m ${seconds}s`
+				: `${seconds}s`;
+
+			console.log(`\n${GREEN_CHECK} Indexing completed in ${humanReadableExecTime} (${execMs}ms)!`);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
 			console.error(`${RED_X} Indexing failed: ${errorMessage}`);
@@ -289,8 +304,9 @@ export default class IndexCommand extends BaseCommand {
 
 	/**
 	 * Generates Abstract Syntax Trees from discovered files.
+	 * Uses a promise pool to limit concurrent parsing to 10 files at a time.
 	 * @param files Array of files to parse and generate ASTs for
-	 * @returns Array of serialized AST data with compression
+	 * @returns Async generator yielding serialized AST data with compression
 	 */
 	private async* generateASTs(files: FileInfo[]): AsyncGenerator<SerializedAST> {
 		const timestamp = new Date().toISOString();
@@ -298,15 +314,16 @@ export default class IndexCommand extends BaseCommand {
 		let processedCount = 0;
 		let errorCount = 0;
 
-		console.log(`  ${BLUE_INFO} Generating ASTs from ${totalFiles} files...`);
+		console.log(`  ${BLUE_INFO} Generating ASTs from ${totalFiles} files (max 10 concurrent)...`);
 
 		const currentCommit = await this.git!.getLatestCommitHash();
 
-		// Process files individually
-		for (let i = 0; i < totalFiles; i++) {
-			const file = files[i];
+		// Create promise pool with concurrency limit of 10
+		const pool = new PromisePool<FileInfo, SerializedAST>(10);
 
-			const progress = Math.round(((i + 1) / totalFiles) * 100);
+		// Process files with concurrent limit
+		const results = pool.run(files, async (file, index) => {
+			const progress = Math.round(((index + 1) / totalFiles) * 100);
 			console.log(`  ${BLUE_INFO} Processing file ${file.path.replace(process.cwd(), '')} (${progress}%)...`);
 
 			try {
@@ -326,13 +343,20 @@ export default class IndexCommand extends BaseCommand {
 					ast: compressedAst
 				};
 
-				yield serializedAST;
 				processedCount++;
+				return serializedAST;
 
 			} catch (error) {
 				errorCount++;
 				console.error(`    ${YELLOW_WARN} Failed to parse ${file.relativePath}: ${(error as Error).message}`, error);
+				// Re-throw to let PromisePool handle it
+				throw error;
 			}
+		});
+
+		// Yield results as they complete
+		for await (const ast of results) {
+			yield ast;
 		}
 
 		if (errorCount > 0) {

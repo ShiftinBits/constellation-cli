@@ -87,6 +87,9 @@ export class ConstellationClient {
 			const { Readable } = await import('stream');
 			const stream = new NdJsonStreamWriter(dataStream);
 
+			// Convert Node.js Readable to Web ReadableStream
+			const webStream = Readable.toWeb(stream) as ReadableStream;
+
 			const response = await fetch(`${this.config.apiUrl}/${this.apiVersion}/${path}`, {
 					method: 'POST',
 					headers: {
@@ -96,15 +99,61 @@ export class ConstellationClient {
 						'x-constellation-index': incrementalIndex ? 'incremental' : 'full',
 						Authorization: this.accessKey
 					},
-					body: Readable.toWeb(stream),
+					body: webStream,
 					duplex: 'half' // Required for streaming requests in fetch
-			});
+			} as RequestInit & { duplex?: 'half' });
 			return response.ok === true;
 		} catch (error: any) {
-			// Preserve original error stack and context for debugging
-			const errorMessage = `Failed to upload data to Constellation Service`;
+			// Extract detailed network error information
 			const originalError = error instanceof Error ? error : new Error(String(error));
-			const enhancedError = new Error(`${errorMessage}: ${originalError.message}`);
+
+			// Build detailed error message based on error type
+			let errorDetails = '';
+
+			// Network-level failures (DNS, connection refused, etc.)
+			if (originalError.message === 'fetch failed' || error.code) {
+				const networkDetails = [];
+
+				// Extract Node.js system error details from both error and cause
+				const errorCode = error.code || error.cause?.code;
+
+				if (error.code) networkDetails.push(`Error Code: ${error.code}`);
+				if (error.cause) {
+					const cause = error.cause as any;
+					if (cause.code) networkDetails.push(`Cause Code: ${cause.code}`);
+					if (cause.errno) networkDetails.push(`Errno: ${cause.errno}`);
+					if (cause.syscall) networkDetails.push(`System Call: ${cause.syscall}`);
+					if (cause.address) networkDetails.push(`Address: ${cause.address}`);
+					if (cause.port) networkDetails.push(`Port: ${cause.port}`);
+				}
+
+				// Add common error code explanations
+				if (errorCode === 'ERR_INVALID_ARG_VALUE') {
+					errorDetails = 'Invalid argument value - check stream/body format and duplex option';
+				} else if (errorCode === 'ECONNREFUSED') {
+					errorDetails = 'Connection refused - service may be down or unreachable';
+				} else if (errorCode === 'ENOTFOUND') {
+					errorDetails = 'DNS lookup failed - check service URL';
+				} else if (errorCode === 'ETIMEDOUT') {
+					errorDetails = 'Connection timeout - service not responding';
+				} else if (errorCode === 'ECONNRESET') {
+					errorDetails = 'Connection reset by server';
+				} else if (errorCode === 'EHOSTUNREACH') {
+					errorDetails = 'Host unreachable - check network connectivity';
+				} else {
+					errorDetails = 'Network failure';
+				}
+
+				if (networkDetails.length > 0) {
+					errorDetails += ` (${networkDetails.join(', ')})`;
+				}
+				errorDetails += `\nTarget: ${this.config.apiUrl}/${this.apiVersion}/${path}`;
+			} else {
+				errorDetails = originalError.message;
+			}
+
+			// Create enhanced error with full context
+			const enhancedError = new Error(`Failed to upload data to Constellation Service: ${errorDetails}`);
 			enhancedError.cause = originalError;
 			enhancedError.stack = `${enhancedError.stack}\nCaused by: ${originalError.stack}`;
 			throw enhancedError;

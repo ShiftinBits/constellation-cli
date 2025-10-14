@@ -448,7 +448,7 @@ describe('IndexCommand', () => {
 			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
 
 			expect(scannerInstance.scanFiles).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Project not found in service'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Could not determine last index'));
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('performing full index'));
 		});
 

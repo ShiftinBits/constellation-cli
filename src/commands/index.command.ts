@@ -9,6 +9,7 @@ import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
 import { PromisePool } from '../utils/promise-pool';
 import {
 	BLUE_INFO,
+	BLUE_UP_ARROW,
 	GREEN_CHECK,
 	RED_X,
 	YELLOW_LIGHTNING,
@@ -97,10 +98,31 @@ export default class IndexCommand extends BaseCommand {
 
 			// Step 5: Analyze Codebase
 			const files = await this.discoverFiles(indexScopeResult.isIncremental);
-			const astDataStream = this.generateASTs(files);
 
 			// Step 6: Transmit to API
-			await this.uploadToAPI(astDataStream, indexScopeResult.isIncremental);
+			// Track upload completion state
+			let uploadComplete = false;
+
+			// Callback invoked when AST generation finishes
+			const onProcessingComplete = () => {
+				// Only print upload message if upload is still in progress
+				if (!uploadComplete) {
+					console.log(`${BLUE_UP_ARROW} Uploading data to Constellation Service...`);
+				}
+			};
+
+			// Create AST stream with completion callback
+			const astDataStream = this.generateASTs(files, onProcessingComplete);
+
+			// Start upload and track when it completes
+			const uploadPromise = this.uploadToAPI(astDataStream, indexScopeResult.isIncremental)
+				.then((result) => {
+					uploadComplete = true;
+					return result;
+				});
+
+			// Wait for upload to complete
+			await uploadPromise;
 
 			const endTime = performance.now();
 			const execMs = endTime - startTime;
@@ -113,7 +135,7 @@ export default class IndexCommand extends BaseCommand {
 				? `${minutes}m ${seconds}s`
 				: `${seconds}s`;
 
-			console.log(`\n${GREEN_CHECK} Indexing completed in ${humanReadableExecTime} (${execMs}ms)!`);
+			console.log(`\n${GREEN_CHECK} Indexing completed in ${humanReadableExecTime}!`);
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
 			console.error(`${RED_X} Indexing failed: ${errorMessage}`);
@@ -171,7 +193,7 @@ export default class IndexCommand extends BaseCommand {
 			);
 		}
 
-		console.log(`  ${GREEN_CHECK} Working tree clean`);
+		console.log(`${GREEN_CHECK} Working tree clean`);
 	}
 
 	/**
@@ -186,11 +208,11 @@ export default class IndexCommand extends BaseCommand {
 			const pullSuccessful = await this.git!.pull();
 
 			if (pullSuccessful) {
-				console.log(`  ${GREEN_CHECK} Repository synchronized successfully`);
+				console.log(`${GREEN_CHECK} Repository synchronized successfully`);
 			}
 		} catch (error) {
 			// Log the error details that were already logged by GitClient
-			console.error(`  ${RED_X} Failed to synchronize repository`);
+			console.error(`${RED_X} Failed to synchronize repository`);
 
 			// Provide actionable guidance based on error type
 			if (error instanceof Error) {
@@ -235,19 +257,19 @@ export default class IndexCommand extends BaseCommand {
 			const lastIndexedCommit = projectState?.latestCommit;
 
 			if (!lastIndexedCommit) {
-				console.log(`  ${BLUE_INFO} No previous index found - performing full index`);
+				console.log(`${BLUE_INFO} No previous index found - performing full index`);
 				return { isIncremental: false, upToDate: false }; // Full index needed
 			}
 
 			// Check if commit still exists in history
 			const currentCommit = await this.git!.getLatestCommitHash();
 			if (lastIndexedCommit === currentCommit) {
-				console.log(`  ${GREEN_CHECK} Already up to date`);
+				console.log(`${GREEN_CHECK} Already up to date`);
 				return { isIncremental: true, upToDate: true }; // Nothing to do
 			}
 
-			console.log(`  ${BLUE_INFO} Last indexed commit: ${lastIndexedCommit.substring(0, 8)}`);
-			console.log(`  ${BLUE_INFO} Current commit: ${currentCommit.substring(0, 8)}`);
+			console.log(`${BLUE_INFO} Last indexed commit: ${lastIndexedCommit.substring(0, 8)}`);
+			console.log(`${BLUE_INFO} Current commit: ${currentCommit.substring(0, 8)}`);
 
 			console.log(`${BLUE_INFO} Performing incremental index starting from commit ${lastIndexedCommit.substring(0, 8)}`);
 			return { isIncremental: true, upToDate: false }; // Incremental index
@@ -273,7 +295,7 @@ export default class IndexCommand extends BaseCommand {
 			const projectState = await this.apiClient!.getProjectState();
 			if (!projectState?.latestCommit) {
 				// Fallback to full scan if we can't get last commit
-				console.log(`  ${YELLOW_WARN} Cannot determine changes - falling back to full scan`);
+				console.log(`${YELLOW_WARN} Cannot determine changes - falling back to full scan`);
 				files = await this.scanner.scanFiles(this.config!);
 			} else {
 				const changes = await this.git!.getChangedFiles(projectState.latestCommit);
@@ -283,22 +305,22 @@ export default class IndexCommand extends BaseCommand {
 					...changes.renamed.map(r => r.to)
 				];
 
-				console.log(`  ${BLUE_INFO} Found ${changedPaths.length} changed files`);
+				console.log(`${BLUE_INFO} Found ${changedPaths.length} changed files`);
 				files = await this.scanner.scanSpecificFiles(changedPaths, this.config!);
 
 				// Handle deleted files separately
 				if (changes.deleted.length > 0) {
-					console.log(`  ${BLUE_INFO} ${changes.deleted.length} files deleted`);
+					console.log(`${BLUE_INFO} ${changes.deleted.length} files deleted`);
 					await this.apiClient!.deleteFiles(changes.deleted);
 				}
 			}
 		} else {
 			// Full scan
-			console.log(`  ${BLUE_INFO} Scanning all project files...`);
+			console.log(`${BLUE_INFO} Scanning all project files...`);
 			files = await this.scanner.scanFiles(this.config!);
 		}
 
-		console.log(`  ${GREEN_CHECK} Found ${files.length} files to index`);
+		console.log(`${GREEN_CHECK} Found ${files.length} files to index`);
 		return files;
 	}
 
@@ -306,15 +328,16 @@ export default class IndexCommand extends BaseCommand {
 	 * Generates Abstract Syntax Trees from discovered files.
 	 * Uses a promise pool to limit concurrent parsing to 10 files at a time.
 	 * @param files Array of files to parse and generate ASTs for
+	 * @param onComplete Optional callback invoked after all files are processed
 	 * @returns Async generator yielding serialized AST data with compression
 	 */
-	private async* generateASTs(files: FileInfo[]): AsyncGenerator<SerializedAST> {
+	private async* generateASTs(files: FileInfo[], onComplete?: () => void): AsyncGenerator<SerializedAST> {
 		const timestamp = new Date().toISOString();
 		const totalFiles = files.length;
 		let processedCount = 0;
 		let errorCount = 0;
 
-		console.log(`  ${BLUE_INFO} Generating ASTs from ${totalFiles} files (max 10 concurrent)...`);
+		console.log(`${BLUE_INFO} Processing and generating ASTs from ${totalFiles} files...`);
 
 		const currentCommit = await this.git!.getLatestCommitHash();
 
@@ -324,7 +347,7 @@ export default class IndexCommand extends BaseCommand {
 		// Process files with concurrent limit
 		const results = pool.run(files, async (file, index) => {
 			const progress = Math.round(((index + 1) / totalFiles) * 100);
-			console.log(`  ${BLUE_INFO} Processing file ${file.path.replace(process.cwd(), '')} (${progress}%)...`);
+			console.log(`${BLUE_INFO} Processing file ${file.path.replace(process.cwd() + '/', '')} (${progress}%)...`);
 
 			try {
 				// Parse file with tree-sitter to get AST
@@ -360,9 +383,14 @@ export default class IndexCommand extends BaseCommand {
 		}
 
 		if (errorCount > 0) {
-			console.log(`  ${YELLOW_WARN} Completed parsing with ${errorCount} parsing errors`);
+			console.log(`${YELLOW_WARN} Completed parsing with ${errorCount} parsing errors`);
 		} else {
-			console.log(`  ${GREEN_CHECK} All files processed successfully`);
+			console.log(`${GREEN_CHECK} All files processed successfully`);
+		}
+
+		// Notify caller that AST generation is complete
+		if (onComplete) {
+			onComplete();
 		}
 	}
 
@@ -370,11 +398,13 @@ export default class IndexCommand extends BaseCommand {
 	/**
 	 * Uploads AST data to the Constellation API service.
 	 * Processes files individually with compression to optimize network transfer.
-	 * @param astData Array of serialized AST data to upload
+	 * @param astDataStream Async generator yielding serialized AST data
+	 * @param incremental Whether this is an incremental index
+	 * @param onGenerationComplete Optional callback invoked when AST generation completes
 	 */
 	private async uploadToAPI(astDataStream: AsyncGenerator<SerializedAST>, incremental: boolean): Promise<boolean> {
 		const uploadSuccess = await this.apiClient!.streamToApi(astDataStream, 'ast', this.config!.namespace, this.config!.branch, incremental);
-		console.log(`${!uploadSuccess ? `${RED_X} Failed to upload` : `${GREEN_CHECK} Successfully uploaded`} data to Constellation Service...`);
+		console.log(`${!uploadSuccess ? `${RED_X} Failed to upload` : `${GREEN_CHECK} Successfully uploaded`} data to Constellation Service`);
 		return uploadSuccess;
 	}
 }

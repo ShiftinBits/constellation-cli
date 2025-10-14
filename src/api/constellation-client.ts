@@ -79,6 +79,9 @@ export class ConstellationClient {
 	 * Streams AST data to the API using newline-delimited JSON format.
 	 * @param dataStream Async generator yielding SerializedAST objects
 	 * @param path API endpoint path (without base URL or version)
+	 * @param namespace Project namespace
+	 * @param branchName Branch name
+	 * @param incrementalIndex Whether this is an incremental index
 	 * @returns True if upload successful, false otherwise
 	 * @throws Error if stream fails to upload
 	 */

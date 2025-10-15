@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { ConstellationClient } from '../api/constellation-client';
+import { BuildConfigManager } from '../languages/plugins/base-plugin';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
 import { SerializedAST } from '../types/api';
@@ -9,7 +10,6 @@ import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
 import { PromisePool } from '../utils/promise-pool';
 import {
 	BLUE_INFO,
-	BLUE_UP_ARROW,
 	GREEN_CHECK,
 	RED_X,
 	YELLOW_LIGHTNING,
@@ -17,7 +17,6 @@ import {
 } from '../utils/unicode-chars';
 import { BaseCommand } from './base.command';
 import { CommandDeps } from './command.deps';
-import { BuildConfigManager } from '../languages/plugins/base-plugin';
 
 /**
  * Command to index project files by parsing ASTs and uploading to the Constellation service.
@@ -134,7 +133,7 @@ export default class IndexCommand extends BaseCommand {
 			const onProcessingComplete = () => {
 				// Only print upload message if upload is still in progress
 				if (!uploadComplete) {
-					console.log(`${BLUE_UP_ARROW} Uploading data to Constellation Service...`);
+					console.log(`${BLUE_INFO} Uploading data to Constellation Service...`);
 				}
 			};
 

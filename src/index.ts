@@ -70,7 +70,7 @@ program.command('index')
 	.description('Create or update the Constellation data indices for the current project')
 	.option('--full', 'Conduct a full project re-index')
 	.option('--incremental', 'Conduct an incremental project index update')
-	.option('--git-dirty', 'Skip git validation checks (branch and working tree status)')
+	.option('--dirty', 'Skip git validation checks (branch and working tree status)')
 	.action(async (params) => {
 		try {
 			// Load config only when needed for this command

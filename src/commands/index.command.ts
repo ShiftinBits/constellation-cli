@@ -17,6 +17,7 @@ import {
 } from '../utils/unicode-chars';
 import { BaseCommand } from './base.command';
 import { CommandDeps } from './command.deps';
+import { BuildConfigManager } from '../languages/plugins/base-plugin';
 
 /**
  * Command to index project files by parsing ASTs and uploading to the Constellation service.
@@ -31,6 +32,8 @@ export default class IndexCommand extends BaseCommand {
 	private apiClient?: ConstellationClient;
 	/** Compressor for optimizing AST data transmission */
 	private compressor: ASTCompressor;
+	/** Map of build config managers by language */
+	private buildConfigManagers: Map<string, BuildConfigManager> = new Map();
 
 	/**
 	 * Creates a new IndexCommand instance.
@@ -45,6 +48,17 @@ export default class IndexCommand extends BaseCommand {
 		this.scanner = new FileScanner(process.cwd());
 		this.parser = new SourceParser(this.langRegistry);
 		this.compressor = new ASTCompressor();
+
+		// Initialize build config managers for languages that support them
+		for (const language of Object.keys(this.config.languages)) {
+			const plugin = this.langRegistry.getPlugin(language as any);
+			if (plugin?.getBuildConfigManager) {
+				const manager = plugin.getBuildConfigManager(process.cwd(), this.config.languages);
+				if (manager) {
+					this.buildConfigManagers.set(language, manager);
+				}
+			}
+		}
 	}
 
 	/**
@@ -86,7 +100,20 @@ export default class IndexCommand extends BaseCommand {
 				console.log(`${YELLOW_WARN} Skipping repository synchronization`);
 			}
 
-			// Step 4: Determine Index Scope
+			// Step 4: Initialize build configuration managers (if any languages support them)
+			if (this.buildConfigManagers.size > 0) {
+				console.log(`${BLUE_INFO} Discovering language build configurations...`);
+				let totalConfigs = 0;
+				for (const [language, manager] of this.buildConfigManagers.entries()) {
+					const configPaths = await manager.initialize();
+					totalConfigs += configPaths.length;
+				}
+				if (totalConfigs > 0) {
+					console.log(`${GREEN_CHECK} Found ${totalConfigs} configuration file(s)`);
+				}
+			}
+
+			// Step 5: Determine Index Scope
 			const indexScopeResult = await this.determineIndexScope(forceFullIndex);
 
 			// Exit early if already up-to-date
@@ -96,7 +123,7 @@ export default class IndexCommand extends BaseCommand {
 				return;
 			}
 
-			// Step 5: Analyze Codebase
+			// Step 6: Analyze Codebase
 			const files = await this.discoverFiles(indexScopeResult.isIncremental);
 
 			// Step 6: Transmit to API
@@ -353,7 +380,31 @@ export default class IndexCommand extends BaseCommand {
 				// Parse file with tree-sitter to get AST
 				const tree = await this.parser.parseFile(file.path, file.language);
 
-				const serializedAstNode = serializeAST(tree.rootNode);
+				// Get language plugin for this file
+				const plugin = this.langRegistry!.getPlugin(file.language);
+
+				// Create import resolver if the language supports it
+				let importResolver: ((specifier: string) => Promise<string>) | undefined;
+				if (plugin?.getImportResolver) {
+					// Get build config for this file if available
+					const buildConfigManager = this.buildConfigManagers.get(file.language);
+					const buildConfig = buildConfigManager
+						? await buildConfigManager.getConfigForFile(file.path)
+						: null;
+
+					// Create resolver instance
+					const resolver = plugin.getImportResolver(file.path, buildConfig);
+					if (resolver) {
+						importResolver = (specifier) => resolver.resolve(specifier);
+					}
+				}
+
+				// Serialize AST with import path resolution (if available)
+				const serializedAstNode = await serializeAST(
+					tree.rootNode,
+					undefined,
+					importResolver
+				);
 
 				const compressedAst = await this.compressor.compress(serializedAstNode);
 

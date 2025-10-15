@@ -1,9 +1,10 @@
 import ignore, { Ignore } from 'ignore';
-import path from 'node:path';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { ConstellationConfig } from '../config/config';
 import { ParserLanguage } from '../languages/language.registry';
 import { FileUtils } from '../utils/file.utils';
+import { RED_X, YELLOW_WARN } from '../utils/unicode-chars';
 
 /**
  * Information about a discovered file ready for parsing.
@@ -102,7 +103,7 @@ export class FileScanner {
 
 					// Verify the real path is within project boundaries
 					if (!realPath.startsWith(projectRealPath + path.sep) && realPath !== projectRealPath) {
-						console.warn(`[SCANNER] Skipping symlink pointing outside project: ${filePath} -> ${realPath}`);
+						console.warn(`${YELLOW_WARN} Skipping symlink pointing outside project: ${filePath} -> ${realPath}`);
 						continue;
 					}
 
@@ -157,7 +158,7 @@ export class FileScanner {
 				// Skip directories and other file types
 			} catch (error) {
 				// File doesn't exist or isn't accessible, skip it
-				console.warn(`[SCANNER] Skipping inaccessible file: ${filePath}`);
+				console.warn(`${YELLOW_WARN} Skipping inaccessible file: ${filePath}`);
 			}
 		}
 
@@ -205,7 +206,7 @@ export class FileScanner {
 				const content = await FileUtils.readFile(gitignorePath);
 				ig.add(content);
 			} catch (error) {
-				console.warn(`[SCANNER] Failed to load .gitignore: ${gitignorePath}`);
+				console.warn(`${YELLOW_WARN} Failed to load .gitignore: ${gitignorePath}`);
 			}
 		}
 
@@ -264,7 +265,7 @@ export class FileScanner {
 
 						// Verify the real path is within project boundaries
 						if (!realPath.startsWith(projectRoot + path.sep) && realPath !== projectRoot) {
-							console.warn(`[SCANNER] Skipping symlink pointing outside project: ${fullPath} -> ${realPath}`);
+							console.warn(`${YELLOW_WARN} Skipping symlink pointing outside project: ${fullPath} -> ${realPath}`);
 							continue;
 						}
 
@@ -291,13 +292,13 @@ export class FileScanner {
 						}
 					} catch (symlinkError) {
 						// Broken symlink or permission error
-						console.warn(`[SCANNER] Skipping invalid symlink: ${fullPath}`);
+						console.warn(`${YELLOW_WARN} Skipping invalid symlink: ${fullPath}`);
 					}
 				}
 				// Skip other special files (pipes, sockets, etc.)
 			}
 		} catch (error) {
-			console.error(`[SCANNER] Error walking directory ${dirPath}:`, error);
+			console.error(`${RED_X} Error walking directory ${dirPath}:`, error);
 		}
 
 		return files;

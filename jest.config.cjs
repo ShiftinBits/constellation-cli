@@ -23,6 +23,7 @@ module.exports = {
 	moduleNameMapper: {
 		'^@/(.*)$': '<rootDir>/src/$1',
 		'^@test/(.*)$': '<rootDir>/test/$1',
+		'^tsconfck$': '<rootDir>/node_modules/tsconfck/src/index.js',
 	},
 	setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
 	testTimeout: 10000,
@@ -31,5 +32,11 @@ module.exports = {
 		'^.+\\.tsx?$': 'ts-jest',
 	},
 	moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
-	transformIgnorePatterns: ['node_modules/(?!(@scure/base)/)'],
+	transformIgnorePatterns: ['node_modules/(?!(@scure/base|tsconfck)/)'],
+	extensionsToTreatAsEsm: ['.ts'],
+	globals: {
+		'ts-jest': {
+			useESM: true,
+		},
+	},
 };

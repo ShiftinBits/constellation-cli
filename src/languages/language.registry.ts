@@ -2,6 +2,9 @@ import jsTreeSitter from "tree-sitter-javascript";
 import tsTreeSitter from "tree-sitter-typescript";
 
 import { ConstellationConfig } from "../config/config";
+import { LanguagePlugin } from "./plugins/base-plugin";
+import { TypeScriptPlugin } from "./plugins/typescript.plugin";
+import { JavaScriptPlugin } from "./plugins/javascript.plugin";
 
 /**
  * Supported programming languages for Tree-sitter parsing.
@@ -57,14 +60,38 @@ export type ILangaugeRegistry = {
 /**
  * Registry managing Tree-sitter parsers and file extensions for supported languages.
  * Provides access to language parsers with configuration-based extension overrides.
+ * Also manages language-specific plugins for build configuration and import resolution.
  */
 export class LanguageRegistry implements ILangaugeRegistry {
+	/** Map of language plugins for advanced language-specific functionality */
+	private readonly plugins: Map<ParserLanguage, LanguagePlugin> = new Map();
 
 	/**
 	 * Creates a new LanguageRegistry instance.
 	 * @param config Constellation configuration containing language-specific settings
 	 */
-	constructor(private readonly config: ConstellationConfig) {}
+	constructor(private readonly config: ConstellationConfig) {
+		// Register language plugins
+		this.registerPlugin(new TypeScriptPlugin());
+		this.registerPlugin(new JavaScriptPlugin());
+	}
+
+	/**
+	 * Registers a language plugin for advanced functionality.
+	 * @param plugin The language plugin to register
+	 */
+	private registerPlugin(plugin: LanguagePlugin): void {
+		this.plugins.set(plugin.language, plugin);
+	}
+
+	/**
+	 * Gets the language plugin for a specific language.
+	 * @param language The programming language
+	 * @returns The language plugin or undefined if not available
+	 */
+	getPlugin(language: ParserLanguage): LanguagePlugin | undefined {
+		return this.plugins.get(language);
+	}
 
 	/** JavaScript language parser configuration */
 	['javascript'] = {

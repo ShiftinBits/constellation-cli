@@ -17,6 +17,20 @@ jest.mock('@scure/base', () => ({
 	}
 }));
 
+// Mock tsconfck to avoid ESM issues
+jest.mock('tsconfck', () => ({
+	findAll: jest.fn(async () => []),
+	parse: jest.fn(async () => ({
+		tsconfigFile: '/mock/tsconfig.json',
+		tsconfig: {
+			compilerOptions: {
+				baseUrl: './',
+				paths: {}
+			}
+		}
+	})),
+}));
+
 // Mock all dependencies
 jest.mock('../../../src/utils/git-client');
 jest.mock('../../../src/env/env-manager');
@@ -26,7 +40,7 @@ jest.mock('../../../src/parsers/source.parser');
 jest.mock('../../../src/api/constellation-client');
 jest.mock('../../../src/utils/ast-compressor');
 jest.mock('../../../src/utils/ast-serializer', () => ({
-	serializeAST: jest.fn(() => ({ type: 'program', children: [] }))
+	serializeAST: jest.fn(async () => ({ type: 'program', children: [] }))
 }));
 
 describe('IndexCommand', () => {

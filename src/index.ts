@@ -88,7 +88,7 @@ program.command('index')
 			};
 
 			const fullIndex = params.full || false;
-			const gitDirty = params.gitDirty || false;
+			const gitDirty = params.dirty || false;
 			const indexCommand = new IndexCommand(commandDeps);
 			await indexCommand.run(fullIndex, gitDirty);
 		} catch (error) {

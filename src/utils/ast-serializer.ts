@@ -24,9 +24,14 @@ export interface SerializedNode {
  * Recursively processes child nodes while excluding source code content.
  * @param node Tree-sitter SyntaxNode to serialize
  * @param parentFieldName Optional field name if this node is a named field in its parent
+ * @param resolveImportPath Optional callback to resolve import specifiers to actual paths
  * @returns Serialized node containing only metadata and identifiers
  */
-export function serializeAST(node: SyntaxNode, parentFieldName?: string): SerializedNode {
+export async function serializeAST(
+	node: SyntaxNode,
+	parentFieldName?: string,
+	resolveImportPath?: (specifier: string) => Promise<string>
+): Promise<SerializedNode> {
 	// Serialize AST node recursively, excluding actual source code
 	const serialized: SerializedNode = {
 		type: node.type,
@@ -92,6 +97,23 @@ export function serializeAST(node: SyntaxNode, parentFieldName?: string): Serial
 	    node.type.endsWith('_keyword') ||
 	    node.type.endsWith('_operator')) {
 		serialized.text = node.text;
+
+		// Resolve import paths if this is a string node with fieldName 'source'
+		// This captures import/export source strings
+		if ((node.type === 'string' || node.type === 'string_literal') &&
+		    parentFieldName === 'source' &&
+		    resolveImportPath) {
+			// Extract the actual path from the quoted string
+			const importPath = node.text.replace(/^['"`]|['"`]$/g, '');
+			try {
+				const resolved = await resolveImportPath(importPath);
+				// Put the resolved path back in quotes to maintain the string format
+				serialized.text = node.text[0] + resolved + node.text[node.text.length - 1];
+			} catch (error) {
+				// If resolution fails, keep the original
+				console.warn(`[AST] Failed to resolve import: ${importPath}`, error);
+			}
+		}
 	}
 
 	// Capture all children with their field names
@@ -107,7 +129,7 @@ export function serializeAST(node: SyntaxNode, parentFieldName?: string): Serial
 			const fieldChild = node.childForFieldName(fieldName);
 			if (fieldChild) {
 				fieldChildrenSeen.add(fieldChild);
-				serialized.children.push(serializeAST(fieldChild, fieldName));
+				serialized.children.push(await serializeAST(fieldChild, fieldName, resolveImportPath));
 			}
 		}
 
@@ -115,7 +137,7 @@ export function serializeAST(node: SyntaxNode, parentFieldName?: string): Serial
 		for (let i = 0; i < node.childCount; i++) {
 			const child = node.child(i);
 			if (child && !fieldChildrenSeen.has(child)) {
-				serialized.children.push(serializeAST(child));
+				serialized.children.push(await serializeAST(child, undefined, resolveImportPath));
 			}
 		}
 	}

@@ -5,7 +5,7 @@ import { createMockASTNode } from '../../helpers/mocks';
 
 describe('ASTSerializer', () => {
 	describe('serializeAST', () => {
-		it('should serialize basic node properties', () => {
+		it('should serialize basic node properties', async () => {
 			const mockNode = {
 				type: 'function_declaration',
 				startPosition: { row: 1, column: 0 },
@@ -14,7 +14,7 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			const result = serializeAST(mockNode);
+			const result = await serializeAST(mockNode);
 
 			expect(result).toEqual({
 				type: 'function_declaration',
@@ -23,7 +23,7 @@ describe('ASTSerializer', () => {
 			});
 		});
 
-		it('should include field name when provided', () => {
+		it('should include field name when provided', async () => {
 			const mockNode = {
 				type: 'identifier',
 				startPosition: { row: 1, column: 9 },
@@ -32,7 +32,7 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			const result = serializeAST(mockNode, 'name');
+			const result = await serializeAST(mockNode, 'name');
 
 			expect(result).toEqual({
 				type: 'identifier',
@@ -43,7 +43,7 @@ describe('ASTSerializer', () => {
 			});
 		});
 
-		it('should include text for identifier nodes', () => {
+		it('should include text for identifier nodes', async () => {
 			const mockNode = {
 				type: 'identifier',
 				startPosition: { row: 0, column: 0 },
@@ -52,12 +52,12 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			const result = serializeAST(mockNode);
+			const result = await serializeAST(mockNode);
 
 			expect(result.text).toBe('variable');
 		});
 
-		it('should include text for string literals', () => {
+		it('should include text for string literals', async () => {
 			const mockNode = {
 				type: 'string_literal',
 				startPosition: { row: 0, column: 0 },
@@ -66,12 +66,12 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			const result = serializeAST(mockNode);
+			const result = await serializeAST(mockNode);
 
 			expect(result.text).toBe('"hello world"');
 		});
 
-		it('should include text for boolean literals', () => {
+		it('should include text for boolean literals', async () => {
 			const trueMockNode = {
 				type: 'true',
 				startPosition: { row: 0, column: 0 },
@@ -88,11 +88,11 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			expect(serializeAST(trueMockNode).text).toBe('true');
-			expect(serializeAST(falseMockNode).text).toBe('false');
+			expect((await serializeAST(trueMockNode)).text).toBe('true');
+			expect((await serializeAST(falseMockNode)).text).toBe('false');
 		});
 
-		it('should include text for keyword nodes', () => {
+		it('should include text for keyword nodes', async () => {
 			const mockNode = {
 				type: 'const_keyword',
 				startPosition: { row: 0, column: 0 },
@@ -101,12 +101,12 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			const result = serializeAST(mockNode);
+			const result = await serializeAST(mockNode);
 
 			expect(result.text).toBe('const');
 		});
 
-		it('should include text for operator nodes', () => {
+		it('should include text for operator nodes', async () => {
 			const mockNode = {
 				type: 'binary_operator',
 				startPosition: { row: 0, column: 2 },
@@ -115,12 +115,12 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			const result = serializeAST(mockNode);
+			const result = await serializeAST(mockNode);
 
 			expect(result.text).toBe('+');
 		});
 
-		it('should NOT include text for code block nodes', () => {
+		it('should NOT include text for code block nodes', async () => {
 			const mockNode = {
 				type: 'statement_block',
 				startPosition: { row: 1, column: 0 },
@@ -130,12 +130,12 @@ describe('ASTSerializer', () => {
 				child: jest.fn().mockReturnValue(null),
 			} as unknown as SyntaxNode;
 
-			const result = serializeAST(mockNode);
+			const result = await serializeAST(mockNode);
 
 			expect(result.text).toBeUndefined();
 		});
 
-		it('should serialize children recursively', () => {
+		it('should serialize children recursively', async () => {
 			const childNode = {
 				type: 'identifier',
 				startPosition: { row: 1, column: 9 },
@@ -154,7 +154,7 @@ describe('ASTSerializer', () => {
 				childForFieldName: jest.fn().mockReturnValue(null),
 			} as unknown as SyntaxNode;
 
-			const result = serializeAST(parentNode);
+			const result = await serializeAST(parentNode);
 
 			expect(result.children).toHaveLength(1);
 			expect(result.children![0]).toEqual({
@@ -165,7 +165,7 @@ describe('ASTSerializer', () => {
 			});
 		});
 
-		it('should handle field names for common node types', () => {
+		it('should handle field names for common node types', async () => {
 			const nameNode = {
 				type: 'identifier',
 				startPosition: { row: 1, column: 9 },
@@ -186,13 +186,13 @@ describe('ASTSerializer', () => {
 				}),
 			} as unknown as SyntaxNode;
 
-			const result = serializeAST(parentNode);
+			const result = await serializeAST(parentNode);
 
 			expect(result.children).toHaveLength(1);
 			expect(result.children![0].fieldName).toBe('name');
 		});
 
-		it('should handle mixed field and anonymous children', () => {
+		it('should handle mixed field and anonymous children', async () => {
 			const nameNode = {
 				type: 'identifier',
 				text: 'test',
@@ -225,7 +225,7 @@ describe('ASTSerializer', () => {
 				}),
 			} as unknown as SyntaxNode;
 
-			const result = serializeAST(parentNode);
+			const result = await serializeAST(parentNode);
 
 			expect(result.children).toHaveLength(2);
 
@@ -238,7 +238,7 @@ describe('ASTSerializer', () => {
 			expect(result.children![1].type).toBe('(');
 		});
 
-		it('should handle nodes with no children', () => {
+		it('should handle nodes with no children', async () => {
 			const mockNode = {
 				type: 'identifier',
 				startPosition: { row: 0, column: 0 },
@@ -247,12 +247,12 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			const result = serializeAST(mockNode);
+			const result = await serializeAST(mockNode);
 
 			expect(result.children).toBeUndefined();
 		});
 
-		it('should handle complex nested structures', () => {
+		it('should handle complex nested structures', async () => {
 			// Create a complex AST structure: function with parameters and body
 			const paramNode = {
 				type: 'identifier',
@@ -296,7 +296,7 @@ describe('ASTSerializer', () => {
 				}),
 			} as unknown as SyntaxNode;
 
-			const result = serializeAST(functionNode);
+			const result = await serializeAST(functionNode);
 
 			expect(result.type).toBe('function_declaration');
 			expect(result.children).toHaveLength(2);
@@ -313,7 +313,7 @@ describe('ASTSerializer', () => {
 			expect(bodyChild!.text).toBeUndefined(); // Should not include text for code blocks
 		});
 
-		it('should preserve position information accurately', () => {
+		it('should preserve position information accurately', async () => {
 			const mockNode = {
 				type: 'string_literal',
 				startPosition: { row: 42, column: 15 },
@@ -322,7 +322,7 @@ describe('ASTSerializer', () => {
 				childCount: 0,
 			} as SyntaxNode;
 
-			const result = serializeAST(mockNode);
+			const result = await serializeAST(mockNode);
 
 			expect(result.startPosition).toEqual({ row: 42, column: 15 });
 			expect(result.endPosition).toEqual({ row: 42, column: 28 });

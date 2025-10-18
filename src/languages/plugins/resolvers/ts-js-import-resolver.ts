@@ -27,6 +27,15 @@ export class TsJsImportResolver implements ImportResolver {
 	/** Extensions to try when resolving paths (configured based on file type) */
 	private readonly extensions: string[];
 
+	/** Package.json imports field for # prefix internal aliases */
+	private packageImports: Record<string, string | string[]> = {};
+
+	/** Directory containing the package.json file */
+	private packageJsonDir: string | null = null;
+
+	/** Path to the source file being resolved */
+	private readonly sourceFilePath: string;
+
 	/**
 	 * Creates a new PathAliasResolver instance.
 	 * @param sourceFilePath Absolute path to the source file containing imports
@@ -36,6 +45,7 @@ export class TsJsImportResolver implements ImportResolver {
 		sourceFilePath: string,
 		tsconfigResult: TSConfckParseResult | null
 	) {
+		this.sourceFilePath = sourceFilePath;
 		this.sourceDir = path.dirname(sourceFilePath);
 		this.projectRoot = process.cwd();
 
@@ -95,6 +105,17 @@ export class TsJsImportResolver implements ImportResolver {
 			if (resolved) {
 				return this.toProjectRelative(resolved);
 			}
+			return specifier;
+		}
+
+		// Resolve package.json "imports" field (# prefix internal aliases)
+		// This has higher priority than path aliases per Node.js resolution
+		if (specifier.startsWith('#')) {
+			const resolved = await this.resolveWithPackageImports(specifier);
+			if (resolved) {
+				return this.toProjectRelative(resolved);
+			}
+			// If not found, return original (will be handled as external)
 			return specifier;
 		}
 
@@ -231,15 +252,24 @@ export class TsJsImportResolver implements ImportResolver {
 	/**
 	 * Tries to find a file with various TypeScript extensions.
 	 * Also tries index files in directories.
+	 * Resolves symlinks to their actual locations for accurate path tracking.
 	 * @param basePath Base path without extension
 	 * @returns Resolved absolute path or null if not found
 	 */
 	private async findFileWithExtensions(basePath: string): Promise<string | null> {
-		// Try with configured extensions
-		for (const ext of this.extensions) {
-			const pathWithExt = basePath + ext;
-			if (await this.fileExists(pathWithExt)) {
-				return pathWithExt;
+		// Check if path already has a known extension - if so, try it as-is first
+		const hasKnownExtension = this.extensions.some(ext => basePath.endsWith(ext));
+		if (hasKnownExtension && await this.fileExists(basePath)) {
+			return await this.resolveSymlink(basePath);
+		}
+
+		// Try with configured extensions (skip if already has one)
+		if (!hasKnownExtension) {
+			for (const ext of this.extensions) {
+				const pathWithExt = basePath + ext;
+				if (await this.fileExists(pathWithExt)) {
+					return await this.resolveSymlink(pathWithExt);
+				}
 			}
 		}
 
@@ -247,7 +277,7 @@ export class TsJsImportResolver implements ImportResolver {
 		for (const ext of this.extensions) {
 			const indexPath = path.join(basePath, `index${ext}`);
 			if (await this.fileExists(indexPath)) {
-				return indexPath;
+				return await this.resolveSymlink(indexPath);
 			}
 		}
 
@@ -266,5 +296,158 @@ export class TsJsImportResolver implements ImportResolver {
 		} catch {
 			return false;
 		}
+	}
+
+	/**
+	 * Resolves symlinks to their actual file locations.
+	 * Critical for monorepo setups with workspace symlinks.
+	 * @param filePath Path that may be a symlink
+	 * @returns Real path or original path if not a symlink
+	 */
+	private async resolveSymlink(filePath: string): Promise<string> {
+		try {
+			return await fs.realpath(filePath);
+		} catch {
+			// If realpath fails (broken symlink, etc.), return original path
+			return filePath;
+		}
+	}
+
+	/**
+	 * Finds the nearest package.json by walking up the directory tree from the source file.
+	 * Stops at project root to avoid searching outside the project.
+	 * @param startDir Directory to start searching from
+	 * @returns Absolute path to package.json or null if not found
+	 */
+	private async findPackageJson(startDir: string): Promise<string | null> {
+		let currentDir = startDir;
+
+		// Walk up the directory tree until we hit the project root
+		while (currentDir.startsWith(this.projectRoot)) {
+			const packageJsonPath = path.join(currentDir, 'package.json');
+
+			try {
+				const stats = await fs.stat(packageJsonPath);
+				if (stats.isFile()) {
+					return packageJsonPath;
+				}
+			} catch {
+				// File doesn't exist, continue searching
+			}
+
+			// Move up one directory
+			const parentDir = path.dirname(currentDir);
+			if (parentDir === currentDir) {
+				// Reached filesystem root without finding package.json
+				break;
+			}
+			currentDir = parentDir;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Loads the "imports" field from the nearest package.json.
+	 * This is called lazily on first use to avoid unnecessary file I/O.
+	 * @returns Promise that resolves when imports are loaded
+	 */
+	private async loadPackageImports(): Promise<void> {
+		// Only load once
+		if (this.packageJsonDir !== null) {
+			return;
+		}
+
+		const packageJsonPath = await this.findPackageJson(this.sourceDir);
+		if (!packageJsonPath) {
+			// Mark as attempted but not found
+			this.packageJsonDir = '';
+			return;
+		}
+
+		try {
+			const content = await fs.readFile(packageJsonPath, 'utf-8');
+			const packageJson = JSON.parse(content);
+
+			this.packageJsonDir = path.dirname(packageJsonPath);
+
+			// Extract imports field if it exists
+			if (packageJson.imports && typeof packageJson.imports === 'object') {
+				this.packageImports = packageJson.imports;
+			}
+		} catch {
+			// Failed to read or parse package.json
+			this.packageJsonDir = '';
+		}
+	}
+
+	/**
+	 * Resolves imports using package.json "imports" field (# prefix aliases).
+	 * Supports both exact matches and wildcard patterns.
+	 * @param specifier Import specifier to resolve (must start with #)
+	 * @returns Resolved absolute path or null if not matched
+	 */
+	private async resolveWithPackageImports(specifier: string): Promise<string | null> {
+		// Ensure imports are loaded
+		await this.loadPackageImports();
+
+		// No package.json or no imports field
+		if (!this.packageJsonDir || Object.keys(this.packageImports).length === 0) {
+			return null;
+		}
+
+		// Try to match against import patterns
+		for (const [pattern, target] of Object.entries(this.packageImports)) {
+			const match = this.matchPathPattern(specifier, pattern);
+			if (match === null) {
+				continue;
+			}
+
+			// Handle string target (most common case)
+			if (typeof target === 'string') {
+				const resolved = await this.tryPackageImportSubstitution(target, match);
+				if (resolved) {
+					return resolved;
+				}
+			}
+
+			// Handle array of targets (try each in order)
+			if (Array.isArray(target)) {
+				for (const targetPath of target) {
+					if (typeof targetPath === 'string') {
+						const resolved = await this.tryPackageImportSubstitution(targetPath, match);
+						if (resolved) {
+							return resolved;
+						}
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Tries to resolve a package import substitution.
+	 * @param targetPath Target path from imports field
+	 * @param wildcardMatch The wildcard match content (if any)
+	 * @returns Resolved absolute path or null
+	 */
+	private async tryPackageImportSubstitution(
+		targetPath: string,
+		wildcardMatch: string
+	): Promise<string | null> {
+		if (!this.packageJsonDir) {
+			return null;
+		}
+
+		// Replace wildcard in target path
+		const resolvedPath = targetPath.replace('*', wildcardMatch);
+
+		// Resolve relative to package.json directory
+		const absolutePath = path.resolve(this.packageJsonDir, resolvedPath);
+
+		// Try to find the file with various extensions
+		return await this.findFileWithExtensions(absolutePath);
 	}
 }

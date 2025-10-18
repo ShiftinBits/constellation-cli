@@ -13,6 +13,14 @@ describe('TsJsImportResolver', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		mockFs = fs as jest.Mocked<typeof fs>;
+
+		// Add default mocks for new functions (identity/passthrough)
+		// These can be overridden in individual tests
+		// @ts-ignore
+		(mockFs.realpath as jest.Mock).mockImplementation((p: any) => Promise.resolve(p));
+		// @ts-ignore
+		(mockFs.readFile as jest.Mock).mockResolvedValue('{}' as any);
+
 		// Mock process.cwd() to return /project for all tests
 		originalCwd = process.cwd;
 		process.cwd = jest.fn(() => '/project') as any;
@@ -519,6 +527,282 @@ describe('TsJsImportResolver', () => {
 			const result = await resolver.resolve('@utils/helper');
 
 			expect(result).toBe('src/utils/helper/index.js');
+		});
+	});
+
+	describe('resolve - symlink resolution', () => {
+		it('should resolve symlinks to their actual locations', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {
+					compilerOptions: {
+						baseUrl: './',
+						paths: { '@utils/*': ['src/utils/*'] }
+					}
+				}
+			} as TSConfckParseResult;
+
+			// Mock fs.stat to succeed
+			mockFs.stat.mockResolvedValue({ isFile: () => true } as any);
+
+			// Mock fs.realpath to return a different path (simulating symlink)
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockResolvedValue('/project/packages/shared/utils/helper.ts');
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('@utils/helper');
+
+			// Should resolve to the real path location
+			expect(result).toBe('packages/shared/utils/helper.ts');
+		});
+
+		it('should handle broken symlinks gracefully', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {
+					compilerOptions: {
+						baseUrl: './',
+						paths: { '@utils/*': ['src/utils/*'] }
+					}
+				}
+			} as TSConfckParseResult;
+
+			// Mock fs.stat to succeed
+			mockFs.stat.mockResolvedValue({ isFile: () => true } as any);
+
+			// Mock fs.realpath to fail (broken symlink)
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockRejectedValue(new Error('broken symlink'));
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('@utils/helper');
+
+			// Should fall back to the original path
+			expect(result).toBe('src/utils/helper.ts');
+		});
+
+		it('should resolve symlinked relative imports', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			mockFs.stat.mockResolvedValue({ isFile: () => true } as any);
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockResolvedValue('/project/packages/core/helper.ts');
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('./helper');
+
+			expect(result).toBe('packages/core/helper.ts');
+		});
+	});
+
+	describe('resolve - package.json imports field', () => {
+		it('should resolve # prefix imports using package.json imports field', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// Mock package.json content
+			const packageJsonContent = JSON.stringify({
+				name: 'test-package',
+				imports: {
+					'#utils/*': './src/utils/*'
+				}
+			});
+
+			// Mock fs.stat for package.json discovery and file existence
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/package.json' || filePath === '/project/src/utils/helper.ts') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			// Mock fs.readFile for package.json
+			// @ts-ignore
+			(mockFs.readFile as jest.Mock).mockResolvedValue(packageJsonContent as any);
+
+			// Mock fs.realpath
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockImplementation((p: any) => Promise.resolve(p));
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('#utils/helper');
+
+			expect(result).toBe('src/utils/helper.ts');
+		});
+
+		it('should handle wildcard patterns in imports field', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			const packageJsonContent = JSON.stringify({
+				imports: {
+					'#internal/*': './lib/internal/*.js'
+				}
+			});
+
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/package.json' || filePath === '/project/lib/internal/utils.js') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			// @ts-ignore
+			(mockFs.readFile as jest.Mock).mockResolvedValue(packageJsonContent as any);
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockImplementation((p: any) => Promise.resolve(p));
+
+			const resolver = new TsJsImportResolver('/project/src/index.js', tsconfig);
+			const result = await resolver.resolve('#internal/utils');
+
+			expect(result).toBe('lib/internal/utils.js');
+		});
+
+		it('should try multiple import targets in order', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			const packageJsonContent = JSON.stringify({
+				imports: {
+					'#utils': ['./lib/utils.js', './src/utils.js']
+				}
+			});
+
+			// First target fails, second succeeds
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/package.json' || filePath === '/project/src/utils.js') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			// @ts-ignore
+			(mockFs.readFile as jest.Mock).mockResolvedValue(packageJsonContent as any);
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockImplementation((p: any) => Promise.resolve(p));
+
+			const resolver = new TsJsImportResolver('/project/src/index.js', tsconfig);
+			const result = await resolver.resolve('#utils');
+
+			expect(result).toBe('src/utils.js');
+		});
+
+		it('should return original specifier if import not found in package.json', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			const packageJsonContent = JSON.stringify({
+				imports: {
+					'#utils/*': './src/utils/*'
+				}
+			});
+
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/package.json') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			// @ts-ignore
+			(mockFs.readFile as jest.Mock).mockResolvedValue(packageJsonContent as any);
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockImplementation((p: any) => Promise.resolve(p));
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('#nonexistent/helper');
+
+			expect(result).toBe('#nonexistent/helper');
+		});
+
+		it('should handle exact match imports without wildcards', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			const packageJsonContent = JSON.stringify({
+				imports: {
+					'#logger': './src/logger.ts'
+				}
+			});
+
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/package.json' || filePath === '/project/src/logger.ts') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			// @ts-ignore
+			(mockFs.readFile as jest.Mock).mockResolvedValue(packageJsonContent as any);
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockImplementation((p: any) => Promise.resolve(p));
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('#logger');
+
+			expect(result).toBe('src/logger.ts');
+		});
+
+		it('should work without package.json present', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// No package.json exists
+			mockFs.stat.mockRejectedValue(new Error('not found'));
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockImplementation((p: any) => Promise.resolve(p));
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('#utils/helper');
+
+			// Should return original since no package.json
+			expect(result).toBe('#utils/helper');
+		});
+
+		it('should find package.json in parent directory', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			const packageJsonContent = JSON.stringify({
+				imports: {
+					'#shared/*': './shared/*'
+				}
+			});
+
+			// package.json is in parent directory
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/package.json' || filePath === '/project/shared/utils.ts') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			// @ts-ignore
+			(mockFs.readFile as jest.Mock).mockResolvedValue(packageJsonContent as any);
+			// @ts-ignore
+			(mockFs.realpath as jest.Mock).mockImplementation((p: any) => Promise.resolve(p));
+
+			const resolver = new TsJsImportResolver('/project/src/components/Button.tsx', tsconfig);
+			const result = await resolver.resolve('#shared/utils');
+
+			expect(result).toBe('shared/utils.ts');
 		});
 	});
 });

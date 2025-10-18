@@ -1,6 +1,6 @@
 import { findAll, parse, TSConfckParseResult } from 'tsconfck';
-import { YELLOW_WARN } from '../../../utils/unicode-chars';
 import { IConstellationLanguageConfig } from '../../../config/config';
+import { YELLOW_WARN } from '../../../utils/unicode-chars';
 import { BuildConfigManager } from '../base-plugin';
 
 /**
@@ -167,7 +167,7 @@ export class TsJsConfigManager implements BuildConfigManager {
 			this.parseCache.set(filePath, null);
 			return null;
 		} catch (error) {
-			console.warn(`[CONFIG] Failed to parse config for ${filePath}:`, error);
+			console.warn(`${YELLOW_WARN} Failed to parse config for ${filePath}:`, error);
 			this.parseCache.set(filePath, null);
 			return null;
 		}

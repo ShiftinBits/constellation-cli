@@ -1,6 +1,6 @@
-import { TSConfckParseResult } from 'tsconfck';
-import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { TSConfckParseResult } from 'tsconfck';
 import { ImportResolver } from '../base-plugin';
 
 /**
@@ -57,7 +57,7 @@ export class TsJsImportResolver implements ImportResolver {
 			this.extensions = ['.ts', '.tsx', '.d.ts'];
 		}
 
-		if (!tsconfigResult) {
+		if (!tsconfigResult?.tsconfigFile) {
 			this.tsconfigDir = this.sourceDir;
 			return;
 		}

@@ -1,4 +1,5 @@
 import { SyntaxNode } from 'tree-sitter';
+import { YELLOW_WARN } from './unicode-chars';
 
 /**
  * Represents a serialized AST node without source code content.
@@ -111,7 +112,7 @@ export async function serializeAST(
 				serialized.text = node.text[0] + resolved + node.text[node.text.length - 1];
 			} catch (error) {
 				// If resolution fails, keep the original
-				console.warn(`[AST] Failed to resolve import: ${importPath}`, error);
+				console.warn(`${YELLOW_WARN} Failed to resolve import: ${importPath}`, error);
 			}
 		}
 	}

@@ -2,11 +2,13 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { TSConfckParseResult } from 'tsconfck';
 import { ImportResolver } from '../base-plugin';
+import { WorkspacePackageResolver } from './workspace-package-resolver';
 
 /**
  * Resolves TypeScript/JavaScript import paths to project-relative paths.
  * Handles baseUrl, paths, and extension resolution.
  * Supports both TypeScript (.ts, .tsx, .d.ts) and JavaScript (.js, .jsx, .mjs, .cjs) extensions.
+ * Resolves workspace packages to prevent internal imports from being treated as external.
  */
 export class TsJsImportResolver implements ImportResolver {
 	/** Base URL for path resolution from tsconfig */
@@ -36,6 +38,9 @@ export class TsJsImportResolver implements ImportResolver {
 	/** Path to the source file being resolved */
 	private readonly sourceFilePath: string;
 
+	/** Workspace package resolver for monorepo imports */
+	private readonly workspaceResolver: WorkspacePackageResolver;
+
 	/**
 	 * Creates a new PathAliasResolver instance.
 	 * @param sourceFilePath Absolute path to the source file containing imports
@@ -48,6 +53,9 @@ export class TsJsImportResolver implements ImportResolver {
 		this.sourceFilePath = sourceFilePath;
 		this.sourceDir = path.dirname(sourceFilePath);
 		this.projectRoot = process.cwd();
+
+		// Initialize workspace package resolver
+		this.workspaceResolver = new WorkspacePackageResolver(this.projectRoot, tsconfigResult);
 
 		// Determine extensions based on file type
 		const isTypeScriptFile = sourceFilePath.endsWith('.ts') ||
@@ -119,6 +127,15 @@ export class TsJsImportResolver implements ImportResolver {
 			return specifier;
 		}
 
+		// **CRITICAL FIX**: Try workspace package resolution FIRST
+		// This prevents internal monorepo packages from being treated as external
+		// Example: '@myorg/database' should resolve to 'libs/database/src/index.ts'
+		// instead of being treated as an external npm package
+		const workspaceResolved = await this.workspaceResolver.resolve(specifier);
+		if (workspaceResolved) {
+			return workspaceResolved;
+		}
+
 		// Skip node_modules imports
 		if (!specifier.startsWith('@') && !specifier.startsWith('~')) {
 			// Check if it looks like a package (no path separator at start)
@@ -149,11 +166,14 @@ export class TsJsImportResolver implements ImportResolver {
 
 	/**
 	 * Converts an absolute file path to a project-relative path.
+	 * All returned paths will start with './' to indicate they are project-root relative.
 	 * @param absolutePath Absolute file system path
-	 * @returns Project-relative path
+	 * @returns Project-relative path starting with './'
 	 */
 	private toProjectRelative(absolutePath: string): string {
-		return path.relative(this.projectRoot, absolutePath);
+		const relativePath = path.relative(this.projectRoot, absolutePath);
+		// Ensure all project-root relative paths start with ./
+		return relativePath.startsWith('./') ? relativePath : `./${relativePath}`;
 	}
 
 	/**
@@ -165,7 +185,9 @@ export class TsJsImportResolver implements ImportResolver {
 		// Find matching path pattern
 		for (const [pattern, substitutions] of Object.entries(this.paths)) {
 			const match = this.matchPathPattern(specifier, pattern);
-			if (!match) {
+
+			// match can be '' (empty string) for exact matches, so we need to check for null explicitly
+			if (match === null) {
 				continue;
 			}
 

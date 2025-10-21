@@ -75,8 +75,8 @@ describe('TsJsImportResolver', () => {
 
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 
-			expect(await resolver.resolve('./helper')).toBe('src/helper.ts');
-			expect(await resolver.resolve('../utils/helper')).toBe('utils/helper.ts');
+			expect(await resolver.resolve('./helper')).toBe('./src/helper.ts');
+			expect(await resolver.resolve('../utils/helper')).toBe('./utils/helper.ts');
 		});
 
 		it('should return original specifier if relative import file not found', async () => {
@@ -120,7 +120,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('@utils/helper');
 
-			expect(result).toBe('src/utils/helper.ts');
+			expect(result).toBe('./src/utils/helper.ts');
 		});
 
 		it('should try multiple extensions', async () => {
@@ -143,7 +143,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('@utils/helper');
 
-			expect(result).toBe('src/utils/helper.d.ts');
+			expect(result).toBe('./src/utils/helper.d.ts');
 			expect(mockFs.stat).toHaveBeenCalledTimes(3);
 		});
 
@@ -168,7 +168,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('@utils/helper');
 
-			expect(result).toBe('src/utils/helper/index.ts');
+			expect(result).toBe('./src/utils/helper/index.ts');
 		});
 
 		it('should return original specifier if resolution fails', async () => {
@@ -216,7 +216,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('@utils/helper');
 
-			expect(result).toBe('lib/utils/helper.ts');
+			expect(result).toBe('./lib/utils/helper.ts');
 		});
 
 		it('should pass through patterns without wildcards that do not match', async () => {
@@ -258,7 +258,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('utils/helper');
 
-			expect(result).toBe('src/utils/helper.ts');
+			expect(result).toBe('./src/utils/helper.ts');
 		});
 
 		it('should return original if baseUrl resolution fails', async () => {
@@ -360,7 +360,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('@components/ui/Button');
 
-			expect(result).toBe('src/components/ui/Button.ts');
+			expect(result).toBe('./src/components/ui/Button.ts');
 		});
 	});
 
@@ -386,7 +386,7 @@ describe('TsJsImportResolver', () => {
 			);
 			const result = await resolver.resolve('@utils/helper');
 
-			expect(result).toBe('packages/frontend/src/utils/helper.ts');
+			expect(result).toBe('./packages/frontend/src/utils/helper.ts');
 		});
 	});
 
@@ -409,7 +409,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.js', jsconfig);
 			const result = await resolver.resolve('@utils/helper');
 
-			expect(result).toBe('src/utils/helper.js');
+			expect(result).toBe('./src/utils/helper.js');
 		});
 
 		it('should try JavaScript extensions in order (.js, .jsx, .mjs, .cjs)', async () => {
@@ -435,7 +435,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.js', jsconfig);
 			const result = await resolver.resolve('@utils/helper');
 
-			expect(result).toBe('src/utils/helper.cjs');
+			expect(result).toBe('./src/utils/helper.cjs');
 			expect(mockFs.stat).toHaveBeenCalledTimes(4);
 		});
 
@@ -454,8 +454,8 @@ describe('TsJsImportResolver', () => {
 
 			const resolver = new TsJsImportResolver('/project/src/index.js', jsconfig);
 
-			expect(await resolver.resolve('./helper')).toBe('src/helper.js');
-			expect(await resolver.resolve('../utils/helper')).toBe('utils/helper.js');
+			expect(await resolver.resolve('./helper')).toBe('./src/helper.js');
+			expect(await resolver.resolve('../utils/helper')).toBe('./utils/helper.js');
 		});
 
 		it('should handle .jsx files', async () => {
@@ -479,7 +479,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/App.jsx', jsconfig);
 			const result = await resolver.resolve('@components/Button');
 
-			expect(result).toBe('src/components/Button.jsx');
+			expect(result).toBe('./src/components/Button.jsx');
 		});
 
 		it('should handle .mjs files', async () => {
@@ -501,7 +501,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.mjs', jsconfig);
 			const result = await resolver.resolve('utils/helper');
 
-			expect(result).toBe('src/utils/helper.mjs');
+			expect(result).toBe('./src/utils/helper.mjs');
 		});
 
 		it('should resolve with index.js for directories', async () => {
@@ -526,7 +526,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.js', jsconfig);
 			const result = await resolver.resolve('@utils/helper');
 
-			expect(result).toBe('src/utils/helper/index.js');
+			expect(result).toBe('./src/utils/helper/index.js');
 		});
 	});
 
@@ -553,7 +553,7 @@ describe('TsJsImportResolver', () => {
 			const result = await resolver.resolve('@utils/helper');
 
 			// Should resolve to the real path location
-			expect(result).toBe('packages/shared/utils/helper.ts');
+			expect(result).toBe('./packages/shared/utils/helper.ts');
 		});
 
 		it('should handle broken symlinks gracefully', async () => {
@@ -578,7 +578,7 @@ describe('TsJsImportResolver', () => {
 			const result = await resolver.resolve('@utils/helper');
 
 			// Should fall back to the original path
-			expect(result).toBe('src/utils/helper.ts');
+			expect(result).toBe('./src/utils/helper.ts');
 		});
 
 		it('should resolve symlinked relative imports', async () => {
@@ -594,7 +594,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('./helper');
 
-			expect(result).toBe('packages/core/helper.ts');
+			expect(result).toBe('./packages/core/helper.ts');
 		});
 	});
 
@@ -632,7 +632,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('#utils/helper');
 
-			expect(result).toBe('src/utils/helper.ts');
+			expect(result).toBe('./src/utils/helper.ts');
 		});
 
 		it('should handle wildcard patterns in imports field', async () => {
@@ -662,7 +662,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.js', tsconfig);
 			const result = await resolver.resolve('#internal/utils');
 
-			expect(result).toBe('lib/internal/utils.js');
+			expect(result).toBe('./lib/internal/utils.js');
 		});
 
 		it('should try multiple import targets in order', async () => {
@@ -693,7 +693,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.js', tsconfig);
 			const result = await resolver.resolve('#utils');
 
-			expect(result).toBe('src/utils.js');
+			expect(result).toBe('./src/utils.js');
 		});
 
 		it('should return original specifier if import not found in package.json', async () => {
@@ -753,7 +753,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
 			const result = await resolver.resolve('#logger');
 
-			expect(result).toBe('src/logger.ts');
+			expect(result).toBe('./src/logger.ts');
 		});
 
 		it('should work without package.json present', async () => {
@@ -802,7 +802,7 @@ describe('TsJsImportResolver', () => {
 			const resolver = new TsJsImportResolver('/project/src/components/Button.tsx', tsconfig);
 			const result = await resolver.resolve('#shared/utils');
 
-			expect(result).toBe('shared/utils.ts');
+			expect(result).toBe('./shared/utils.ts');
 		});
 	});
 });

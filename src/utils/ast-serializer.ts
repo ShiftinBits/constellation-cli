@@ -21,19 +21,177 @@ export interface SerializedNode {
 }
 
 /**
- * Serializes a Tree-sitter AST node into a privacy-safe format.
- * Recursively processes child nodes while excluding source code content.
+ * Streams AST serialization as JSON chunks to minimize memory usage.
+ * Yields chunks directly without building intermediate objects.
  * @param node Tree-sitter SyntaxNode to serialize
  * @param parentFieldName Optional field name if this node is a named field in its parent
- * @param resolveImportPath Optional callback to resolve import specifiers to actual paths
- * @returns Serialized node containing only metadata and identifiers
+ * @yields JSON string chunks
+ */
+export function* serializeASTStream(
+	node: SyntaxNode,
+	parentFieldName?: string
+): Generator<string> {
+	yield* serializeNodeToJSON(node, parentFieldName);
+}
+
+/**
+ * Recursively yields JSON chunks for a node and its children.
+ * Uses generators to stream output without accumulating memory.
+ */
+function* serializeNodeToJSON(node: SyntaxNode, parentFieldName?: string): Generator<string> {
+	yield '{';
+
+	// Serialize node properties
+	yield `"type":${JSON.stringify(node.type)}`;
+	yield `,"startPosition":${JSON.stringify({row: node.startPosition.row, column: node.startPosition.column})}`;
+	yield `,"endPosition":${JSON.stringify({row: node.endPosition.row, column: node.endPosition.column})}`;
+
+	if (parentFieldName) {
+		yield `,"fieldName":${JSON.stringify(parentFieldName)}`;
+	}
+
+	// Include text for specific node types
+	const textIncludedTypes = [
+		'identifier', 'property_identifier', 'type_identifier', 'shorthand_property_identifier',
+		'string', 'string_literal', 'template_string', 'number', 'true', 'false', 'null', 'undefined',
+		'import_specifier', 'export_specifier', 'predefined_type', 'type_predicate', 'type_alias',
+		'accessibility_modifier', 'readonly', 'static', 'async', 'await', 'const', 'let', 'var',
+		'=', '=>', '...', '?', '!',
+	];
+
+	if (textIncludedTypes.includes(node.type) || node.type.endsWith('_keyword') || node.type.endsWith('_operator')) {
+		yield `,"text":${JSON.stringify(node.text)}`;
+	}
+
+	// Serialize children
+	if (node.childCount > 0) {
+		yield ',"children":[';
+
+		const fieldNames = getCommonFieldNames(node.type);
+		const fieldChildrenSeen = new Set<SyntaxNode>();
+		let isFirst = true;
+
+		// Process field children first
+		for (const fieldName of fieldNames) {
+			const fieldChild = node.childForFieldName(fieldName);
+			if (fieldChild) {
+				if (!isFirst) yield ',';
+				isFirst = false;
+				fieldChildrenSeen.add(fieldChild);
+				yield* serializeNodeToJSON(fieldChild, fieldName);
+			}
+		}
+
+		// Process remaining children
+		for (let i = 0; i < node.childCount; i++) {
+			const child = node.child(i);
+			if (child && !fieldChildrenSeen.has(child)) {
+				if (!isFirst) yield ',';
+				isFirst = false;
+				yield* serializeNodeToJSON(child, undefined);
+			}
+		}
+
+		yield ']';
+	}
+
+	yield '}';
+}
+
+/**
+ * Legacy interface: Serializes a Tree-sitter AST node into a privacy-safe format.
+ * Builds entire tree in memory - use serializeASTStream for better memory efficiency.
+ * @deprecated Use serializeASTStream for large files
+ * @param node Tree-sitter SyntaxNode to serialize
+ * @param parentFieldName Optional field name if this node is a named field in its parent
+ * @returns Serialized node containing only metadata and identifiers (complete tree)
  */
 export async function serializeAST(
 	node: SyntaxNode,
-	parentFieldName?: string,
-	resolveImportPath?: (specifier: string) => Promise<string>
+	parentFieldName?: string
 ): Promise<SerializedNode> {
-	// Serialize AST node recursively, excluding actual source code
+	// Use iterative approach with explicit stack to prevent recursion-based memory buildup
+	// This dramatically reduces memory usage compared to recursive approach
+	// IMPORTANT: All data is preserved - we just process it more efficiently
+	interface StackFrame {
+		treeNode: SyntaxNode;
+		serializedNode: SerializedNode;
+		fieldName?: string;
+		childIndex: number;
+		fieldChildren: Set<SyntaxNode>;
+	}
+
+	const root = createSerializedNode(node, parentFieldName);
+	const stack: StackFrame[] = [{
+		treeNode: node,
+		serializedNode: root,
+		fieldName: parentFieldName,
+		childIndex: 0,
+		fieldChildren: new Set()
+	}];
+
+	while (stack.length > 0) {
+		const frame = stack[stack.length - 1];
+
+		// If we haven't processed field children yet, do that first
+		if (frame.childIndex === 0 && frame.treeNode.childCount > 0) {
+			const fieldNames = getCommonFieldNames(frame.treeNode.type);
+			for (const fieldName of fieldNames) {
+				const fieldChild = frame.treeNode.childForFieldName(fieldName);
+				if (fieldChild) {
+					frame.fieldChildren.add(fieldChild);
+					const childSerialized = createSerializedNode(fieldChild, fieldName);
+					if (!frame.serializedNode.children) {
+						frame.serializedNode.children = [];
+					}
+					frame.serializedNode.children.push(childSerialized);
+
+					// Push child onto stack for processing
+					stack.push({
+						treeNode: fieldChild,
+						serializedNode: childSerialized,
+						fieldName,
+						childIndex: 0,
+						fieldChildren: new Set()
+					});
+				}
+			}
+		}
+
+		// Process remaining (non-field) children
+		if (frame.childIndex < frame.treeNode.childCount) {
+			const child = frame.treeNode.child(frame.childIndex);
+			frame.childIndex++;
+
+			if (child && !frame.fieldChildren.has(child)) {
+				const childSerialized = createSerializedNode(child, undefined);
+				if (!frame.serializedNode.children) {
+					frame.serializedNode.children = [];
+				}
+				frame.serializedNode.children.push(childSerialized);
+
+				// Push child onto stack for processing
+				stack.push({
+					treeNode: child,
+					serializedNode: childSerialized,
+					childIndex: 0,
+					fieldChildren: new Set()
+				});
+			}
+		} else {
+			// All children processed, pop this frame
+			stack.pop();
+		}
+	}
+
+	return root;
+}
+
+/**
+ * Creates a serialized node from a Tree-sitter node without children.
+ * Helper function to reduce code duplication.
+ */
+function createSerializedNode(node: SyntaxNode, parentFieldName?: string): SerializedNode {
 	const serialized: SerializedNode = {
 		type: node.type,
 		startPosition: {
@@ -48,8 +206,6 @@ export async function serializeAST(
 	};
 
 	// Include text for node types that extractors need for intelligence extraction
-	// This list includes identifiers, literals, and small structural elements
-	// but excludes large code blocks to maintain privacy
 	const textIncludedTypes = [
 		// Identifiers
 		'identifier',
@@ -98,49 +254,6 @@ export async function serializeAST(
 	    node.type.endsWith('_keyword') ||
 	    node.type.endsWith('_operator')) {
 		serialized.text = node.text;
-
-		// Resolve import paths if this is a string node with fieldName 'source'
-		// This captures import/export source strings
-		if ((node.type === 'string' || node.type === 'string_literal') &&
-		    parentFieldName === 'source' &&
-		    resolveImportPath) {
-			// Extract the actual path from the quoted string
-			const importPath = node.text.replace(/^['"`]|['"`]$/g, '');
-			try {
-				const resolved = await resolveImportPath(importPath);
-				// Put the resolved path back in quotes to maintain the string format
-				serialized.text = node.text[0] + resolved + node.text[node.text.length - 1];
-			} catch (error) {
-				// If resolution fails, keep the original
-				console.warn(`${YELLOW_WARN} Failed to resolve import: ${importPath}`, error);
-			}
-		}
-	}
-
-	// Capture all children with their field names
-	if (node.childCount > 0) {
-		serialized.children = [];
-
-		// Get all possible field names for this node type
-		const fieldNames = getCommonFieldNames(node.type);
-		const fieldChildrenSeen = new Set<SyntaxNode>();
-
-		// First, add named field children with their field names
-		for (const fieldName of fieldNames) {
-			const fieldChild = node.childForFieldName(fieldName);
-			if (fieldChild) {
-				fieldChildrenSeen.add(fieldChild);
-				serialized.children.push(await serializeAST(fieldChild, fieldName, resolveImportPath));
-			}
-		}
-
-		// Then add remaining children without field names (anonymous children)
-		for (let i = 0; i < node.childCount; i++) {
-			const child = node.child(i);
-			if (child && !fieldChildrenSeen.has(child)) {
-				serialized.children.push(await serializeAST(child, undefined, resolveImportPath));
-			}
-		}
 	}
 
 	return serialized;

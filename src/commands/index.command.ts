@@ -126,12 +126,13 @@ export default class IndexCommand extends BaseCommand {
 			const files = await this.discoverFiles(indexScopeResult.isIncremental);
 
 			// Step 6: Transmit to API
-			// Track upload completion state
+			// Track whether upload has completed to avoid redundant messaging
 			let uploadComplete = false;
 
-			// Callback invoked when AST generation finishes
+			// Callback invoked when AST generation finishes (all files processed)
 			const onProcessingComplete = () => {
 				// Only print upload message if upload is still in progress
+				// This happens when processing finishes before network upload completes
 				if (!uploadComplete) {
 					console.log(`${BLUE_INFO} Uploading data to Constellation Service...`);
 				}
@@ -140,15 +141,14 @@ export default class IndexCommand extends BaseCommand {
 			// Create AST stream with completion callback
 			const astDataStream = this.generateASTs(files, onProcessingComplete);
 
-			// Start upload and track when it completes
-			const uploadPromise = this.uploadToAPI(astDataStream, indexScopeResult.isIncremental)
-				.then((result) => {
-					uploadComplete = true;
-					return result;
-				});
-
-			// Wait for upload to complete
-			await uploadPromise;
+			// Upload to API - mark complete when done (success or failure)
+			try {
+				await this.uploadToAPI(astDataStream, indexScopeResult.isIncremental);
+				uploadComplete = true;
+			} catch (error) {
+				uploadComplete = true;
+				throw error; // Re-throw to outer catch
+			}
 
 			const endTime = performance.now();
 			const execMs = endTime - startTime;
@@ -352,7 +352,8 @@ export default class IndexCommand extends BaseCommand {
 
 	/**
 	 * Generates Abstract Syntax Trees from discovered files.
-	 * Uses a promise pool to limit concurrent parsing to 10 files at a time.
+	 * Uses a promise pool to limit concurrent parsing with adaptive concurrency.
+	 * Concurrency is reduced for large projects to prevent memory exhaustion.
 	 * @param files Array of files to parse and generate ASTs for
 	 * @param onComplete Optional callback invoked after all files are processed
 	 * @returns Async generator yielding serialized AST data with compression
@@ -367,8 +368,15 @@ export default class IndexCommand extends BaseCommand {
 
 		const currentCommit = await this.git!.getLatestCommitHash();
 
-		// Create promise pool with concurrency limit of 10
-		const pool = new PromisePool<FileInfo, SerializedAST>(10);
+		// Adaptive concurrency based on project size to prevent OOM
+		// Large projects (>10k files) use reduced concurrency to limit memory pressure
+		const concurrency = totalFiles > 10000 ? 5 : totalFiles > 5000 ? 7 : 10;
+		if (concurrency < 10) {
+			console.log(`${BLUE_INFO} Large project detected - using concurrency of ${concurrency} to optimize memory usage`);
+		}
+
+		// Create promise pool with adaptive concurrency limit
+		const pool = new PromisePool<FileInfo, SerializedAST>(concurrency);
 
 		// Process files with concurrent limit
 		const results = pool.run(files, async (file, index) => {
@@ -382,8 +390,8 @@ export default class IndexCommand extends BaseCommand {
 				// Get language plugin for this file
 				const plugin = this.langRegistry!.getPlugin(file.language);
 
-				// Create import resolver if the language supports it
-				let importResolver: ((specifier: string) => Promise<string>) | undefined;
+				// Extract import resolutions using CLI resolver (CLI has tsconfig/jsconfig access)
+				let importResolutions;
 				if (plugin?.getImportResolver) {
 					// Get build config for this file if available
 					const buildConfigManager = this.buildConfigManagers.get(file.language);
@@ -394,26 +402,36 @@ export default class IndexCommand extends BaseCommand {
 					// Create resolver instance
 					const resolver = plugin.getImportResolver(file.path, buildConfig);
 					if (resolver) {
-						importResolver = (specifier) => resolver.resolve(specifier);
+						// Extract import resolutions without modifying AST
+						const { ImportExtractor } = await import('../utils/import-extractor');
+						const extractor = new ImportExtractor();
+						importResolutions = await extractor.extractImportResolutions(
+							tree,
+							file.path,
+							file.language,
+							resolver
+						);
 					}
 				}
 
-				// Serialize AST with import path resolution (if available)
-				const serializedAstNode = await serializeAST(
-					tree.rootNode,
-					undefined,
-					importResolver
-				);
+				// Serialize AST as streaming JSON chunks (no intermediate objects in memory)
+				// This dramatically reduces memory usage for large files
+				const { serializeASTStream } = await import('../utils/ast-serializer');
+				const jsonStream = serializeASTStream(tree.rootNode);
 
-				const compressedAst = await this.compressor.compress(serializedAstNode);
+				// Compress the JSON stream directly
+				// Note: Tree will be GC'd after this scope ends
+				const compressedAst = await this.compressor.compressStream(jsonStream);
 
 				// Create serialized AST structure (without source code)
+				// Normalize file path to canonical format (project-root-relative without leading ./)
 				const serializedAST: SerializedAST = {
-					file: file.relativePath,
+					file: this.normalizePathToCanonical(file.relativePath),
 					language: file.language,
 					commit: currentCommit,
 					timestamp,
-					ast: compressedAst
+					ast: compressedAst,
+					importResolutions // Include CLI-resolved import metadata
 				};
 
 				processedCount++;
@@ -432,6 +450,7 @@ export default class IndexCommand extends BaseCommand {
 			yield ast;
 		}
 
+		// Display completion statistics
 		if (errorCount > 0) {
 			console.log(`${YELLOW_WARN} Completed parsing with ${errorCount} parsing errors`);
 		} else {
@@ -456,5 +475,15 @@ export default class IndexCommand extends BaseCommand {
 		const uploadSuccess = await this.apiClient!.streamToApi(astDataStream, 'ast', this.config!.namespace, this.config!.branch, incremental);
 		console.log(`${!uploadSuccess ? `${RED_X} Failed to upload` : `${GREEN_CHECK} Successfully uploaded`} data to Constellation Service`);
 		return uploadSuccess;
+	}
+
+	/**
+	 * Normalizes a file path to canonical format: project-root-relative without leading ./
+	 * Ensures consistency across the system for path matching.
+	 * Example: "./libs/indexer/src/index.ts" -> "libs/indexer/src/index.ts"
+	 */
+	private normalizePathToCanonical(path: string): string {
+		// Remove any leading ./ or /
+		return path.replace(/^\.?\//, '');
 	}
 }

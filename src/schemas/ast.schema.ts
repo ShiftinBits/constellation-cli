@@ -5,6 +5,20 @@ import { z } from 'zod';
  * Ensures data structure is correct without expensive content inspection.
  */
 
+// Import resolution schema
+const ImportResolutionSchema = z.object({
+	source: z.string().min(1, "Import source cannot be empty"),
+	resolvedPath: z.string().optional(),
+	isExternal: z.boolean(),
+	importType: z.enum(['relative', 'workspace', 'alias', 'external', 'builtin'])
+});
+
+// Import resolution metadata - map of line numbers to resolutions
+const ImportResolutionMetadataSchema = z.record(
+	z.string(), // line number as string
+	ImportResolutionSchema
+);
+
 // Validate the shape of serialized AST data
 export const SerializedASTSchema = z.object({
 	// File path validation
@@ -30,7 +44,10 @@ export const SerializedASTSchema = z.object({
 	// Base64-encoded compressed AST validation
 	ast: z.string()
 		.min(1, "AST data cannot be empty")
-		.max(10_000_000, "AST data exceeds 10MB limit") // ~10MB base64
+		.max(10_000_000, "AST data exceeds 10MB limit"), // ~10MB base64
+
+	// Optional import resolutions from CLI
+	importResolutions: ImportResolutionMetadataSchema.optional()
 });
 
 // Type inference for TypeScript

@@ -10,15 +10,17 @@ import { CrossPlatformEnvironment } from './env/env-manager';
 import { LanguageDetector } from './languages/language.detector';
 import { LanguageRegistry } from './languages/language.registry';
 import { printBanner } from './utils/constants';
+import { shouldShowBanner } from './utils/environment-detector';
 import { GitClient } from './utils/git-client';
 import { RED_X } from './utils/unicode-chars';
-
-// Print Constellation banner
-const cmdStr = process.argv[2];
-if (['auth', 'help', 'init', 'index'].includes(cmdStr)) {
-	printBanner(cmdStr);
-} else {
-	printBanner();
+// Print Constellation banner (only in interactive sessions)
+if (shouldShowBanner()) {
+	const cmdStr = process.argv[2];
+	if (['auth', 'help', 'init', 'index'].includes(cmdStr)) {
+		printBanner(cmdStr);
+	} else {
+		printBanner();
+	}
 }
 
 // Initialize command dependency resources

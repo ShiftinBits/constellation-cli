@@ -598,6 +598,195 @@ describe('TsJsImportResolver', () => {
 		});
 	});
 
+	describe('resolve - TypeScript ESM imports with .js extensions', () => {
+		it('should resolve .js imports to .ts files for TypeScript source files', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {
+					compilerOptions: {
+						baseUrl: './',
+						paths: {}
+					}
+				}
+			} as TSConfckParseResult;
+
+			// Mock: file at /project/src/tools/base/BaseMcpTool.ts exists
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/src/tools/base/BaseMcpTool.ts') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			const resolver = new TsJsImportResolver('/project/src/tools/discovery/SearchSymbolsTool.ts', tsconfig);
+			const result = await resolver.resolve('../base/BaseMcpTool.js');
+
+			// Should resolve to .ts file, not .js
+			expect(result).toBe('./src/tools/base/BaseMcpTool.ts');
+		});
+
+		it('should resolve .jsx imports to .tsx files for TypeScript source files', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// Mock: file at /project/src/components/Button.tsx exists
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/src/components/Button.tsx') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			const resolver = new TsJsImportResolver('/project/src/components/App.tsx', tsconfig);
+			const result = await resolver.resolve('./Button.jsx');
+
+			// Should resolve to .tsx file
+			expect(result).toBe('./src/components/Button.tsx');
+		});
+
+		it('should try .ts, .tsx, .d.ts extensions when .js import does not resolve', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// First attempt (.ts) fails, second (.tsx) succeeds
+			mockFs.stat
+				.mockRejectedValueOnce(new Error('not found'))
+				.mockResolvedValueOnce({ isFile: () => true } as any);
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('./Component.js');
+
+			expect(result).toBe('./src/Component.tsx');
+			expect(mockFs.stat).toHaveBeenCalledTimes(2);
+		});
+
+		it('should handle .mjs imports by trying TypeScript extensions', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// Mock: file at /project/src/utils/helper.ts exists
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/src/utils/helper.ts') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('./utils/helper.mjs');
+
+			expect(result).toBe('./src/utils/helper.ts');
+		});
+
+		it('should handle .cjs imports by trying TypeScript extensions', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// Mock: file at /project/src/config.ts exists
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/src/config.ts') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('./config.cjs');
+
+			expect(result).toBe('./src/config.ts');
+		});
+
+		it('should try index files when .js directory import fails', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// Direct file attempts fail, index.ts succeeds
+			mockFs.stat
+				.mockRejectedValueOnce(new Error('not found'))
+				.mockRejectedValueOnce(new Error('not found'))
+				.mockRejectedValueOnce(new Error('not found'))
+				.mockResolvedValueOnce({ isFile: () => true } as any);
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('./utils.js');
+
+			expect(result).toBe('./src/utils/index.ts');
+		});
+
+		it('should return original specifier if no TypeScript file found for .js import', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// All resolution attempts fail
+			mockFs.stat.mockRejectedValue(new Error('not found'));
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('./nonexistent.js');
+
+			expect(result).toBe('./nonexistent.js');
+		});
+
+		it('should resolve .js imports with path aliases to .ts files', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {
+					compilerOptions: {
+						baseUrl: './',
+						paths: {
+							'@utils/*': ['src/utils/*']
+						}
+					}
+				}
+			} as TSConfckParseResult;
+
+			// Mock: file at /project/src/utils/helper.ts exists
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/src/utils/helper.ts') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			const resolver = new TsJsImportResolver('/project/src/index.ts', tsconfig);
+			const result = await resolver.resolve('@utils/helper.js');
+
+			expect(result).toBe('./src/utils/helper.ts');
+		});
+
+		it('should NOT replace .js extension for JavaScript source files', async () => {
+			const jsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/jsconfig.json',
+				tsconfig: {}
+			} as TSConfckParseResult;
+
+			// Mock: file at /project/src/utils.js exists
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/src/utils.js') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			const resolver = new TsJsImportResolver('/project/src/index.js', jsconfig);
+			const result = await resolver.resolve('./utils.js');
+
+			// Should keep .js extension for JavaScript files
+			expect(result).toBe('./src/utils.js');
+		});
+	});
+
 	describe('resolve - package.json imports field', () => {
 		it('should resolve # prefix imports using package.json imports field', async () => {
 			const tsconfig: TSConfckParseResult = {

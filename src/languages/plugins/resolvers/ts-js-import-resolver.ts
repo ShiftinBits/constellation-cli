@@ -275,6 +275,11 @@ export class TsJsImportResolver implements ImportResolver {
 	 * Tries to find a file with various TypeScript extensions.
 	 * Also tries index files in directories.
 	 * Resolves symlinks to their actual locations for accurate path tracking.
+	 *
+	 * Handles TypeScript ESM imports with .js/.jsx extensions:
+	 * TypeScript requires .js in imports but files are actually .ts
+	 * Example: import './foo.js' should resolve to './foo.ts'
+	 *
 	 * @param basePath Base path without extension
 	 * @returns Resolved absolute path or null if not found
 	 */
@@ -285,10 +290,29 @@ export class TsJsImportResolver implements ImportResolver {
 			return await this.resolveSymlink(basePath);
 		}
 
-		// Try with configured extensions (skip if already has one)
+		// Handle TypeScript ESM imports with .js/.jsx extensions
+		// TypeScript requires .js in imports but files are actually .ts
+		// Example: import './foo.js' should resolve to './foo.ts'
+		const jsExtensions = ['.js', '.jsx', '.mjs', '.cjs'];
+		const hasJsExtension = jsExtensions.some(ext => basePath.endsWith(ext));
+
+		let basePathWithoutExt = basePath;
+		if (hasJsExtension && !hasKnownExtension) {
+			// Strip .js extension to try with TypeScript extensions
+			// '.js' → '', '.jsx' → '', '.mjs' → '', '.cjs' → ''
+			for (const jsExt of jsExtensions) {
+				if (basePath.endsWith(jsExt)) {
+					basePathWithoutExt = basePath.slice(0, -jsExt.length);
+					break;
+				}
+			}
+		}
+
+		// Try with configured extensions
 		if (!hasKnownExtension) {
 			for (const ext of this.extensions) {
-				const pathWithExt = basePath + ext;
+				// Try with extension replaced (not appended)
+				const pathWithExt = basePathWithoutExt + ext;
 				if (await this.fileExists(pathWithExt)) {
 					return await this.resolveSymlink(pathWithExt);
 				}
@@ -297,7 +321,7 @@ export class TsJsImportResolver implements ImportResolver {
 
 		// Try as directory with index files
 		for (const ext of this.extensions) {
-			const indexPath = path.join(basePath, `index${ext}`);
+			const indexPath = path.join(basePathWithoutExt, `index${ext}`);
 			if (await this.fileExists(indexPath)) {
 				return await this.resolveSymlink(indexPath);
 			}

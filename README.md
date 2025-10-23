@@ -61,7 +61,7 @@ _Additional languages (C, C++, C#, Go, Java, JSON, PHP, Python, Ruby, Shell) com
 ### Globally Install NPM Package
 
 ```bash
-npm install -g @constellationdev/cli
+npm install -g @constellationdev/cli@latest
 ```
 
 ### Requirements

@@ -150,7 +150,6 @@ export class ConstellationClient {
 				if (networkDetails.length > 0) {
 					errorDetails += ` (${networkDetails.join(', ')})`;
 				}
-				errorDetails += `\nTarget: ${this.config.apiUrl}/${this.apiVersion}/${path}`;
 			} else {
 				errorDetails = originalError.message;
 			}

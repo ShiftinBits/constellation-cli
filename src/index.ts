@@ -31,7 +31,7 @@ const program = new Command();
 
 program
 	.name('constellation')
-	.description('Connecting your code\'s stars into intelligent patterns')
+	.description('Connecting the stars in your code into intelligent patterns')
 	.version('1.0.0');
 
 // Init command doesn't need config - it creates it

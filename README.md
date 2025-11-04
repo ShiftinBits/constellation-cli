@@ -2,7 +2,7 @@
 
 # 🌟 Constellation CLI
 
-**Connecting your code's stars into intelligent patterns**
+**Connecting the stars in your code into intelligent patterns**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)

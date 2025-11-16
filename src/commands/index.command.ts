@@ -334,10 +334,20 @@ export default class IndexCommand extends BaseCommand {
 				console.log(`${BLUE_INFO} Found ${changedPaths.length} changed files`);
 				files = await this.scanner.scanSpecificFiles(changedPaths, this.config!);
 
-				// Handle deleted files separately
-				if (changes.deleted.length > 0) {
-					console.log(`${BLUE_INFO} ${changes.deleted.length} files deleted`);
-					await this.apiClient!.deleteFiles(changes.deleted);
+				// Handle deleted files and old paths from renamed files
+				const filesToDelete = [
+					...changes.deleted,
+					...changes.renamed.map(r => r.from)
+				];
+
+				if (filesToDelete.length > 0) {
+					const deletedCount = changes.deleted.length;
+					const renamedCount = changes.renamed.length;
+					const message = renamedCount > 0
+						? `${BLUE_INFO} Removing ${deletedCount} deleted file(s) and ${renamedCount} renamed file(s) from graph`
+						: `${BLUE_INFO} Removing ${deletedCount} deleted file(s) from graph`;
+					console.log(message);
+					await this.apiClient!.deleteFiles(filesToDelete);
 				}
 			}
 		} else {

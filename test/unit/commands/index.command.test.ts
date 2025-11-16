@@ -424,12 +424,12 @@ describe('IndexCommand', () => {
 				mockConfig
 			);
 
-			// Should delete removed files
-			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith(['src/deleted-file.ts']);
+			// Should delete removed files and old paths from renamed files
+			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith(['src/deleted-file.ts', 'src/old-name.ts']);
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Performing incremental index'));
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 3 changed files'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('1 files deleted'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Removing 1 deleted file(s) and 1 renamed file(s) from graph'));
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
 		});
 
@@ -606,7 +606,7 @@ describe('IndexCommand', () => {
 			await command.run(false);
 
 			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith(['src/deleted-file.ts']);
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('1 files deleted'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Removing 1 deleted file(s) from graph'));
 			// Found 0 changed files because only deleted files exist
 			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 0 changed files'));
 		});

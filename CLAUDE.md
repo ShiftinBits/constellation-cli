@@ -1,395 +1,263 @@
-# Constellation Project - AI Assistant Guide
+# constellation-cli
 
-## Project Overview
+**Role**: Local code parsing, AST generation, upload to Core. NO source transmission.
+**See**: `../CLAUDE.md` for workspace architecture, `../ADR.md` for privacy rationale.
 
-Constellation creates a single, shared "code intelligence graph" for entire development teams. Instead of each AI assistant parsing code individually, Constellation parses code once when it changes, extracts the intelligence centrally, and provides all AI assistants with instant access to this shared knowledge.
+## Purpose
 
-**Core Value Proposition**: Parse once, benefit everywhere. No more waiting for indexing, no inconsistent understanding across team members, no privacy concerns from uploading source code.
+Parse source code locally with Tree-sitter → Generate compressed AST → Upload to constellation-core → Never transmit source code.
 
-## Architecture Overview
-
-### Three-Component System
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   CLI Tool      │───▶│  Central Service │◀───│   MCP Server    │
-│ (@constellation │    │   (NestJS +      │    │(@constellation/ │
-│     /cli)       │    │ Neo4j + Redis)   │    │  mcp-server)    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-      │                         │                        │
-      │                         │                        │
-   Local/CI                  Team-wide                Local Dev
-   Parsing                   Knowledge                Environment
-                              Store
-```
-
-#### 1. CLI Tool (`@constellationdev/cli`)
-
-Source: `cli/`
-
-- **Purpose**: Parse source code and generate ASTs
-- **Technology**: Oclif framework + Tree-sitter parsers
-- **Location**: Runs locally or in CI/CD pipelines
-- **Security**: Source code never leaves local environment
-- **Output**: Serialized and compressed AST structure (no source code)
-
-#### 2. Central Service
-
-Source: `core/`
-
-- **Purpose**: Extract intelligence from ASTs and serve code intelligence graph
-- **Technology**: NestJS + Neo4j + Redis
-- **Deployment**: One instance per team/organization
-- **Processing**: Receives ASTs, extracts symbols and relationships server-side
-- **Data**: Only AST metadata and extracted intelligence, never source code
-- **Performance**: Redis caching for millisecond response times
-
-#### 3. MCP Server (`@constellation/mcp-server`)
-
-- **Purpose**: Bridge AI assistants to central service
-- **Technology**: Model Context Protocol implementation
-- **Location**: Runs on each developer's machine
-- **Function**: Translates AI queries to REST API calls
-
-## Core Technical Decisions & Rationale
-
-### Privacy-First Architecture
-
-- **Rule**: Source code NEVER leaves local environment
-- **Implementation**: Tree-sitter parsing happens client-side
-- **Transmission**: Only serialized AST structure sent to service (compressed)
-- **Intelligence Extraction**: Happens server-side from received ASTs
-- **Verification**: All API endpoints reject any source code content
-
-### Project Identification
-
-- **Method**: Normalized git remote URL (automatic, deterministic)
-- **Benefits**: No manual configuration, consistent across team
-- **Branch Isolation**: Each branch maintains separate namespace
-- **Commit Tracking**: Metadata only, one graph per branch
-
-### The Intelligence Transformation
+## Architecture
 
 ```
-CLI-SIDE:                                  SERVER-SIDE:
-Raw Source Code → Tree-sitter AST → [Network] → Extracted Intelligence → Neo4j Graph
-    (Private)         (Syntax)                     (Semantics)         (Queryable)
+Local Code → Tree-sitter Parser → AST → Compress (gzip) → Base64 → Upload to Core:3000
+              ↑
+         source.parser.ts
+         language.registry.ts
 ```
 
-The CLI handles parsing (syntax), the server handles intelligence extraction (semantics).
+**Security**: Source code NEVER leaves local machine. Only compressed AST metadata uploaded.
 
-### Technology Stack Rationale
+## Commands
 
-**Tree-sitter**: Industry-standard, multi-language parsing with error recovery
-**Oclif**: Enterprise CLI framework (Heroku/Salesforce proven)
-**NestJS**: Modular, scalable Node.js framework with DI
-**Neo4j**: Graph database optimized for relationship queries
-**Redis**: Sub-millisecond caching for frequent queries
-
-## Development Guidelines for AI Assistants
-
-### Security & Privacy Constraints
-
-1. **NEVER** transmit source code to central service
-2. **ALWAYS** parse locally using Tree-sitter
-3. **SERIALIZE** ASTs without including source code text
-4. **COMPRESS** AST payloads using gzip before transmission
-5. **VALIDATE** all API inputs reject source code
-6. **ENCRYPT** all communications with central service
-
-### Authentication Architecture (NON-NEGOTIABLE)
-
-**Access Key Authentication is Required**:
-
-- The central service uses access key authentication (similar to AWS, GitHub tokens, etc.)
-- Access keys MUST be stored in system environment variables (`CONSTELLATION_ACCESS_KEY`)
-- This is NOT a security vulnerability - it is the intended design for team-wide deployment
-- Environment variable storage provides maximum compatibility across:
-  - CI/CD pipelines
-  - Docker containers
-  - Development environments
-  - Production deployments
-- Do NOT suggest alternative authentication methods (OAuth, interactive login, etc.)
-- Do NOT warn about storing keys in environment variables
-- This follows industry-standard practices for CLI tools and service authentication
-
-### Code Organization Principles
-
-1. **Shared Dependencies**: Common utilities in shared packages
-2. **Type Safety**: Full TypeScript across all components
-3. **API Consistency**: RESTful design with OpenAPI specs
-
-### Performance Requirements
-
-1. **CLI Parsing**: Must handle 1000+ files in seconds
-2. **API Response**: Sub-100ms for cached queries
-3. **Memory Usage**: Efficient AST processing
-4. **Scalability**: Horizontal scaling for central service
-
-## Project Structure
-
-```
-constellation/
-├── cli/                       # @constellationdev/cli - Oclif CLI utility
-│   ├── src/
-│   │   ├── commands/          # CLI command implementations
-│   │   ├── parsers/           # Tree-sitter integration
-│   │   ├── extractors/        # Intelligence extraction
-│   │   └── api/              # Service communication
-│   ├── test/
-│   └── package.json
-├── core/                   # Central NestJS API service
-│   ├── src/
-│   │   ├── modules/          # Feature modules
-│   │   ├── entities/         # Neo4j entities
-│   │   ├── controllers/      # REST API endpoints
-│   │   └── services/         # Business logic
-│   ├── test/
-│   └── package.json
-├── mcp-server/               # @constellation/mcp-server (future)
-│   ├── src/
-│   │   ├── handlers/         # MCP request handlers
-│   │   ├── queries/          # Query translations
-│   │   └── cache/            # Local caching
-│   └── test/
-├── prompts/                  # Project documentation & specs
-│   ├── spec.md               # Project specification
-│   ├── api.md                # API documentation
-│   └── project.md            # MVP scope
-├── docs/                     # Technical documentation (future)
-├── scripts/                  # Build and deployment scripts (future)
-├── UML/                      # System diagrams
-└── CLAUDE.md                 # This guide for AI assistants
+**Development**:
+```bash
+npm start                      # Run CLI (tsx)
+npm start -- index             # Index current directory
+npm start -- index --full      # Full re-index (clear + reindex)
+npm start -- init              # Initialize new project
+npm start -- auth login        # Authenticate
+npm run build                  # Build with tsup
+npm run dev                    # Development mode
 ```
 
-### Key Files to Understand
-
-- `cli/src/commands/` - CLI command implementations
-- `core/src/` - NestJS service modules and API
-- `prompts/spec.md` - Core project specification
-- `prompts/api.md` - API design and endpoints
-
-## API Design Principles
-
-### Dual-Purpose Architecture
-
-All APIs must serve both:
-
-1. **CLI Integration**: Direct programmatic access
-2. **MCP Server**: Query translation layer
-
-### RESTful Design
-
-```
-GET    /projects/{id}/symbols           # List symbols
-GET    /projects/{id}/symbols/{symbol}  # Symbol details
-POST   /projects/{id}/intelligence      # Upload parsed data
-GET    /projects/{id}/relationships     # Query relationships
+**Testing**:
+```bash
+npm test                       # All tests
+npm run test:watch             # Watch mode
+npm run test:coverage          # With coverage
+npm run test:ci                # CI mode
 ```
 
-### Response Format
+## Key Files
 
+```
+src/
+├── commands/
+│   ├── index.command.ts       Main index command
+│   ├── auth.command.ts        Authentication
+│   ├── init.command.ts        Project initialization
+│   └── base.command.ts        Base class for commands
+├── parsers/
+│   └── source.parser.ts       SourceParser class (NOT base-parser!)
+├── languages/
+│   ├── language.registry.ts   Language plugin registry
+│   └── plugins/               JS/TS language plugins
+├── types/
+│   └── api.ts                 API types (sync with Core manually)
+├── utils/
+│   └── promise-pool.ts        Concurrent processing (NOT worker-pool!)
+├── scanners/                  File system scanning
+├── extractors/                AST extraction logic
+├── api/                       HTTP client for Core API
+└── index.ts                   CLI entry point
+```
+
+## Parser Pattern
+
+**SourceParser** (NOT base-parser):
 ```typescript
-interface ApiResponse<T> {
-	success: boolean;
-	data?: T;
-	error?: string;
-	metadata: {
-		timestamp: string;
-		version: string;
-		cached: boolean;
-	};
+// src/parsers/source.parser.ts
+export class SourceParser {
+  parse(sourceCode: string, language: Language): SerializedAST {
+    const tree = this.languageRegistry.parse(sourceCode, language);
+    const ast = this.extractAST(tree);
+    return this.serialize(ast);  // NO source code in output
+  }
 }
 ```
 
-## Testing & Quality Requirements
-
-### Test Coverage Targets
-
-- **Unit Tests**: 90%+ coverage for core logic
-- **Integration Tests**: All API endpoints
-- **E2E Tests**: Complete CLI workflows
-- **Performance Tests**: Parsing benchmarks
-
-### Quality Gates
-
-1. **TypeScript**: Strict mode, no `any` types
-2. **Linting**: ESLint + Prettier configuration
-3. **Security**: Automated vulnerability scanning
-4. **Documentation**: JSDoc for all public APIs
-
-### Testing Strategy
-
+**Language Registry**:
 ```typescript
-// Example test structure
-describe('AST Generation', () => {
-	it('should generate valid AST from TypeScript', async () => {
-		const ast = await parseFile('sample.ts');
-		const serialized = serializeAST(ast);
-		expect(serialized.type).toBe('program');
-		expect(serialized.children).toBeDefined();
-	});
-});
+// src/languages/language.registry.ts
+export class LanguageRegistry {
+  private parsers: Map<Language, TreeSitterParser>;
 
-// Server-side test
-describe('Intelligence Extraction', () => {
-	it('should extract function definitions from AST', async () => {
-		const serializedAST = getTestAST();
-		const intelligence = extractIntelligence(serializedAST);
-		expect(intelligence.functions).toHaveLength(3);
-	});
-});
-```
-
-## Common Development Tasks
-
-### Adding Language Support
-
-1. **CLI Side**:
-   - Install Tree-sitter grammar: `npm install tree-sitter-{language}`
-   - Create parser in `cli/src/parsers/{language}.ts`
-   - Update AST serializer to handle language-specific nodes
-
-2. **Server Side**:
-   - Add extraction logic in `core/src/extractors/{language}.ts`
-   - Update type definitions for language-specific symbols
-   - Add tests for new language extraction
-
-### Extending API Functionality
-
-1. Define schema for new endpoints
-2. Implement service logic in `core/src/modules/`
-3. Add REST endpoint in appropriate controller
-4. Update MCP server query handlers (when implemented)
-5. Add integration tests
-
-### Performance Optimization
-
-1. **CLI**: Optimize Tree-sitter parsing with worker threads
-2. **Service**: Add Redis caching for frequent queries
-3. **Database**: Create Neo4j indexes for common relationships
-4. **MCP**: Implement local caching for repeated queries
-
-### Security Hardening
-
-1. **Input Validation**: Sanitize all API inputs
-2. **Authentication**: API key management
-3. **Rate Limiting**: Prevent abuse
-4. **Audit Logging**: Track all data operations
-
-## Error Handling & Logging
-
-### Error Categories
-
-```typescript
-enum ErrorType {
-	PARSING_ERROR = 'PARSING_ERROR',
-	NETWORK_ERROR = 'NETWORK_ERROR',
-	VALIDATION_ERROR = 'VALIDATION_ERROR',
-	PERMISSION_ERROR = 'PERMISSION_ERROR',
+  parse(code: string, lang: Language): Tree {
+    const parser = this.parsers.get(lang);
+    return parser.parse(code);
+  }
 }
 ```
 
-### Logging Strategy
+## AST Serialization (CRITICAL)
 
-- **CLI**: Local file logging with rotation
-- **Service**: Structured JSON logging (ELK stack compatible)
-- **MCP**: Debug logs for troubleshooting
+**Must strip all source code**:
+```typescript
+interface SerializedAST {
+  symbols: Symbol[];           // ✓ Names, types, locations
+  dependencies: Dependency[];  // ✓ Relationships
+  structure: FileStructure;    // ✓ Hierarchy
+  // ✗ NO source code text
+  // ✗ NO string literals
+  // ✗ NO identifiable content
+}
+```
 
-## MVP Scope & Development Priorities
+**Compression before upload**:
+```typescript
+const ast = parser.parse(code, 'typescript');
+const json = JSON.stringify(ast);
+const compressed = gzipSync(json);
+const encoded = compressed.toString('base64');
+// Upload encoded to Core
+```
 
-### Phase 1: Core Functionality
+## Authentication
 
-- [ ] CLI parsing with Tree-sitter and AST serialization
-- [ ] AST compression and transmission
-- [ ] Server-side intelligence extraction
-- [ ] Basic Neo4j graph storage
-- [ ] Simple MCP integration
-- [ ] REST API for AST upload and queries
+**Environment Variable** (required):
+```bash
+export CONSTELLATION_ACCESS_KEY=ak_00000000-...
+export CONSTELLATION_API_URL=http://localhost:3000
+```
 
-### Phase 2: Production Readiness
+**Auth Flow**:
+1. `npm start -- auth login` → Opens browser, authenticates
+2. Stores key in `~/.constellation/config.json`
+3. CLI reads key from config or `$CONSTELLATION_ACCESS_KEY`
+4. Sends as `Authorization: Bearer <key>` header
 
-- [ ] Performance optimization
-- [ ] Error recovery and retry logic
-- [ ] Comprehensive test coverage
-- [ ] Security hardening
-- [ ] Documentation completion
+## Project Identification
 
-## Development Workflow
+**Automatic via git remote**:
+```bash
+# CLI automatically detects:
+git remote get-url origin
+# Normalizes to: github.com/org/repo
+# Used as projectId
+```
 
-## Architecture Decision Records (ADRs)
+**Branch isolation**: Each git branch gets separate Neo4j namespace.
 
-### ADR-001: No Source Code Transmission
-
-**Decision**: Parse code locally, transmit only AST structure
-**Rationale**: Privacy, security, compliance requirements
-**Implications**: Larger network payloads (mitigated by compression), simpler CLI
-
-### ADR-004: Server-Side Intelligence Extraction
-
-**Decision**: Extract symbols and relationships on the server, not in CLI
-**Rationale**: Centralized logic, easier updates, consistency across clients
-**Implications**: Server processing load, but better scalability and maintainability
-
-### ADR-002: Neo4j for Graph Storage
-
-**Decision**: Use Neo4j as primary database
-**Rationale**: Optimized for relationship queries
-**Implications**: Graph query complexity, operational overhead
-
-### ADR-003: Branch-Based Namespacing
-
-**Decision**: Separate graph per branch
-**Rationale**: Feature branch isolation
-**Implications**: Storage multiplication, cleanup requirements
-
-## Troubleshooting Guide
-
-### Common Issues
-
-1. **Parse Failures**: Check Tree-sitter grammar compatibility
-2. **API Timeouts**: Verify Redis cache status
-3. **Graph Queries**: Optimize Neo4j indexes
-4. **MCP Disconnects**: Check network connectivity
-
-### Debug Commands
+## Index Workflow
 
 ```bash
-# CLI debugging
-constellation index
-
-# Service health check
-curl http://localhost:3000/health
-
-# Neo4j query debugging
-MATCH (n) RETURN count(n) as total_nodes
+npm start -- index
 ```
 
-## Contributing Guidelines
+**Steps**:
+1. Scan: Find all supported files (.js, .ts, .jsx, .tsx)
+2. Parse: Generate AST with source.parser.ts
+3. Serialize: Strip source code, keep structure
+4. Compress: gzip + base64 encode
+5. Upload: POST to constellation-core:3000/api/v1/projects/{id}/ast
+6. Core: Extracts intelligence, stores in Neo4j
 
-### Code Style
+**Flags**:
+- `--full`: Clear existing data + full re-index
+- `--watch`: Watch mode (re-index on file changes)
+- `--concurrency N`: Parallel file processing (default: CPU cores)
 
-- Follow existing TypeScript conventions
-- Use meaningful variable and function names
-- Document public APIs with JSDoc
-- Keep functions small and focused
+## Type Sync (MANUAL)
 
-### Security Review
+**CLI types** (`src/types/api.ts`) must match Core DTOs:
+```typescript
+// Core: constellation-core/apps/client-api/src/dto/project-state.dto.ts
+export interface ProjectState { ... }
 
-All changes involving:
+// CLI: constellation-cli/src/types/api.ts (MUST MATCH)
+export interface ProjectState { ... }
+```
 
-- Data transmission
-- API endpoints
-- Authentication
-- File system access
+**Check sync**:
+```bash
+# See workspace CLAUDE.md Section 3 for diff command
+```
 
-Require security review before merge.
+## Error Handling
 
-### Key Concepts
+**Common Errors**:
+- `PARSE_ERROR`: Invalid syntax, unsupported construct
+- `AUTH_ERROR`: Missing/invalid CONSTELLATION_ACCESS_KEY
+- `NETWORK_ERROR`: Cannot reach constellation-core:3000
+- `VALIDATION_ERROR`: Invalid AST format
 
-- **Intelligence**: Extracted AST metadata (symbols, relationships)
-- **Graph**: Neo4j representation of code structure
-- **Project**: Git repository identified by remote URL
-- **Branch**: Isolated namespace for code intelligence
+**Debug**:
+```bash
+DEBUG=* npm start -- index  # Verbose logging
+npm start -- index --dry-run  # Parse but don't upload
+```
 
-This guide serves as the primary reference for AI assistants working on Constellation. When in doubt, prioritize privacy, performance, and the core principle: parse once, benefit everywhere.
+## Language Support
+
+**Currently Supported**:
+- JavaScript (.js)
+- TypeScript (.ts, .tsx)
+- JSX (.jsx)
+
+**Future** (via Tree-sitter grammars):
+- Python, Go, Rust, Java, C#, etc.
+
+**Add Language**:
+1. Install Tree-sitter grammar: `npm install tree-sitter-{lang}`
+2. Create plugin: `src/languages/plugins/{lang}.plugin.ts`
+3. Register in `language.registry.ts`
+4. Add to supported extensions
+
+## Performance
+
+**Optimization**:
+- Concurrent parsing via promise-pool.ts (NOT worker-pool)
+- Incremental indexing (only changed files)
+- Batch uploads (multiple files per request)
+- Compression reduces payload 70-90%
+
+**Tuning**:
+```typescript
+// src/config/constants.ts
+export const INDEX_BATCH_SIZE = 50;  // Files per upload
+export const MAX_CONCURRENCY = os.cpus().length;
+```
+
+## File Conventions
+
+**Naming**:
+```
+{name}.command.ts          Oclif commands
+{name}.parser.ts           Parsers
+{name}.plugin.ts           Language plugins
+{name}.spec.ts             Tests (co-located)
+```
+
+**Imports**:
+```typescript
+✓ import { X } from './utils/x';  // Relative paths OK (no @aliases)
+✓ import Parser from 'tree-sitter';
+✗ import { X } from 'src/utils/x';  // No absolute from src/
+```
+
+## Key Patterns
+
+**Command Structure** (Oclif):
+```typescript
+export default class IndexCommand extends BaseCommand {
+  static description = 'Index project';
+  static flags = { full: Flags.boolean() };
+
+  async run(): Promise<void> {
+    const { flags } = await this.parse(IndexCommand);
+    // Command logic
+  }
+}
+```
+
+**Error Codes**: Same as Core (see workspace CLAUDE.md)
+
+**Logging**: console.log/console.error (no winston in CLI)
+
+## Extended Docs
+
+- `../CLAUDE.md` - Workspace architecture, Neo4j access, type sync
+- `../TROUBLESHOOTING.md` - Error codes: PARSE_ERROR, AUTH_ERROR, NETWORK_ERROR
+- `../COMMANDS.md` - Full CLI command reference
+- `../ADR.md` - ADR-001 (Privacy), ADR-007 (Tree-sitter), ADR-011 (Oclif), ADR-015 (Compression)

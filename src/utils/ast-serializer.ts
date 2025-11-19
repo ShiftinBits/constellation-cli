@@ -274,6 +274,8 @@ function getCommonFieldNames(nodeType: string): string[] {
 		'call_expression': ['function', 'arguments', 'type_arguments'],
 		'member_expression': ['object', 'property'],
 		'import_statement': ['source', 'import'],
+		'import_specifier': ['name', 'alias'],
+		'export_specifier': ['name', 'alias'],
 		'export_statement': ['source', 'declaration', 'value'],
 		'if_statement': ['condition', 'consequence', 'alternative'],
 		'for_statement': ['init', 'condition', 'update', 'body'],

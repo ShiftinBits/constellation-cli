@@ -1,4 +1,4 @@
-import { Tree, SyntaxNode } from 'tree-sitter';
+import { SyntaxNode, Tree } from 'tree-sitter';
 import { ImportResolutionMetadata } from '../types/api';
 import type { ImportResolver } from '../types/resolver.types';
 
@@ -145,20 +145,34 @@ export class ImportExtractor {
 
 	/**
 	 * Determines if import is an external package.
-	 * If resolution didn't change or doesn't start with './', it's external.
+	 *
+	 * CRITICAL: This logic must distinguish between:
+	 * - External packages: @nestjs/common, lodash, node:fs (return true)
+	 * - Internal workspace packages: @constellation/graph-engine → libs/graph-engine/src/index.ts (return false)
+	 * - Relative imports: ./foo, ../bar (return false)
+	 * - Canonical project paths: libs/..., apps/..., src/... (return false)
 	 */
 	private isExternalPackage(specifier: string, resolved: string): boolean {
-		// If resolution didn't change, it's external
+		// If resolution didn't change, it's external (e.g., @nestjs/common → @nestjs/common)
 		if (specifier === resolved) {
 			return true;
 		}
 
-		// If resolved path doesn't start with './', it's external
-		if (!resolved.startsWith('./')) {
-			return true;
+		// ✅ FIX: Project-relative paths without leading ./ or ../ are canonical paths
+		// Examples: "libs/graph-engine/src/index.ts", "apps/client-api/src/main.ts"
+		// These are internal workspace files, NOT external packages
+		if (!resolved.startsWith('.') && !resolved.startsWith('/')) {
+			// Canonical project-relative path = internal
+			return false;
 		}
 
-		return false;
+		// Relative paths (./foo, ../bar) are internal
+		if (resolved.startsWith('./') || resolved.startsWith('../')) {
+			return false;
+		}
+
+		// Everything else is external (absolute paths, node: prefixes, etc.)
+		return true;
 	}
 
 	/**

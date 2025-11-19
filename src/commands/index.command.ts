@@ -5,7 +5,6 @@ import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
 import { SerializedAST } from '../types/api';
 import { ASTCompressor } from '../utils/ast-compressor';
-import { serializeAST } from '../utils/ast-serializer';
 import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
 import { PromisePool } from '../utils/promise-pool';
 import {
@@ -374,7 +373,7 @@ export default class IndexCommand extends BaseCommand {
 		let processedCount = 0;
 		let errorCount = 0;
 
-		console.log(`${BLUE_INFO} Processing and generating ASTs from ${totalFiles} files...`);
+		console.log(`${BLUE_INFO} Processing ${totalFiles} files...`);
 
 		const currentCommit = await this.git!.getLatestCommitHash();
 

@@ -56,6 +56,7 @@ function* serializeNodeToJSON(node: SyntaxNode, parentFieldName?: string): Gener
 		'string', 'string_literal', 'template_string', 'number', 'true', 'false', 'null', 'undefined',
 		'import_specifier', 'export_specifier', 'predefined_type', 'type_predicate', 'type_alias',
 		'accessibility_modifier', 'readonly', 'static', 'async', 'await', 'const', 'let', 'var',
+		'decorator', // Decorator nodes (e.g., @Injectable())
 		'=', '=>', '...', '?', '!',
 	];
 
@@ -241,6 +242,9 @@ function createSerializedNode(node: SyntaxNode, parentFieldName?: string): Seria
 		'const',
 		'let',
 		'var',
+
+		// Decorators
+		'decorator', // Decorator nodes (e.g., @Injectable())
 
 		// Operators
 		'=',

@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks';
-import { ConstellationClient } from '../api/constellation-client';
+import { AuthenticationError, ConstellationClient } from '../api/constellation-client';
 import { BuildConfigManager } from '../languages/plugins/base-plugin';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
@@ -162,6 +162,12 @@ export default class IndexCommand extends BaseCommand {
 
 			console.log(`\n${GREEN_CHECK} Indexing completed in ${humanReadableExecTime}!`);
 		} catch (error) {
+			// Provide actionable message for auth failures
+			if (error instanceof AuthenticationError) {
+				console.error(`\n${RED_X} Authentication failed.`);
+				console.log(`${BLUE_INFO} Run 'constellation auth' to set or update your access key.`);
+				throw error;
+			}
 			const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
 			console.error(`${RED_X} Indexing failed: ${errorMessage}`);
 			throw error;
@@ -299,7 +305,11 @@ export default class IndexCommand extends BaseCommand {
 			console.log(`${BLUE_INFO} Performing incremental index starting from commit ${lastIndexedCommit.substring(0, 8)}`);
 			return { isIncremental: true, upToDate: false }; // Incremental index
 		} catch (error) {
-			// For errors, log and default to full index
+			// Re-throw auth errors - don't silently continue with invalid credentials
+			if (error instanceof AuthenticationError) {
+				throw error;
+			}
+			// For other errors, log and default to full index
 			console.log(`${YELLOW_WARN} Could not determine last index - performing full index`);
 			return { isIncremental: false, upToDate: false }; // Default to full index
 		}
@@ -316,38 +326,48 @@ export default class IndexCommand extends BaseCommand {
 		let files: FileInfo[];
 
 		if (isIncremental) {
-			// Get changed files since last indexed commit
-			const projectState = await this.apiClient!.getProjectState();
-			if (!projectState?.latestCommit) {
-				// Fallback to full scan if we can't get last commit
+			try {
+				// Get changed files since last indexed commit
+				const projectState = await this.apiClient!.getProjectState();
+				if (!projectState?.latestCommit) {
+					// Fallback to full scan if we can't get last commit
+					console.log(`${YELLOW_WARN} Cannot determine changes - falling back to full scan`);
+					files = await this.scanner.scanFiles(this.config!);
+				} else {
+					const changes = await this.git!.getChangedFiles(projectState.latestCommit);
+					const changedPaths = [
+						...changes.added,
+						...changes.modified,
+						...changes.renamed.map(r => r.to)
+					];
+
+					console.log(`${BLUE_INFO} Found ${changedPaths.length} changed files`);
+					files = await this.scanner.scanSpecificFiles(changedPaths, this.config!);
+
+					// Handle deleted files and old paths from renamed files
+					const filesToDelete = [
+						...changes.deleted,
+						...changes.renamed.map(r => r.from)
+					];
+
+					if (filesToDelete.length > 0) {
+						const deletedCount = changes.deleted.length;
+						const renamedCount = changes.renamed.length;
+						const message = renamedCount > 0
+							? `${BLUE_INFO} Removing ${deletedCount} deleted file(s) and ${renamedCount} renamed file(s) from graph`
+							: `${BLUE_INFO} Removing ${deletedCount} deleted file(s) from graph`;
+						console.log(message);
+						await this.apiClient!.deleteFiles(filesToDelete);
+					}
+				}
+			} catch (error) {
+				// Re-throw auth errors - don't silently fall back
+				if (error instanceof AuthenticationError) {
+					throw error;
+				}
+				// For other errors, fall back to full scan
 				console.log(`${YELLOW_WARN} Cannot determine changes - falling back to full scan`);
 				files = await this.scanner.scanFiles(this.config!);
-			} else {
-				const changes = await this.git!.getChangedFiles(projectState.latestCommit);
-				const changedPaths = [
-					...changes.added,
-					...changes.modified,
-					...changes.renamed.map(r => r.to)
-				];
-
-				console.log(`${BLUE_INFO} Found ${changedPaths.length} changed files`);
-				files = await this.scanner.scanSpecificFiles(changedPaths, this.config!);
-
-				// Handle deleted files and old paths from renamed files
-				const filesToDelete = [
-					...changes.deleted,
-					...changes.renamed.map(r => r.from)
-				];
-
-				if (filesToDelete.length > 0) {
-					const deletedCount = changes.deleted.length;
-					const renamedCount = changes.renamed.length;
-					const message = renamedCount > 0
-						? `${BLUE_INFO} Removing ${deletedCount} deleted file(s) and ${renamedCount} renamed file(s) from graph`
-						: `${BLUE_INFO} Removing ${deletedCount} deleted file(s) from graph`;
-					console.log(message);
-					await this.apiClient!.deleteFiles(filesToDelete);
-				}
 			}
 		} else {
 			// Full scan
@@ -478,12 +498,14 @@ export default class IndexCommand extends BaseCommand {
 	 * Processes files individually with compression to optimize network transfer.
 	 * @param astDataStream Async generator yielding serialized AST data
 	 * @param incremental Whether this is an incremental index
-	 * @param onGenerationComplete Optional callback invoked when AST generation completes
+	 * @throws Error if upload fails
 	 */
-	private async uploadToAPI(astDataStream: AsyncGenerator<SerializedAST>, incremental: boolean): Promise<boolean> {
+	private async uploadToAPI(astDataStream: AsyncGenerator<SerializedAST>, incremental: boolean): Promise<void> {
 		const uploadSuccess = await this.apiClient!.streamToApi(astDataStream, 'ast', this.config!.namespace, this.config!.branch, incremental);
-		console.log(`${!uploadSuccess ? `${RED_X} Failed to upload` : `${GREEN_CHECK} Successfully uploaded`} data to Constellation Service`);
-		return uploadSuccess;
+		if (!uploadSuccess) {
+			throw new Error('Failed to upload data to Constellation Service');
+		}
+		console.log(`${GREEN_CHECK} Successfully uploaded data to Constellation Service`);
 	}
 
 	/**

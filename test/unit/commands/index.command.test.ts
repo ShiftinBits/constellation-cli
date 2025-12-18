@@ -623,9 +623,9 @@ describe('IndexCommand', () => {
 				LanguageRegistry: mockLangRegistry
 			});
 
-			await testCommand.run(false);
-
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to upload'));
+			// Upload failure now throws an error instead of silently continuing
+			await expect(testCommand.run(false)).rejects.toThrow('Failed to upload data to Constellation Service');
+			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing failed'));
 		});
 
 		it('should complete successfully with valid configuration', async () => {

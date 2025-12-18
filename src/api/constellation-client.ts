@@ -109,8 +109,19 @@ export class ConstellationClient {
 					body: webStream,
 					duplex: 'half' // Required for streaming requests in fetch
 			} as RequestInit & { duplex?: 'half' });
+
+			// Handle authentication errors explicitly
+			if (response.status === 401) {
+				throw new AuthenticationError('Authentication failed');
+			}
+
 			return response.ok === true;
 		} catch (error: any) {
+			// Re-throw AuthenticationError so callers can handle it
+			if (error instanceof AuthenticationError) {
+				throw error;
+			}
+
 			// Extract detailed network error information
 			const originalError = error instanceof Error ? error : new Error(String(error));
 
@@ -230,13 +241,15 @@ export class ConstellationClient {
 
 				return response;
 			} catch (error: Error | any) {
-				// Log with full error context for debugging
-				const errorDetails = error instanceof Error
-					? `${error.message}${error.cause ? ` (Cause: ${error.cause})` : ''}`
-					: String(error);
-				console.log(
-					`HTTP request attempt ${i}/${retries} failed: ${errorDetails}`
-				);
+				// Skip logging for auth errors - they're not retryable and will be handled by caller
+				if (!(error instanceof AuthenticationError)) {
+					const errorDetails = error instanceof Error
+						? `${error.message}${error.cause ? ` (Cause: ${error.cause})` : ''}`
+						: String(error);
+					console.log(
+						`HTTP request attempt ${i}/${retries} failed: ${errorDetails}`
+					);
+				}
 
 				// Only retry RetryableError, everything else gets thrown immediately
 				if (i < retries && error instanceof RetryableError) {

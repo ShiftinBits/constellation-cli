@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { Command } from 'commander';
+import { AuthenticationError } from './api/constellation-client';
 import AuthCommand from './commands/auth.command';
 import { CommandDeps } from './commands/command.deps';
 import IndexCommand from './commands/index.command';
@@ -94,7 +95,9 @@ program.command('index')
 			const indexCommand = new IndexCommand(commandDeps);
 			await indexCommand.run(fullIndex, gitDirty);
 		} catch (error) {
-			console.error(`${RED_X} Failed to run index command: ${error instanceof Error ? error.message : String(error)}`);
+			if (!(error instanceof AuthenticationError)) {
+				console.error(`${RED_X} Failed to run index command: ${error instanceof Error ? error.message : String(error)}`);
+			}
 			process.exit(1);
 		}
 	});

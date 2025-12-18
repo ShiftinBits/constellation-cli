@@ -132,13 +132,12 @@ describe('ConstellationClient', () => {
 			expect(result).toBeNull();
 		});
 
-		it('should return null when authentication fails', async () => {
+		it('should throw AuthenticationError when authentication fails', async () => {
 			// @ts-expect-error - Jest mock typing
-			mockFetch.mockRejectedValue(new AuthenticationError('Authentication failed'));
+			mockFetch.mockResolvedValue(createMockResponse(401, false));
 
-			const result = await client.getProjectState();
-
-			expect(result).toBeNull();
+			await expect(client.getProjectState()).rejects.toThrow(AuthenticationError);
+			await expect(client.getProjectState()).rejects.toThrow('Authentication failed');
 		});
 	});
 
@@ -293,6 +292,35 @@ describe('ConstellationClient', () => {
 				false
 			)).rejects.toThrow(/Failed to upload data to Constellation Service/);
 		});
+
+		it('should throw AuthenticationError on 401', async () => {
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield createTestAST();
+				}
+			};
+
+			const mockNdJsonStream = {};
+			(NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>)
+				.mockImplementation(() => mockNdJsonStream as any);
+
+			// Mock Readable.toWeb
+			const mockReadable = {
+				toWeb: jest.fn().mockReturnValue({})
+			};
+			jest.doMock('stream', () => ({ Readable: mockReadable }), { virtual: true });
+
+			// @ts-expect-error - Jest mock typing
+			mockFetch.mockResolvedValue(createMockResponse(401, false));
+
+			await expect(client.streamToApi(
+				mockStream as any,
+				'upload',
+				'test-namespace',
+				'test-branch',
+				false
+			)).rejects.toThrow(AuthenticationError);
+		});
 	});
 
 	describe('retry logic', () => {
@@ -325,14 +353,13 @@ describe('ConstellationClient', () => {
 			expect(mockFetch).toHaveBeenCalledTimes(1);
 		});
 
-		it('should throw AuthenticationError on 401', async () => {
+		it('should throw AuthenticationError on 401 without retry', async () => {
 			// @ts-expect-error - Jest mock typing
 		mockFetch.mockResolvedValue(createMockResponse(401, false));
 
-			// getProjectState catches all errors and returns null
-			const result = await client.getProjectState();
-			expect(result).toBeNull();
-			expect(mockFetch).toHaveBeenCalledTimes(1);
+			// AuthenticationError is now re-thrown, not caught and converted to null
+			await expect(client.getProjectState()).rejects.toThrow(AuthenticationError);
+			expect(mockFetch).toHaveBeenCalledTimes(1); // No retries for auth errors
 		});
 
 		it('should apply jittered delay between retries', async () => {

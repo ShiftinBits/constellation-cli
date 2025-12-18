@@ -1,4 +1,11 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import {
+	describe,
+	it,
+	expect,
+	jest,
+	beforeEach,
+	afterEach,
+} from '@jest/globals';
 import { CrossPlatformEnvironment } from '../../../src/env/env-manager';
 import { FileUtils } from '../../../src/utils/file.utils';
 import * as os from 'os';
@@ -25,6 +32,18 @@ function setupFileMocks() {
 	(FileUtils.writeFile as jest.Mock).mockResolvedValue(undefined);
 }
 
+// Helper to clear all CI environment variables
+function clearCIEnvironment() {
+	delete process.env.CI;
+	delete process.env.GITHUB_ACTIONS;
+	delete process.env.GITLAB_CI;
+	delete process.env.JENKINS_URL;
+	delete process.env.CIRCLECI;
+	delete process.env.TRAVIS;
+	delete process.env.BUILDKITE;
+	delete process.env.DRONE;
+}
+
 describe('CrossPlatformEnvironment', () => {
 	let env: CrossPlatformEnvironment;
 	let originalEnv: NodeJS.ProcessEnv;
@@ -43,7 +62,7 @@ describe('CrossPlatformEnvironment', () => {
 		// Restore original environment
 		process.env = originalEnv;
 		Object.defineProperty(process, 'platform', {
-			value: originalPlatform
+			value: originalPlatform,
 		});
 	});
 
@@ -70,7 +89,9 @@ describe('CrossPlatformEnvironment', () => {
 
 		it('should throw error for unsupported platform', () => {
 			(os.platform as jest.Mock).mockReturnValue('aix');
-			expect(() => new CrossPlatformEnvironment()).toThrow('Unsupported platform: aix');
+			expect(() => new CrossPlatformEnvironment()).toThrow(
+				'Unsupported platform: aix',
+			);
 		});
 	});
 
@@ -105,7 +126,7 @@ describe('CrossPlatformEnvironment', () => {
 			(os.platform as jest.Mock).mockReturnValue('darwin');
 			(os.homedir as jest.Mock).mockReturnValue('/home/testuser');
 			process.env.SHELL = '/bin/zsh';
-			delete process.env.CI;
+			clearCIEnvironment();
 			env = new CrossPlatformEnvironment();
 		});
 
@@ -132,7 +153,7 @@ describe('CrossPlatformEnvironment', () => {
 
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
 				'/home/testuser/.zshrc',
-				expect.stringContaining('export TEST_KEY="test-value"')
+				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 		});
 
@@ -146,7 +167,8 @@ describe('CrossPlatformEnvironment', () => {
 		});
 
 		it('should update existing variable in config file', async () => {
-			const existingContent = 'export TEST_KEY="old-value"\nexport OTHER="value"';
+			const existingContent =
+				'export TEST_KEY="old-value"\nexport OTHER="value"';
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(existingContent);
 			// @ts-expect-error - Jest mock typing
@@ -161,7 +183,9 @@ describe('CrossPlatformEnvironment', () => {
 
 		it('should create config file if it does not exist', async () => {
 			// @ts-expect-error - Jest mock typing
-			(FileUtils.readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
+			(FileUtils.readFile as jest.Mock).mockRejectedValue(
+				new Error('File not found'),
+			);
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.writeFile as jest.Mock).mockResolvedValue(undefined);
 
@@ -169,7 +193,7 @@ describe('CrossPlatformEnvironment', () => {
 
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
 				'/home/testuser/.zshrc',
-				expect.stringContaining('export TEST_KEY="test-value"')
+				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 		});
 
@@ -201,10 +225,12 @@ describe('CrossPlatformEnvironment', () => {
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue('');
 			// @ts-expect-error - Jest mock typing
-			(FileUtils.writeFile as jest.Mock).mockRejectedValue(new Error('Write failed'));
+			(FileUtils.writeFile as jest.Mock).mockRejectedValue(
+				new Error('Write failed'),
+			);
 
 			await expect(env.setKey('test_key', 'test-value')).rejects.toThrow(
-				'Failed to set environment variable TEST_KEY'
+				'Failed to set environment variable TEST_KEY',
 			);
 		});
 	});
@@ -220,27 +246,33 @@ describe('CrossPlatformEnvironment', () => {
 
 		it('should reject invalid key with special characters', async () => {
 			await expect(env.setKey('invalid-key!', 'value')).rejects.toThrow(
-				'Environment variable name must contain only letters, numbers, and underscores'
+				'Environment variable name must contain only letters, numbers, and underscores',
 			);
 		});
 
 		it('should reject empty key', async () => {
-			await expect(env.setKey('', 'value')).rejects.toThrow('Invalid key provided');
+			await expect(env.setKey('', 'value')).rejects.toThrow(
+				'Invalid key provided',
+			);
 		});
 
 		it('should reject null value', async () => {
 			// @ts-expect-error - Testing invalid input
-			await expect(env.setKey('key', null)).rejects.toThrow('Invalid value provided');
+			await expect(env.setKey('key', null)).rejects.toThrow(
+				'Invalid value provided',
+			);
 		});
 
 		it('should reject undefined value', async () => {
 			// @ts-expect-error - Testing invalid input
-			await expect(env.setKey('key', undefined)).rejects.toThrow('Invalid value provided');
+			await expect(env.setKey('key', undefined)).rejects.toThrow(
+				'Invalid value provided',
+			);
 		});
 
 		it('should reject value with null bytes', async () => {
 			await expect(env.setKey('key', 'value\0malicious')).rejects.toThrow(
-				'Value contains invalid characters'
+				'Value contains invalid characters',
 			);
 		});
 
@@ -261,7 +293,7 @@ describe('CrossPlatformEnvironment', () => {
 
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
 				expect.stringContaining('.zshrc'),
-				expect.any(String)
+				expect.any(String),
 			);
 		});
 
@@ -276,7 +308,7 @@ describe('CrossPlatformEnvironment', () => {
 
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
 				expect.stringContaining('.profile'),
-				expect.any(String)
+				expect.any(String),
 			);
 		});
 	});
@@ -331,7 +363,7 @@ describe('CrossPlatformEnvironment', () => {
 
 		beforeEach(() => {
 			(os.platform as jest.Mock).mockReturnValue('win32');
-			delete process.env.CI;
+			clearCIEnvironment();
 
 			// Mock child_process.spawn
 			mockProcess = new MockChildProcess();
@@ -354,10 +386,14 @@ describe('CrossPlatformEnvironment', () => {
 
 			await promise;
 
-			expect(mockSpawn).toHaveBeenCalledWith('setx', ['TEST_KEY', 'test-value'], {
-				shell: false,
-				windowsHide: true
-			});
+			expect(mockSpawn).toHaveBeenCalledWith(
+				'setx',
+				['TEST_KEY', 'test-value'],
+				{
+					shell: false,
+					windowsHide: true,
+				},
+			);
 			expect(process.env.TEST_KEY).toBe('test-value');
 		});
 
@@ -372,7 +408,9 @@ describe('CrossPlatformEnvironment', () => {
 				mockProcess.emit('close', 1);
 			});
 
-			await expect(promise).rejects.toThrow('Failed to set environment variable TEST_KEY');
+			await expect(promise).rejects.toThrow(
+				'Failed to set environment variable TEST_KEY',
+			);
 		});
 
 		it('should handle spawn error', async () => {
@@ -383,7 +421,9 @@ describe('CrossPlatformEnvironment', () => {
 				mockProcess.emit('error', new Error('Command not found'));
 			});
 
-			await expect(promise).rejects.toThrow('Failed to set environment variable TEST_KEY');
+			await expect(promise).rejects.toThrow(
+				'Failed to set environment variable TEST_KEY',
+			);
 		});
 
 		it('should only set in process.env when in CI environment', async () => {
@@ -405,7 +445,11 @@ describe('CrossPlatformEnvironment', () => {
 
 			await promise;
 
-			expect(mockSpawn).toHaveBeenCalledWith('setx', ['TEST_KEY', 'value with spaces'], expect.any(Object));
+			expect(mockSpawn).toHaveBeenCalledWith(
+				'setx',
+				['TEST_KEY', 'value with spaces'],
+				expect.any(Object),
+			);
 		});
 	});
 
@@ -431,17 +475,24 @@ describe('CrossPlatformEnvironment', () => {
 			// Simulate successful registry query
 			setImmediate(() => {
 				if (mockProcess.stdout) {
-					mockProcess.stdout.emit('data', Buffer.from('TEST_KEY    REG_SZ    test-value\r\n'));
+					mockProcess.stdout.emit(
+						'data',
+						Buffer.from('TEST_KEY    REG_SZ    test-value\r\n'),
+					);
 				}
 				mockProcess.emit('close', 0);
 			});
 
 			const result = await promise;
 			expect(result).toBe('test-value');
-			expect(mockSpawn).toHaveBeenCalledWith('reg', ['query', 'HKCU\\Environment', '/v', 'TEST_KEY'], {
-				shell: false,
-				windowsHide: true
-			});
+			expect(mockSpawn).toHaveBeenCalledWith(
+				'reg',
+				['query', 'HKCU\\Environment', '/v', 'TEST_KEY'],
+				{
+					shell: false,
+					windowsHide: true,
+				},
+			);
 		});
 
 		it('should fallback to system registry if not in user registry', async () => {
@@ -459,7 +510,10 @@ describe('CrossPlatformEnvironment', () => {
 					// Second call (system registry) - found
 					setImmediate(() => {
 						if (proc.stdout) {
-							proc.stdout.emit('data', Buffer.from('TEST_KEY    REG_SZ    system-value\r\n'));
+							proc.stdout.emit(
+								'data',
+								Buffer.from('TEST_KEY    REG_SZ    system-value\r\n'),
+							);
 						}
 						proc.emit('close', 0);
 					});
@@ -476,9 +530,16 @@ describe('CrossPlatformEnvironment', () => {
 
 			expect(result).toBe('system-value');
 			expect(mockSpawn).toHaveBeenCalledTimes(2);
-			expect(mockSpawn).toHaveBeenNthCalledWith(2, 'reg',
-				['query', 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment', '/v', 'TEST_KEY'],
-				expect.any(Object)
+			expect(mockSpawn).toHaveBeenNthCalledWith(
+				2,
+				'reg',
+				[
+					'query',
+					'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
+					'/v',
+					'TEST_KEY',
+				],
+				expect.any(Object),
 			);
 		});
 
@@ -506,7 +567,10 @@ describe('CrossPlatformEnvironment', () => {
 
 			setImmediate(() => {
 				if (mockProcess.stdout) {
-					mockProcess.stdout.emit('data', Buffer.from('PATH    REG_EXPAND_SZ    C:\\Windows\\System32\r\n'));
+					mockProcess.stdout.emit(
+						'data',
+						Buffer.from('PATH    REG_EXPAND_SZ    C:\\Windows\\System32\r\n'),
+					);
 				}
 				mockProcess.emit('close', 0);
 			});

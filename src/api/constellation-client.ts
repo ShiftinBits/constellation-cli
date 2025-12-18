@@ -38,7 +38,7 @@ export class ConstellationClient {
 						'Content-Type': 'application/x-ndjson; charset=utf-8', // Newline-delimited JSON
 						'x-project-id': this.config.namespace,
 						'x-branch-name': this.config.branch,
-						Authorization: this.accessKey
+						Authorization: `Bearer ${this.accessKey}`
 					};
 			const response = await this.sendRequest('project', undefined, 'GET', headers);
 
@@ -52,6 +52,10 @@ export class ConstellationClient {
 		} catch (error) {
 			// Re-throw NotFoundError so caller can handle it
 			if (error instanceof NotFoundError) {
+				throw error;
+			}
+			// Re-throw AuthenticationError - caller must handle auth failures explicitly
+			if (error instanceof AuthenticationError) {
 				throw error;
 			}
 			console.error(`${RED_X} Failed to query current project state`, error);
@@ -100,7 +104,7 @@ export class ConstellationClient {
 						'x-project-id': namespace,
 						'x-branch-name': branchName,
 						'x-constellation-index': incrementalIndex ? 'incremental' : 'full',
-						Authorization: this.accessKey
+						Authorization: `Bearer ${this.accessKey}`
 					},
 					body: webStream,
 					duplex: 'half' // Required for streaming requests in fetch
@@ -197,7 +201,7 @@ export class ConstellationClient {
 					...headers,
 					"Content-Type": "application/json; charset=utf-8",
 					Accepts: "application/json; charset=utf-8",
-					Authorization: this.accessKey
+					Authorization: `Bearer ${this.accessKey}`
 				};
 
 				const response = await fetch(`${this.config.apiUrl}/${this.apiVersion}/${path}`, {

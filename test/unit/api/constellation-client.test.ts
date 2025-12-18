@@ -108,7 +108,7 @@ describe('ConstellationClient', () => {
 						'x-project-id': 'test-project',
 						'x-branch-name': 'main',
 						Accepts: 'application/json; charset=utf-8',
-						Authorization: mockAccessKey
+						Authorization: `Bearer ${mockAccessKey}`
 					})
 				})
 			);
@@ -236,7 +236,7 @@ describe('ConstellationClient', () => {
 						'Content-Type': 'application/x-ndjson; charset=utf-8',
 						'x-project-id': 'test-namespace',
 						'x-branch-name': 'test-branch',
-						Authorization: mockAccessKey
+						Authorization: `Bearer ${mockAccessKey}`
 					}),
 					body: mockWebStream,
 					duplex: 'half'
@@ -406,7 +406,7 @@ describe('ConstellationClient', () => {
 					headers: {
 						'Content-Type': 'application/json; charset=utf-8',
 						Accepts: 'application/json; charset=utf-8',
-						Authorization: mockAccessKey,
+						Authorization: `Bearer ${mockAccessKey}`,
 						'x-branch-name': 'main',
 						'x-project-id': 'test-project'
 					}
@@ -425,7 +425,7 @@ describe('ConstellationClient', () => {
 				expect.objectContaining({
 					headers: expect.objectContaining({
 						'Content-Type': 'application/json; charset=utf-8',
-						Authorization: mockAccessKey
+						Authorization: `Bearer ${mockAccessKey}`
 					})
 				})
 			);

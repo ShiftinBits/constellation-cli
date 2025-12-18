@@ -1,6 +1,6 @@
 import { SyntaxNode, Tree } from 'tree-sitter';
 import { ImportResolutionMetadata } from '../types/api';
-import type { ImportResolver } from '../types/resolver.types';
+import type { ImportResolver } from '../languages/plugins/base-plugin';
 
 /**
  * Extracts import resolution metadata from AST without modifying it.
@@ -26,7 +26,7 @@ export class ImportExtractor {
 		tree: Tree,
 		filePath: string,
 		language: string,
-		resolver?: ImportResolver
+		resolver?: ImportResolver,
 	): Promise<ImportResolutionMetadata> {
 		if (!resolver) {
 			return {};
@@ -54,7 +54,7 @@ export class ImportExtractor {
 	 */
 	private async walkAST(
 		node: SyntaxNode,
-		visitor: (node: SyntaxNode) => Promise<void>
+		visitor: (node: SyntaxNode) => Promise<void>,
 	): Promise<void> {
 		await visitor(node);
 
@@ -72,7 +72,7 @@ export class ImportExtractor {
 	private async processImportStatement(
 		node: SyntaxNode,
 		resolver: ImportResolver,
-		resolutions: ImportResolutionMetadata
+		resolutions: ImportResolutionMetadata,
 	): Promise<void> {
 		// Find the source string node (the imported module path)
 		const sourceNode = node.childForFieldName('source');
@@ -86,16 +86,22 @@ export class ImportExtractor {
 		// Resolve using CLI resolver (has tsconfig/jsconfig access)
 		const resolvedPath = await resolver.resolve(importSpecifier);
 		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
-		const importType = this.classifyImportType(importSpecifier, resolvedPath, isExternal);
+		const importType = this.classifyImportType(
+			importSpecifier,
+			resolvedPath,
+			isExternal,
+		);
 
 		// Normalize resolved path to canonical format (project-root-relative without leading ./)
-		const normalizedPath = isExternal ? undefined : this.normalizeToCanonical(resolvedPath);
+		const normalizedPath = isExternal
+			? undefined
+			: this.normalizeToCanonical(resolvedPath);
 
 		resolutions[line.toString()] = {
 			source: importSpecifier,
 			resolvedPath: normalizedPath,
 			isExternal,
-			importType
+			importType,
 		};
 	}
 
@@ -106,7 +112,7 @@ export class ImportExtractor {
 	private async processExportStatement(
 		node: SyntaxNode,
 		resolver: ImportResolver,
-		resolutions: ImportResolutionMetadata
+		resolutions: ImportResolutionMetadata,
 	): Promise<void> {
 		// Find the source string node (the module path after 'from')
 		const sourceNode = node.childForFieldName('source');
@@ -121,16 +127,22 @@ export class ImportExtractor {
 		// Resolve using CLI resolver (has tsconfig/jsconfig access)
 		const resolvedPath = await resolver.resolve(importSpecifier);
 		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
-		const importType = this.classifyImportType(importSpecifier, resolvedPath, isExternal);
+		const importType = this.classifyImportType(
+			importSpecifier,
+			resolvedPath,
+			isExternal,
+		);
 
 		// Normalize resolved path to canonical format (project-root-relative without leading ./)
-		const normalizedPath = isExternal ? undefined : this.normalizeToCanonical(resolvedPath);
+		const normalizedPath = isExternal
+			? undefined
+			: this.normalizeToCanonical(resolvedPath);
 
 		resolutions[line.toString()] = {
 			source: importSpecifier,
 			resolvedPath: normalizedPath,
 			isExternal,
-			importType
+			importType,
 		};
 	}
 
@@ -181,7 +193,7 @@ export class ImportExtractor {
 	private classifyImportType(
 		specifier: string,
 		resolved: string,
-		isExternal: boolean
+		isExternal: boolean,
 	): 'relative' | 'workspace' | 'alias' | 'external' | 'builtin' {
 		if (isExternal) {
 			return specifier.startsWith('node:') ? 'builtin' : 'external';

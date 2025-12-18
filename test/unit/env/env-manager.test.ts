@@ -285,6 +285,7 @@ describe('CrossPlatformEnvironment', () => {
 			(os.platform as jest.Mock).mockReturnValue('darwin');
 			(os.homedir as jest.Mock).mockReturnValue('/home/testuser');
 			process.env.SHELL = '/usr/local/bin/zsh';
+			clearCIEnvironment();
 			setupFileMocks();
 
 			env = new CrossPlatformEnvironment();
@@ -300,6 +301,7 @@ describe('CrossPlatformEnvironment', () => {
 			(os.platform as jest.Mock).mockReturnValue('linux');
 			(os.homedir as jest.Mock).mockReturnValue('/home/testuser');
 			delete process.env.SHELL;
+			clearCIEnvironment();
 			setupFileMocks();
 
 			env = new CrossPlatformEnvironment();

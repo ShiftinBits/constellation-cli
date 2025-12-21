@@ -1,10 +1,27 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { ConstellationConfig, IConstellationConfig, IConstellationLanguageConfig } from '../../../src/config/config';
+import {
+	describe,
+	it,
+	expect,
+	jest,
+	beforeEach,
+	afterEach,
+} from '@jest/globals';
+import {
+	ConstellationConfig,
+	IConstellationConfig,
+	IConstellationLanguageConfig,
+} from '../../../src/config/config';
 import { FileUtils } from '../../../src/utils/file.utils';
-import { createTempDir, cleanupTempDir, createTestFile } from '../../helpers/test-utils';
+import {
+	createTempDir,
+	cleanupTempDir,
+	createTestFile,
+} from '../../helpers/test-utils';
 
 // Helper function to create test language configurations
-function createTestLanguageConfig(languages: Partial<IConstellationLanguageConfig>): IConstellationLanguageConfig {
+function createTestLanguageConfig(
+	languages: Partial<IConstellationLanguageConfig>,
+): IConstellationLanguageConfig {
 	return languages as IConstellationLanguageConfig;
 }
 
@@ -36,13 +53,13 @@ describe('ConstellationConfig', () => {
 				'main',
 				languages,
 				'test-project',
-				['node_modules', '.git']
+				['node_modules', '.git'],
 			);
 
 			expect(config.apiUrl).toBe('http://localhost:3000');
 			expect(config.branch).toBe('main');
 			expect(config.languages).toBe(languages);
-			expect(config.namespace).toBe('test-project');
+			expect(config.projectId).toBe('test-project');
 			expect(config.exclude).toEqual(['node_modules', '.git']);
 		});
 
@@ -54,13 +71,13 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'develop',
 				languages,
-				'my-project'
+				'my-project',
 			);
 
 			expect(config.apiUrl).toBe('http://localhost:3000');
 			expect(config.branch).toBe('develop');
 			expect(config.languages).toBe(languages);
-			expect(config.namespace).toBe('my-project');
+			expect(config.projectId).toBe('my-project');
 			expect(config.exclude).toBeUndefined();
 		});
 	});
@@ -73,33 +90,43 @@ describe('ConstellationConfig', () => {
 					typescript: { fileExtensions: ['.ts', '.tsx'] },
 					javascript: { fileExtensions: ['.js', '.jsx'] },
 				}),
-				namespace: 'test-project',
+				projectId: 'test-project',
 				exclude: ['node_modules', 'dist'],
 			};
 
 			mockFileUtils.fileIsReadable.mockResolvedValue(true);
 			mockFileUtils.readFile.mockResolvedValue(JSON.stringify(configData));
 
-			const config = await ConstellationConfig.loadFromFile('/path/to/config.json');
+			const config = await ConstellationConfig.loadFromFile(
+				'/path/to/config.json',
+			);
 
 			expect(config.apiUrl).toBe('http://localhost:3000');
 			expect(config.branch).toBe(configData.branch);
 			expect(config.languages).toEqual(configData.languages);
-			expect(config.namespace).toBe(configData.namespace);
+			expect(config.projectId).toBe(configData.projectId);
 			expect(config.exclude).toEqual(configData.exclude);
 
-			expect(mockFileUtils.fileIsReadable).toHaveBeenCalledWith('/path/to/config.json');
-			expect(mockFileUtils.readFile).toHaveBeenCalledWith('/path/to/config.json');
+			expect(mockFileUtils.fileIsReadable).toHaveBeenCalledWith(
+				'/path/to/config.json',
+			);
+			expect(mockFileUtils.readFile).toHaveBeenCalledWith(
+				'/path/to/config.json',
+			);
 		});
 
 		it('should throw error if file is not readable', async () => {
 			mockFileUtils.fileIsReadable.mockResolvedValue(false);
 
-			await expect(ConstellationConfig.loadFromFile('/missing/config.json')).rejects.toThrow(
-				'Unable to find constellation config at /missing/config.json'
+			await expect(
+				ConstellationConfig.loadFromFile('/missing/config.json'),
+			).rejects.toThrow(
+				'Unable to find constellation config at /missing/config.json',
 			);
 
-			expect(mockFileUtils.fileIsReadable).toHaveBeenCalledWith('/missing/config.json');
+			expect(mockFileUtils.fileIsReadable).toHaveBeenCalledWith(
+				'/missing/config.json',
+			);
 			expect(mockFileUtils.readFile).not.toHaveBeenCalled();
 		});
 
@@ -107,25 +134,33 @@ describe('ConstellationConfig', () => {
 			mockFileUtils.fileIsReadable.mockResolvedValue(true);
 			mockFileUtils.readFile.mockResolvedValue('{ invalid json }');
 
-			await expect(ConstellationConfig.loadFromFile('/path/to/config.json')).rejects.toThrow();
+			await expect(
+				ConstellationConfig.loadFromFile('/path/to/config.json'),
+			).rejects.toThrow();
 
-			expect(mockFileUtils.fileIsReadable).toHaveBeenCalledWith('/path/to/config.json');
-			expect(mockFileUtils.readFile).toHaveBeenCalledWith('/path/to/config.json');
+			expect(mockFileUtils.fileIsReadable).toHaveBeenCalledWith(
+				'/path/to/config.json',
+			);
+			expect(mockFileUtils.readFile).toHaveBeenCalledWith(
+				'/path/to/config.json',
+			);
 		});
 
 		it('should validate configuration after loading', async () => {
 			const invalidConfigData = {
 				branch: 'main',
-				languages: {},  // Empty languages should fail validation
-				namespace: 'test-project',
+				languages: {}, // Empty languages should fail validation
+				projectId: 'test-project',
 			};
 
 			mockFileUtils.fileIsReadable.mockResolvedValue(true);
-			mockFileUtils.readFile.mockResolvedValue(JSON.stringify(invalidConfigData));
-
-			await expect(ConstellationConfig.loadFromFile('/path/to/config.json')).rejects.toThrow(
-				'Invalid configuration: no languages configured'
+			mockFileUtils.readFile.mockResolvedValue(
+				JSON.stringify(invalidConfigData),
 			);
+
+			await expect(
+				ConstellationConfig.loadFromFile('/path/to/config.json'),
+			).rejects.toThrow('Invalid configuration: no languages configured');
 		});
 
 		it('should load configuration without optional exclude field', async () => {
@@ -134,13 +169,15 @@ describe('ConstellationConfig', () => {
 				languages: createTestLanguageConfig({
 					typescript: { fileExtensions: ['.ts'] },
 				}),
-				namespace: 'test-project',
+				projectId: 'test-project',
 			};
 
 			mockFileUtils.fileIsReadable.mockResolvedValue(true);
 			mockFileUtils.readFile.mockResolvedValue(JSON.stringify(configData));
 
-			const config = await ConstellationConfig.loadFromFile('/path/to/config.json');
+			const config = await ConstellationConfig.loadFromFile(
+				'/path/to/config.json',
+			);
 
 			expect(config.exclude).toBeUndefined();
 		});
@@ -161,7 +198,7 @@ describe('ConstellationConfig', () => {
 				'main',
 				validLanguages,
 				'test-project',
-				['node_modules']
+				['node_modules'],
 			);
 
 			expect(() => config.validate()).not.toThrow();
@@ -171,7 +208,7 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'main',
 				validLanguages,
-				'test-project'
+				'test-project',
 			);
 
 			expect(config.apiUrl).toBe('http://localhost:3000');
@@ -181,30 +218,32 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'',
 				validLanguages,
-				'test-project'
+				'test-project',
 			);
 
-			expect(() => config.validate()).toThrow('Invalid configuration: branch is missing');
+			expect(() => config.validate()).toThrow(
+				'Invalid configuration: branch is missing',
+			);
 		});
 
-		it('should throw error if namespace is missing', () => {
-			const config = new ConstellationConfig(
-				'main',
-				validLanguages,
-				''
-			);
+		it('should throw error if projectId is missing', () => {
+			const config = new ConstellationConfig('main', validLanguages, '');
 
-			expect(() => config.validate()).toThrow('Invalid configuration: namespace is missing');
+			expect(() => config.validate()).toThrow(
+				'Invalid configuration: projectId is missing',
+			);
 		});
 
 		it('should throw error if languages is empty', () => {
 			const config = new ConstellationConfig(
 				'main',
 				{} as IConstellationLanguageConfig,
-				'test-project'
+				'test-project',
 			);
 
-			expect(() => config.validate()).toThrow('Invalid configuration: no languages configured');
+			expect(() => config.validate()).toThrow(
+				'Invalid configuration: no languages configured',
+			);
 		});
 
 		it('should throw error if language has no file extensions', () => {
@@ -215,11 +254,11 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'main',
 				invalidLanguages,
-				'test-project'
+				'test-project',
 			);
 
 			expect(() => config.validate()).toThrow(
-				'Invalid configuration: language "typescript" has no file extensions'
+				'Invalid configuration: language "typescript" has no file extensions',
 			);
 		});
 
@@ -231,11 +270,11 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'main',
 				invalidLanguages,
-				'test-project'
+				'test-project',
 			);
 
 			expect(() => config.validate()).toThrow(
-				'Invalid configuration: file extension "ts" for language "typescript" must start with a dot'
+				'Invalid configuration: file extension "ts" for language "typescript" must start with a dot',
 			);
 		});
 
@@ -244,11 +283,11 @@ describe('ConstellationConfig', () => {
 				'main',
 				validLanguages,
 				'test-project',
-				'not-an-array' as any
+				'not-an-array' as any,
 			);
 
 			expect(() => config.validate()).toThrow(
-				'Invalid configuration: exclude must be an array of strings'
+				'Invalid configuration: exclude must be an array of strings',
 			);
 		});
 
@@ -257,11 +296,11 @@ describe('ConstellationConfig', () => {
 				'main',
 				validLanguages,
 				'test-project',
-				['node_modules', 123, 'dist'] as any
+				['node_modules', 123, 'dist'] as any,
 			);
 
 			expect(() => config.validate()).toThrow(
-				'Invalid configuration: exclude patterns must be strings'
+				'Invalid configuration: exclude patterns must be strings',
 			);
 		});
 
@@ -274,7 +313,7 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'main',
 				multiLanguages,
-				'test-project'
+				'test-project',
 			);
 
 			expect(() => config.validate()).not.toThrow();
@@ -284,7 +323,7 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'main',
 				validLanguages,
-				'test-project'
+				'test-project',
 			);
 
 			expect(() => config.validate()).not.toThrow();
@@ -295,7 +334,7 @@ describe('ConstellationConfig', () => {
 				'main',
 				validLanguages,
 				'test-project',
-				[]
+				[],
 			);
 
 			expect(() => config.validate()).not.toThrow();
@@ -310,11 +349,7 @@ describe('ConstellationConfig', () => {
 				typescript: { fileExtensions: ['.ts'] },
 			});
 
-			config = new ConstellationConfig(
-				'main',
-				languages,
-				'test-project'
-			);
+			config = new ConstellationConfig('main', languages, 'test-project');
 		});
 
 		it('should pass validation when branches match', () => {
@@ -323,14 +358,14 @@ describe('ConstellationConfig', () => {
 
 		it('should throw error when current branch is null', () => {
 			expect(() => config.validateBranch(null)).toThrow(
-				'Not on a Git branch (detached HEAD state)'
+				'Not on a Git branch (detached HEAD state)',
 			);
 		});
 
 		it('should throw error when branches do not match', () => {
 			expect(() => config.validateBranch('develop')).toThrow(
 				'Current branch "develop" does not match configured branch "main". ' +
-				'Update constellation.json or switch to "main" branch.'
+					'Update constellation.json or switch to "main" branch.',
 			);
 		});
 
@@ -338,12 +373,12 @@ describe('ConstellationConfig', () => {
 			const developConfig = new ConstellationConfig(
 				'develop',
 				createTestLanguageConfig({ typescript: { fileExtensions: ['.ts'] } }),
-				'test-project'
+				'test-project',
 			);
 
 			expect(() => developConfig.validateBranch('develop')).not.toThrow();
 			expect(() => developConfig.validateBranch('main')).toThrow(
-				'Current branch "main" does not match configured branch "develop"'
+				'Current branch "main" does not match configured branch "develop"',
 			);
 		});
 
@@ -351,18 +386,22 @@ describe('ConstellationConfig', () => {
 			const featureConfig = new ConstellationConfig(
 				'feature/new-parser',
 				createTestLanguageConfig({ typescript: { fileExtensions: ['.ts'] } }),
-				'test-project'
+				'test-project',
 			);
 
-			expect(() => featureConfig.validateBranch('feature/new-parser')).not.toThrow();
-			expect(() => featureConfig.validateBranch('feature/other-feature')).toThrow(
-				'Current branch "feature/other-feature" does not match configured branch "feature/new-parser"'
+			expect(() =>
+				featureConfig.validateBranch('feature/new-parser'),
+			).not.toThrow();
+			expect(() =>
+				featureConfig.validateBranch('feature/other-feature'),
+			).toThrow(
+				'Current branch "feature/other-feature" does not match configured branch "feature/new-parser"',
 			);
 		});
 	});
 
 	describe('edge cases', () => {
-		it('should handle special characters in namespace', () => {
+		it('should handle special characters in projectId', () => {
 			const languages = createTestLanguageConfig({
 				typescript: { fileExtensions: ['.ts'] },
 			});
@@ -370,11 +409,11 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'main',
 				languages,
-				'test-project@2024'
+				'test-project@2024',
 			);
 
 			expect(() => config.validate()).not.toThrow();
-			expect(config.namespace).toBe('test-project@2024');
+			expect(config.projectId).toBe('test-project@2024');
 		});
 
 		it('should handle complex exclude patterns', () => {
@@ -395,7 +434,7 @@ describe('ConstellationConfig', () => {
 				'main',
 				languages,
 				'test-project',
-				complexExclude
+				complexExclude,
 			);
 
 			expect(() => config.validate()).not.toThrow();
@@ -406,7 +445,7 @@ describe('ConstellationConfig', () => {
 			const config = new ConstellationConfig(
 				'main',
 				createTestLanguageConfig({ typescript: { fileExtensions: ['.ts'] } }),
-				'test-project'
+				'test-project',
 			);
 
 			expect(config.apiUrl).toBe('http://localhost:3000');

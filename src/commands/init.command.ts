@@ -10,7 +10,7 @@ import {
 	GREEN_CHECK,
 	RED_X,
 	YELLOW_LIGHTNING,
-	YELLOW_WARN
+	YELLOW_WARN,
 } from '../utils/unicode-chars';
 import { BaseCommand } from './base.command';
 
@@ -22,8 +22,8 @@ interface PromptResults {
 	branch: string;
 	/** Selected programming languages to parse */
 	languages: string[];
-	/** Project namespace identifier */
-	namespace: string;
+	/** Unique project identifier (created in Constellation web app) */
+	projectId: string;
 }
 
 /**
@@ -31,7 +31,6 @@ interface PromptResults {
  * Creates constellation.json file with user-provided settings and stages it in git.
  */
 export default class InitCommand extends BaseCommand {
-
 	/**
 	 * Executes the initialization process.
 	 * Prompts user for configuration, creates constellation.json, and stages the file.
@@ -39,7 +38,7 @@ export default class InitCommand extends BaseCommand {
 	 */
 	public async run(): Promise<void> {
 		try {
-			console.log(`${YELLOW_LIGHTNING}Initializing project configuration...\n`)
+			console.log(`${YELLOW_LIGHTNING}Initializing project configuration...\n`);
 
 			const gitAvailable = await this.git!.isGitAvailable();
 
@@ -77,10 +76,9 @@ export default class InitCommand extends BaseCommand {
 			// }
 
 			// Parallelize Git operations for better performance
-			const [status, localBranches, remoteUrl] = await Promise.all([
+			const [status, localBranches] = await Promise.all([
 				this.git!.status(),
 				this.git!.listBranches(),
-				this.git!.getRemoteOriginUrl(),
 			]);
 
 			const { currentBranch } = status;
@@ -88,20 +86,14 @@ export default class InitCommand extends BaseCommand {
 				(branch) => branch !== currentBranch,
 			);
 
-			// Extract project ID from remote URL (e.g., "constellation" from "https://github.com/user/constellation.git")
-			const projectId =
-				remoteUrl
-					.split('/')
-					.pop()
-					?.replace(/\.git$/, '') || '';
-
-			// Prompt user for configuration values, suggesting defaults
+			// Prompt user for configuration values
 			const questions = [
 				{
-					initial: projectId,
-					message: 'Project Namespace:',
-					name: 'namespace',
+					message: 'Constellation Project ID:',
+					name: 'projectId',
 					type: 'input',
+					validate: (value: string) =>
+						value.trim().length > 0 || 'Project ID is required',
 				},
 				{
 					choices: [currentBranch, ...otherBranches],
@@ -147,13 +139,16 @@ export default class InitCommand extends BaseCommand {
 
 			// Compose Constellation config
 			const constellationSettings: IConstellationConfig = {
-				namespace: answers.namespace.replaceAll(' ', ''),
+				projectId: answers.projectId.trim(),
 				branch: answers.branch,
 				languages: {
 					...answers.languages.reduce(
 						(acc, lang) => {
 							acc[lang as keyof IConstellationConfig['languages']] = {
-								fileExtensions: LANGUAGE_EXTENSIONS[lang as keyof typeof LANGUAGE_EXTENSIONS] || []
+								fileExtensions:
+									LANGUAGE_EXTENSIONS[
+										lang as keyof typeof LANGUAGE_EXTENSIONS
+									] || [],
 							};
 							return acc;
 						},

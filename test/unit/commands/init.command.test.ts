@@ -1,4 +1,11 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import {
+	describe,
+	it,
+	expect,
+	jest,
+	beforeEach,
+	afterEach,
+} from '@jest/globals';
 import InitCommand from '../../../src/commands/init.command';
 import { GitClient } from '../../../src/utils/git-client';
 import { FileUtils } from '../../../src/utils/file.utils';
@@ -10,8 +17,8 @@ jest.mock('enquirer', () => {
 	return {
 		__esModule: true,
 		default: {
-			prompt: mockPrompt
-		}
+			prompt: mockPrompt,
+		},
 	};
 });
 
@@ -46,27 +53,33 @@ describe('InitCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			status: jest.fn().mockResolvedValue({
 				currentBranch: 'main',
-				clean: true
+				clean: true,
 			}),
 			// @ts-expect-error - Jest mock typing
-			listBranches: jest.fn().mockResolvedValue(['main', 'develop', 'feature/test']),
+			listBranches: jest
+				.fn()
+				.mockResolvedValue(['main', 'develop', 'feature/test']),
 			// @ts-expect-error - Jest mock typing
-			getRemoteOriginUrl: jest.fn().mockResolvedValue('https://github.com/user/test-project.git'),
+			getRemoteOriginUrl: jest
+				.fn()
+				.mockResolvedValue('https://github.com/user/test-project.git'),
 			// @ts-expect-error - Jest mock typing
-			stageFile: jest.fn().mockResolvedValue(undefined)
+			stageFile: jest.fn().mockResolvedValue(undefined),
 		} as any;
 
 		// Mock FileUtils
 		// @ts-expect-error - Jest mock typing
-		(FileUtils.fileIsReadable as jest.Mock) = jest.fn().mockResolvedValue(false);
+		(FileUtils.fileIsReadable as jest.Mock) = jest
+			.fn()
+			.mockResolvedValue(false);
 		(FileUtils.writeFile as jest.Mock) = jest.fn();
 
 		// Mock prompt
 		// @ts-expect-error - Jest mock typing
 		mockPrompt.mockResolvedValue({
-			namespace: 'test-project',
+			projectId: 'test-project',
 			branch: 'main',
-			languages: ['typescript', 'javascript']
+			languages: ['typescript', 'javascript'],
 		});
 
 		// Create command instance
@@ -74,7 +87,7 @@ describe('InitCommand', () => {
 			Config: undefined,
 			GitClient: mockGit,
 			Environment: undefined,
-			LanguageRegistry: undefined
+			LanguageRegistry: undefined,
 		});
 	});
 
@@ -93,12 +106,19 @@ describe('InitCommand', () => {
 			expect(mockGit.getRootDir).toHaveBeenCalled();
 			expect(mockGit.status).toHaveBeenCalled();
 			expect(mockGit.listBranches).toHaveBeenCalled();
-			expect(mockGit.getRemoteOriginUrl).toHaveBeenCalled();
 			expect(FileUtils.writeFile).toHaveBeenCalled();
-			expect(mockGit.stageFile).toHaveBeenCalledWith(expect.stringContaining('constellation.json'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Initializing project configuration'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Initialized configuration file'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Added constellation.json to staged changes'));
+			expect(mockGit.stageFile).toHaveBeenCalledWith(
+				expect.stringContaining('constellation.json'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Initializing project configuration'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Initialized configuration file'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Added constellation.json to staged changes'),
+			);
 		});
 
 		it('should exit early if constellation.json already exists', async () => {
@@ -107,7 +127,9 @@ describe('InitCommand', () => {
 
 			await command.run();
 
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('project already initialized'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('project already initialized'),
+			);
 			expect(FileUtils.writeFile).not.toHaveBeenCalled();
 			expect(mockGit.stageFile).not.toHaveBeenCalled();
 		});
@@ -117,7 +139,9 @@ describe('InitCommand', () => {
 
 			await command.run();
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Could not find git client installation'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Could not find git client installation'),
+			);
 			expect(FileUtils.writeFile).not.toHaveBeenCalled();
 		});
 
@@ -126,45 +150,48 @@ describe('InitCommand', () => {
 
 			await command.run();
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('not a git repository'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('not a git repository'),
+			);
 			expect(FileUtils.writeFile).not.toHaveBeenCalled();
 		});
 
-		it('should extract project name from git remote URL', async () => {
-			mockGit.getRemoteOriginUrl.mockResolvedValue('https://github.com/user/my-awesome-project.git');
-
+		it('should prompt for project ID without default value', async () => {
 			await command.run();
 
-			// Verify prompt was called with initial value derived from git URL
+			// Verify prompt was called with no initial value for project ID
 			expect(mockPrompt).toHaveBeenCalled();
 			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
-			expect(promptQuestions[0].initial).toBe('my-awesome-project');
+			expect(promptQuestions[0].name).toBe('projectId');
+			expect(promptQuestions[0].message).toBe('Constellation Project ID:');
+			expect(promptQuestions[0].initial).toBeUndefined();
+			expect(promptQuestions[0].validate).toBeDefined();
 		});
 
-		it('should handle remote URL without .git extension', async () => {
-			mockGit.getRemoteOriginUrl.mockResolvedValue('https://github.com/user/test-project');
-
+		it('should validate that project ID is not empty', async () => {
 			await command.run();
 
 			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
-			expect(promptQuestions[0].initial).toBe('test-project');
-		});
+			const validateFn = promptQuestions[0].validate;
 
-		it('should handle empty remote URL gracefully', async () => {
-			mockGit.getRemoteOriginUrl.mockResolvedValue('');
+			// Empty string should fail validation
+			expect(validateFn('')).toBe('Project ID is required');
+			expect(validateFn('   ')).toBe('Project ID is required');
 
-			await command.run();
-
-			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
-			expect(promptQuestions[0].initial).toBe('');
+			// Non-empty string should pass
+			expect(validateFn('my-project')).toBe(true);
 		});
 
 		it('should present current branch as first choice', async () => {
 			mockGit.status.mockResolvedValue({
 				currentBranch: 'develop',
-				clean: true
+				clean: true,
 			});
-			mockGit.listBranches.mockResolvedValue(['main', 'develop', 'feature/test']);
+			mockGit.listBranches.mockResolvedValue([
+				'main',
+				'develop',
+				'feature/test',
+			]);
 
 			await command.run();
 
@@ -193,31 +220,31 @@ describe('InitCommand', () => {
 				{ name: 'Python', value: 'python' },
 				{ name: 'Ruby', value: 'ruby' },
 				{ name: 'Shell (Bash)', value: 'bash' },
-				{ name: 'TypeScript', value: 'typescript' }
+				{ name: 'TypeScript', value: 'typescript' },
 			]);
 		});
 
-		it('should remove spaces from namespace', async () => {
+		it('should trim whitespace from project ID', async () => {
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
-				namespace: 'my test project',
+				projectId: '  my-test-project  ',
 				branch: 'main',
-				languages: ['typescript']
+				languages: ['typescript'],
 			});
 
 			await command.run();
 
 			const writeCall = (FileUtils.writeFile as jest.Mock).mock.calls[0];
 			const configContent = JSON.parse(writeCall[1] as string);
-			expect(configContent.namespace).toBe('mytestproject');
+			expect(configContent.projectId).toBe('my-test-project');
 		});
 
 		it('should create config with selected languages and their extensions', async () => {
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				languages: ['typescript', 'python']
+				languages: ['typescript', 'python'],
 			});
 
 			await command.run();
@@ -226,17 +253,21 @@ describe('InitCommand', () => {
 			const configContent = JSON.parse(writeCall[1] as string);
 
 			expect(configContent.languages).toHaveProperty('typescript');
-			expect(configContent.languages.typescript.fileExtensions).toEqual(LANGUAGE_EXTENSIONS.typescript);
+			expect(configContent.languages.typescript.fileExtensions).toEqual(
+				LANGUAGE_EXTENSIONS.typescript,
+			);
 			expect(configContent.languages).toHaveProperty('python');
-			expect(configContent.languages.python.fileExtensions).toEqual(LANGUAGE_EXTENSIONS.python);
+			expect(configContent.languages.python.fileExtensions).toEqual(
+				LANGUAGE_EXTENSIONS.python,
+			);
 		});
 
 		it('should handle language with no extensions gracefully', async () => {
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'main',
-				languages: ['unknown-language']
+				languages: ['unknown-language'],
 			});
 
 			await command.run();
@@ -245,7 +276,9 @@ describe('InitCommand', () => {
 			const configContent = JSON.parse(writeCall[1] as string);
 
 			expect(configContent.languages).toHaveProperty('unknown-language');
-			expect(configContent.languages['unknown-language'].fileExtensions).toEqual([]);
+			expect(
+				configContent.languages['unknown-language'].fileExtensions,
+			).toEqual([]);
 		});
 
 		it('should create properly formatted JSON with 2-space indentation', async () => {
@@ -256,15 +289,15 @@ describe('InitCommand', () => {
 
 			// Check that JSON is properly formatted
 			expect(jsonString).toContain('\n');
-			expect(jsonString).toMatch(/  "namespace":/);
+			expect(jsonString).toMatch(/  "projectId":/);
 		});
 
 		it('should include all required configuration fields', async () => {
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
-				namespace: 'test-project',
+				projectId: 'test-project',
 				branch: 'develop',
-				languages: ['javascript']
+				languages: ['javascript'],
 			});
 
 			await command.run();
@@ -272,7 +305,7 @@ describe('InitCommand', () => {
 			const writeCall = (FileUtils.writeFile as jest.Mock).mock.calls[0];
 			const configContent = JSON.parse(writeCall[1] as string);
 
-			expect(configContent).toHaveProperty('namespace', 'test-project');
+			expect(configContent).toHaveProperty('projectId', 'test-project');
 			expect(configContent).toHaveProperty('branch', 'develop');
 			expect(configContent).toHaveProperty('languages');
 		});
@@ -281,10 +314,12 @@ describe('InitCommand', () => {
 			await command.run();
 
 			expect(mockGit.stageFile).toHaveBeenCalledWith(
-				expect.stringMatching(/constellation\.json$/)
+				expect.stringMatching(/constellation\.json$/),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Added constellation.json to staged changes in git')
+				expect.stringContaining(
+					'Added constellation.json to staged changes in git',
+				),
 			);
 		});
 
@@ -296,10 +331,10 @@ describe('InitCommand', () => {
 			await command.run();
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to initialize configuration file')
+				expect.stringContaining('Failed to initialize configuration file'),
 			);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Permission denied')
+				expect.stringContaining('Permission denied'),
 			);
 		});
 
@@ -309,10 +344,10 @@ describe('InitCommand', () => {
 			await command.run();
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to initialize configuration file')
+				expect.stringContaining('Failed to initialize configuration file'),
 			);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Git add failed')
+				expect.stringContaining('Git add failed'),
 			);
 		});
 
@@ -322,30 +357,22 @@ describe('InitCommand', () => {
 			await command.run();
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to initialize configuration file')
+				expect.stringContaining('Failed to initialize configuration file'),
 			);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to get status')
+				expect.stringContaining('Failed to get status'),
 			);
 		});
 
 		it('should handle errors when listing branches', async () => {
-			mockGit.listBranches.mockRejectedValue(new Error('Failed to list branches'));
-
-			await command.run();
-
-			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to initialize configuration file')
+			mockGit.listBranches.mockRejectedValue(
+				new Error('Failed to list branches'),
 			);
-		});
-
-		it('should handle errors when getting remote URL', async () => {
-			mockGit.getRemoteOriginUrl.mockRejectedValue(new Error('No remote found'));
 
 			await command.run();
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to initialize configuration file')
+				expect.stringContaining('Failed to initialize configuration file'),
 			);
 		});
 
@@ -356,44 +383,46 @@ describe('InitCommand', () => {
 			await command.run();
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to initialize configuration file')
+				expect.stringContaining('Failed to initialize configuration file'),
 			);
 			expect(FileUtils.writeFile).not.toHaveBeenCalled();
 		});
 
 		it('should handle error with no message', async () => {
-			mockGit.isGitAvailable.mockRejectedValue({ toString: () => 'Unknown error' });
+			mockGit.isGitAvailable.mockRejectedValue({
+				toString: () => 'Unknown error',
+			});
 
 			await command.run();
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to initialize configuration file')
+				expect.stringContaining('Failed to initialize configuration file'),
 			);
 		});
 
 		it('should parallelize git operations for performance', async () => {
-			const statusPromise = Promise.resolve({ currentBranch: 'main', clean: true });
+			const statusPromise = Promise.resolve({
+				currentBranch: 'main',
+				clean: true,
+			});
 			const branchesPromise = Promise.resolve(['main']);
-			const remotePromise = Promise.resolve('https://github.com/user/repo.git');
 
 			mockGit.status.mockReturnValue(statusPromise as any);
 			mockGit.listBranches.mockReturnValue(branchesPromise as any);
-			mockGit.getRemoteOriginUrl.mockReturnValue(remotePromise as any);
 
 			await command.run();
 
-			// Verify all three operations were called
+			// Verify git operations were called
 			expect(mockGit.status).toHaveBeenCalled();
 			expect(mockGit.listBranches).toHaveBeenCalled();
-			expect(mockGit.getRemoteOriginUrl).toHaveBeenCalled();
 		});
 
 		it('should handle multiple selected languages', async () => {
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
-				namespace: 'multi-lang-project',
+				projectId: 'multi-lang-project',
 				branch: 'main',
-				languages: ['typescript', 'javascript', 'python', 'go']
+				languages: ['typescript', 'javascript', 'python', 'go'],
 			});
 
 			await command.run();
@@ -411,9 +440,9 @@ describe('InitCommand', () => {
 		it('should handle single selected language', async () => {
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
-				namespace: 'single-lang-project',
+				projectId: 'single-lang-project',
 				branch: 'main',
-				languages: ['ruby']
+				languages: ['ruby'],
 			});
 
 			await command.run();
@@ -423,15 +452,22 @@ describe('InitCommand', () => {
 
 			expect(Object.keys(configContent.languages)).toHaveLength(1);
 			expect(configContent.languages).toHaveProperty('ruby');
-			expect(configContent.languages.ruby.fileExtensions).toEqual(LANGUAGE_EXTENSIONS.ruby);
+			expect(configContent.languages.ruby.fileExtensions).toEqual(
+				LANGUAGE_EXTENSIONS.ruby,
+			);
 		});
 
 		it('should filter out current branch from other branches list', async () => {
 			mockGit.status.mockResolvedValue({
 				currentBranch: 'feature/test',
-				clean: true
+				clean: true,
 			});
-			mockGit.listBranches.mockResolvedValue(['main', 'develop', 'feature/test', 'hotfix/bug']);
+			mockGit.listBranches.mockResolvedValue([
+				'main',
+				'develop',
+				'feature/test',
+				'hotfix/bug',
+			]);
 
 			await command.run();
 
@@ -443,7 +479,9 @@ describe('InitCommand', () => {
 			// Should have all branches (current + others)
 			expect(branchQuestion.choices).toHaveLength(4);
 			// Current branch should only appear once
-			const featureTestCount = branchQuestion.choices.filter((b: string) => b === 'feature/test').length;
+			const featureTestCount = branchQuestion.choices.filter(
+				(b: string) => b === 'feature/test',
+			).length;
 			expect(featureTestCount).toBe(1);
 		});
 
@@ -457,35 +495,35 @@ describe('InitCommand', () => {
 			expect(filePath).toContain(process.cwd());
 		});
 
-		it('should handle very long project names', async () => {
-			const longName = 'a'.repeat(1000);
+		it('should handle very long project IDs', async () => {
+			const longId = 'a'.repeat(1000);
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
-				namespace: longName,
+				projectId: longId,
 				branch: 'main',
-				languages: ['typescript']
+				languages: ['typescript'],
 			});
 
 			await command.run();
 
 			const writeCall = (FileUtils.writeFile as jest.Mock).mock.calls[0];
 			const configContent = JSON.parse(writeCall[1] as string);
-			expect(configContent.namespace).toBe(longName);
+			expect(configContent.projectId).toBe(longId);
 		});
 
-		it('should handle special characters in namespace', async () => {
+		it('should handle special characters in project ID', async () => {
 			// @ts-expect-error - Jest mock typing
 			mockPrompt.mockResolvedValue({
-				namespace: 'test-project_v2.0',
+				projectId: 'test-project_v2.0',
 				branch: 'main',
-				languages: ['typescript']
+				languages: ['typescript'],
 			});
 
 			await command.run();
 
 			const writeCall = (FileUtils.writeFile as jest.Mock).mock.calls[0];
 			const configContent = JSON.parse(writeCall[1] as string);
-			expect(configContent.namespace).toBe('test-project_v2.0');
+			expect(configContent.projectId).toBe('test-project_v2.0');
 		});
 	});
 });

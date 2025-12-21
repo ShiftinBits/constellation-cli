@@ -1,15 +1,14 @@
-import { ConstellationConfig } from "../config/config";
-import { ProjectState, SerializedAST } from "../types/api";
-import { generateAstId } from "../utils/id.utils";
-import { NdJsonStreamWriter } from "../utils/ndjson-streamwriter";
-import { RED_X } from "../utils/unicode-chars";
+import { ConstellationConfig } from '../config/config';
+import { ProjectState, SerializedAST } from '../types/api';
+import { generateAstId } from '../utils/id.utils';
+import { NdJsonStreamWriter } from '../utils/ndjson-streamwriter';
+import { RED_X } from '../utils/unicode-chars';
 
 /**
  * Client for communicating with the Constellation central service.
  * Handles uploading AST data, managing project state, and file operations.
  */
 export class ConstellationClient {
-
 	/**
 	 * API version for use in versioned endpoint paths
 	 */
@@ -21,7 +20,7 @@ export class ConstellationClient {
 	 */
 	constructor(
 		private config: ConstellationConfig,
-		private accessKey: string
+		private accessKey: string,
 	) {}
 
 	/**
@@ -32,22 +31,29 @@ export class ConstellationClient {
 	async getProjectState(): Promise<ProjectState | null> {
 		try {
 			const params = new URLSearchParams({
-				branchName: this.config.branch
+				branchName: this.config.branch,
 			});
 			const headers = {
-						'Content-Type': 'application/x-ndjson; charset=utf-8', // Newline-delimited JSON
-						'x-project-id': this.config.namespace,
-						'x-branch-name': this.config.branch,
-						Authorization: `Bearer ${this.accessKey}`
-					};
-			const response = await this.sendRequest('project', undefined, 'GET', headers);
+				'Content-Type': 'application/x-ndjson; charset=utf-8', // Newline-delimited JSON
+				'x-project-id': this.config.projectId,
+				'x-branch-name': this.config.branch,
+				Authorization: `Bearer ${this.accessKey}`,
+			};
+			const response = await this.sendRequest(
+				'project',
+				undefined,
+				'GET',
+				headers,
+			);
 
 			// Handle 404 specifically - indicates project not indexed yet
 			if (response?.status === 404) {
 				throw new NotFoundError('Project not found - no previous index exists');
 			}
 
-			const state = response?.ok ? response.json() as unknown as ProjectState : null;
+			const state = response?.ok
+				? (response.json() as unknown as ProjectState)
+				: null;
 			return state;
 		} catch (error) {
 			// Re-throw NotFoundError so caller can handle it
@@ -71,7 +77,11 @@ export class ConstellationClient {
 	async deleteFiles(deletedFiles: string[]): Promise<void> {
 		// API call to remove data for deleted files
 		for (const filePath of deletedFiles) {
-			const projectFileId = generateAstId(this.config.namespace, this.config.branch, filePath);
+			const projectFileId = generateAstId(
+				this.config.projectId,
+				this.config.branch,
+				filePath,
+			);
 			await this.delete(`/ast/${projectFileId}`);
 		}
 	}
@@ -83,13 +93,19 @@ export class ConstellationClient {
 	 * Streams AST data to the API using newline-delimited JSON format.
 	 * @param dataStream Async generator yielding SerializedAST objects
 	 * @param path API endpoint path (without base URL or version)
-	 * @param namespace Project namespace
+	 * @param projectId Unique project identifier
 	 * @param branchName Branch name
 	 * @param incrementalIndex Whether this is an incremental index
 	 * @returns True if upload successful, false otherwise
 	 * @throws Error if stream fails to upload
 	 */
-	async streamToApi(dataStream: AsyncGenerator<SerializedAST>, path: string, namespace: string, branchName: string, incrementalIndex: boolean): Promise<boolean> {
+	async streamToApi(
+		dataStream: AsyncGenerator<SerializedAST>,
+		path: string,
+		projectId: string,
+		branchName: string,
+		incrementalIndex: boolean,
+	): Promise<boolean> {
 		try {
 			const { Readable } = await import('stream');
 			const stream = new NdJsonStreamWriter(dataStream);
@@ -97,18 +113,21 @@ export class ConstellationClient {
 			// Convert Node.js Readable to Web ReadableStream
 			const webStream = Readable.toWeb(stream) as ReadableStream;
 
-			const response = await fetch(`${this.config.apiUrl}/${this.apiVersion}/${path}`, {
+			const response = await fetch(
+				`${this.config.apiUrl}/${this.apiVersion}/${path}`,
+				{
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/x-ndjson; charset=utf-8', // Newline-delimited JSON
-						'x-project-id': namespace,
+						'x-project-id': projectId,
 						'x-branch-name': branchName,
 						'x-constellation-index': incrementalIndex ? 'incremental' : 'full',
-						Authorization: `Bearer ${this.accessKey}`
+						Authorization: `Bearer ${this.accessKey}`,
 					},
 					body: webStream,
-					duplex: 'half' // Required for streaming requests in fetch
-			} as RequestInit & { duplex?: 'half' });
+					duplex: 'half', // Required for streaming requests in fetch
+				} as RequestInit & { duplex?: 'half' },
+			);
 
 			// Handle authentication errors explicitly
 			if (response.status === 401) {
@@ -123,7 +142,8 @@ export class ConstellationClient {
 			}
 
 			// Extract detailed network error information
-			const originalError = error instanceof Error ? error : new Error(String(error));
+			const originalError =
+				error instanceof Error ? error : new Error(String(error));
 
 			// Build detailed error message based on error type
 			let errorDetails = '';
@@ -140,16 +160,19 @@ export class ConstellationClient {
 					const cause = error.cause as any;
 					if (cause.code) networkDetails.push(`Cause Code: ${cause.code}`);
 					if (cause.errno) networkDetails.push(`Errno: ${cause.errno}`);
-					if (cause.syscall) networkDetails.push(`System Call: ${cause.syscall}`);
+					if (cause.syscall)
+						networkDetails.push(`System Call: ${cause.syscall}`);
 					if (cause.address) networkDetails.push(`Address: ${cause.address}`);
 					if (cause.port) networkDetails.push(`Port: ${cause.port}`);
 				}
 
 				// Add common error code explanations
 				if (errorCode === 'ERR_INVALID_ARG_VALUE') {
-					errorDetails = 'Invalid argument value - check stream/body format and duplex option';
+					errorDetails =
+						'Invalid argument value - check stream/body format and duplex option';
 				} else if (errorCode === 'ECONNREFUSED') {
-					errorDetails = 'Connection refused - service may be down or unreachable';
+					errorDetails =
+						'Connection refused - service may be down or unreachable';
 				} else if (errorCode === 'ENOTFOUND') {
 					errorDetails = 'DNS lookup failed - check service URL';
 				} else if (errorCode === 'ETIMEDOUT') {
@@ -170,12 +193,14 @@ export class ConstellationClient {
 			}
 
 			// Create enhanced error with full context
-			const enhancedError = new Error(`Failed to upload data to Constellation Service: ${errorDetails}`);
+			const enhancedError = new Error(
+				`Failed to upload data to Constellation Service: ${errorDetails}`,
+			);
 			enhancedError.cause = originalError;
 			enhancedError.stack = `${enhancedError.stack}\nCaused by: ${originalError.stack}`;
 			throw enhancedError;
 		}
-}
+	}
 
 	/**
 	 * Sends an HTTP request with retry logic and timeout handling.
@@ -198,7 +223,7 @@ export class ConstellationClient {
 		timeout = 0,
 		retries = 3,
 		delay = 1000,
-		jitter = 250
+		jitter = 250,
 	) {
 		for (let i = 1; i <= retries; i++) {
 			try {
@@ -210,17 +235,20 @@ export class ConstellationClient {
 
 				const requestHeaders: Record<string, string> = {
 					...headers,
-					"Content-Type": "application/json; charset=utf-8",
-					Accepts: "application/json; charset=utf-8",
-					Authorization: `Bearer ${this.accessKey}`
+					'Content-Type': 'application/json; charset=utf-8',
+					Accepts: 'application/json; charset=utf-8',
+					Authorization: `Bearer ${this.accessKey}`,
 				};
 
-				const response = await fetch(`${this.config.apiUrl}/${this.apiVersion}/${path}`, {
-					method,
-					headers: requestHeaders,
-					body: data ? JSON.stringify(data) : undefined,
-					signal: controller.signal,
-				});
+				const response = await fetch(
+					`${this.config.apiUrl}/${this.apiVersion}/${path}`,
+					{
+						method,
+						headers: requestHeaders,
+						body: data ? JSON.stringify(data) : undefined,
+						signal: controller.signal,
+					},
+				);
 
 				if (timeoutTimer) {
 					clearTimeout(timeoutTimer);
@@ -228,13 +256,13 @@ export class ConstellationClient {
 
 				// Handle authentication errors silently
 				if (response.status === 401) {
-					throw new AuthenticationError("Authentication failed");
+					throw new AuthenticationError('Authentication failed');
 				}
 
 				if (!response.ok) {
 					if (this.retryableStatusCodes.includes(response.status)) {
 						throw new RetryableError(
-							`${response.statusText} (${response.status})`
+							`${response.statusText} (${response.status})`,
 						);
 					}
 				}
@@ -243,18 +271,19 @@ export class ConstellationClient {
 			} catch (error: Error | any) {
 				// Skip logging for auth errors - they're not retryable and will be handled by caller
 				if (!(error instanceof AuthenticationError)) {
-					const errorDetails = error instanceof Error
-						? `${error.message}${error.cause ? ` (Cause: ${error.cause})` : ''}`
-						: String(error);
+					const errorDetails =
+						error instanceof Error
+							? `${error.message}${error.cause ? ` (Cause: ${error.cause})` : ''}`
+							: String(error);
 					console.log(
-						`HTTP request attempt ${i}/${retries} failed: ${errorDetails}`
+						`HTTP request attempt ${i}/${retries} failed: ${errorDetails}`,
 					);
 				}
 
 				// Only retry RetryableError, everything else gets thrown immediately
 				if (i < retries && error instanceof RetryableError) {
 					const jitteredDelay = delay + Math.floor(Math.random() * jitter);
-					await new Promise(resolve => setTimeout(resolve, jitteredDelay));
+					await new Promise((resolve) => setTimeout(resolve, jitteredDelay));
 				} else {
 					throw error;
 				}
@@ -268,12 +297,7 @@ export class ConstellationClient {
 	 * @throws Error if request fails with non-retryable error
 	 */
 	private async delete(path: string): Promise<void> {
-
-		const response = await this.sendRequest(
-			path,
-			undefined,
-			"DELETE"
-		);
+		const response = await this.sendRequest(path, undefined, 'DELETE');
 
 		// Handle 401 responses gracefully
 		if (!response) {
@@ -292,7 +316,7 @@ export class ConstellationClient {
 export class RetryableError extends Error {
 	constructor(message: string) {
 		super(message);
-		this.name = "RetryableError";
+		this.name = 'RetryableError';
 	}
 }
 
@@ -302,7 +326,7 @@ export class RetryableError extends Error {
 export class AuthenticationError extends Error {
 	constructor(message: string) {
 		super(message);
-		this.name = "AuthenticationError";
+		this.name = 'AuthenticationError';
 	}
 }
 
@@ -313,6 +337,6 @@ export class AuthenticationError extends Error {
 export class NotFoundError extends Error {
 	constructor(message: string) {
 		super(message);
-		this.name = "NotFoundError";
+		this.name = 'NotFoundError';
 	}
 }

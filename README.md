@@ -80,7 +80,7 @@ constellation init
 
 Creates `constellation.json` configuration file with interactive prompts:
 
-- Project namespace (auto-suggested from Git remote)
+- Project ID (from your Constellation web dashboard)
 - Branch to track
 - Programming languages used
 
@@ -120,7 +120,7 @@ constellation init
 
 **Creates**: `constellation.json` file in current directory
 **Requires**: Git repository
-**Interactive**: Prompts for namespace, branch, and languages
+**Interactive**: Prompts for project ID, branch, and languages
 
 ---
 
@@ -170,7 +170,7 @@ The `constellation.json` file controls indexing:
 
 ```json
 {
-	"namespace": "project-identifier",
+	"projectId": "project-identifier",
 	"branch": "main",
 	"languages": {
 		"typescript": {
@@ -186,7 +186,7 @@ The `constellation.json` file controls indexing:
 
 **Fields**:
 
-- **`namespace`** (required): Unique project identifier
+- **`projectId`** (required): Unique project identifier (from your Constellation web dashboard)
 - **`branch`** (required): Git branch to track
 - **`languages`** (required): Language config with file extensions
 - **`exclude`** (optional): Glob patterns to exclude

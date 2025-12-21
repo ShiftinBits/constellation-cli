@@ -17,13 +17,3 @@ export function base32Encode(val: string): string {
 export function base32Decode(val: string): string {
 	return base32.decode(val).toString();
 }
-
-/**
- * Sanitizes a namespace string to contain only safe characters.
- * Removes all characters except alphanumeric, hyphens, and underscores.
- * @param ns Namespace string to sanitize
- * @returns Sanitized namespace containing only [a-zA-Z0-9-_] characters
- */
-export function sanitizeNamespace(ns: string): string {
-	return ns.replaceAll(/[^a-zA-Z0-9-_]/g, '');
-}

@@ -1,5 +1,8 @@
 import { performance } from 'node:perf_hooks';
-import { AuthenticationError, ConstellationClient } from '../api/constellation-client';
+import {
+	AuthenticationError,
+	ConstellationClient,
+} from '../api/constellation-client';
 import { BuildConfigManager } from '../languages/plugins/base-plugin';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
@@ -12,7 +15,7 @@ import {
 	GREEN_CHECK,
 	RED_X,
 	YELLOW_LIGHTNING,
-	YELLOW_WARN
+	YELLOW_WARN,
 } from '../utils/unicode-chars';
 import { BaseCommand } from './base.command';
 import { CommandDeps } from './command.deps';
@@ -51,7 +54,10 @@ export default class IndexCommand extends BaseCommand {
 		for (const language of Object.keys(this.config.languages)) {
 			const plugin = this.langRegistry.getPlugin(language as any);
 			if (plugin?.getBuildConfigManager) {
-				const manager = plugin.getBuildConfigManager(process.cwd(), this.config.languages);
+				const manager = plugin.getBuildConfigManager(
+					process.cwd(),
+					this.config.languages,
+				);
 				if (manager) {
 					this.buildConfigManagers.set(language, manager);
 				}
@@ -68,7 +74,6 @@ export default class IndexCommand extends BaseCommand {
 	 */
 	public async run(forceFullIndex = false, gitDirty = false): Promise<void> {
 		try {
-
 			const accessKey = await this.getAccessKey();
 
 			this.apiClient = new ConstellationClient(this.config!, accessKey);
@@ -100,14 +105,18 @@ export default class IndexCommand extends BaseCommand {
 
 			// Step 4: Initialize build configuration managers (if any languages support them)
 			if (this.buildConfigManagers.size > 0) {
-				console.log(`${BLUE_INFO} Discovering language build configurations...`);
+				console.log(
+					`${BLUE_INFO} Discovering language build configurations...`,
+				);
 				let totalConfigs = 0;
 				for (const [language, manager] of this.buildConfigManagers.entries()) {
 					const configPaths = await manager.initialize();
 					totalConfigs += configPaths.length;
 				}
 				if (totalConfigs > 0) {
-					console.log(`${GREEN_CHECK} Found ${totalConfigs} configuration file(s)`);
+					console.log(
+						`${GREEN_CHECK} Found ${totalConfigs} configuration file(s)`,
+					);
 				}
 			}
 
@@ -117,7 +126,9 @@ export default class IndexCommand extends BaseCommand {
 			// Exit early if already up-to-date
 			if (indexScopeResult.upToDate) {
 				const currentCommit = await this.git!.getLatestCommitHash();
-				console.log(`\n${GREEN_CHECK} Index is already up-to-date for ${this.config!.namespace} on ${this.config!.branch} commit ${currentCommit.substring(0, 8)}`);
+				console.log(
+					`\n${GREEN_CHECK} Index is already up-to-date for ${this.config!.projectId} on ${this.config!.branch} commit ${currentCommit.substring(0, 8)}`,
+				);
 				return;
 			}
 
@@ -133,7 +144,9 @@ export default class IndexCommand extends BaseCommand {
 				// Only print upload message if upload is still in progress
 				// This happens when processing finishes before network upload completes
 				if (!uploadComplete) {
-					console.log(`${BLUE_INFO} Uploading data to Constellation Service...`);
+					console.log(
+						`${BLUE_INFO} Uploading data to Constellation Service...`,
+					);
 				}
 			};
 
@@ -156,19 +169,23 @@ export default class IndexCommand extends BaseCommand {
 			const totalSeconds = execMs / 1000;
 			const minutes = Math.floor(totalSeconds / 60);
 			const seconds = (totalSeconds % 60).toFixed(3);
-			const humanReadableExecTime = minutes > 0
-				? `${minutes}m ${seconds}s`
-				: `${seconds}s`;
+			const humanReadableExecTime =
+				minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
-			console.log(`\n${GREEN_CHECK} Indexing completed in ${humanReadableExecTime}!`);
+			console.log(
+				`\n${GREEN_CHECK} Indexing completed in ${humanReadableExecTime}!`,
+			);
 		} catch (error) {
 			// Provide actionable message for auth failures
 			if (error instanceof AuthenticationError) {
 				console.error(`\n${RED_X} Authentication failed.`);
-				console.log(`${BLUE_INFO} Run 'constellation auth' to set or update your access key.`);
+				console.log(
+					`${BLUE_INFO} Run 'constellation auth' to set or update your access key.`,
+				);
 				throw error;
 			}
-			const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+			const errorMessage =
+				error instanceof Error ? error.message : 'An unexpected error occurred';
 			console.error(`${RED_X} Indexing failed: ${errorMessage}`);
 			throw error;
 		}
@@ -185,8 +202,8 @@ export default class IndexCommand extends BaseCommand {
 		if (!accessKey) {
 			throw new Error(
 				'Access key not found.\n' +
-				`${BLUE_INFO} To configure your access key, set ${ACCESS_KEY_ENV_VAR} environment\n` +
-				`  variable to the value of your access key or run 'constellation auth'.`
+					`${BLUE_INFO} To configure your access key, set ${ACCESS_KEY_ENV_VAR} environment\n` +
+					`  variable to the value of your access key or run 'constellation auth'.`,
 			);
 		}
 		return accessKey;
@@ -205,7 +222,9 @@ export default class IndexCommand extends BaseCommand {
 		// Use the validation method from ConstellationConfig
 		this.config!.validateBranch(currentBranch);
 
-		console.log(`${GREEN_CHECK} Current branch "${currentBranch}" is configured for indexing`);
+		console.log(
+			`${GREEN_CHECK} Current branch "${currentBranch}" is configured for indexing`,
+		);
 	}
 
 	/**
@@ -220,7 +239,7 @@ export default class IndexCommand extends BaseCommand {
 		if (!status.clean) {
 			throw new Error(
 				'Outstanding changes detected.\n' +
-				'  Commit or stash changes first to ensure consistent indexing.'
+					'  Commit or stash changes first to ensure consistent indexing.',
 			);
 		}
 
@@ -249,17 +268,23 @@ export default class IndexCommand extends BaseCommand {
 			if (error instanceof Error) {
 				if (error.message.includes('uncommitted changes')) {
 					console.error('\nTo resolve:');
-					console.error('  1. Commit your changes: git add . && git commit -m "your message"');
+					console.error(
+						'  1. Commit your changes: git add . && git commit -m "your message"',
+					);
 					console.error('  2. Or stash them: git stash');
 					console.error('  3. Then run the index command again\n');
 				} else if (error.message.includes('merge conflicts')) {
 					console.error('\nTo resolve:');
 					console.error('  1. Fix the conflicted files manually');
-					console.error('  2. Stage the resolved files: git add <resolved-files>');
+					console.error(
+						'  2. Stage the resolved files: git add <resolved-files>',
+					);
 					console.error('  3. Complete the merge: git commit');
 					console.error('  4. Then run the index command again\n');
 				} else if (error.message.includes('Network error')) {
-					console.error('\nPlease check your internet connection and try again\n');
+					console.error(
+						'\nPlease check your internet connection and try again\n',
+					);
 				} else if (error.message.includes('Authentication')) {
 					console.error('\nPlease check your git credentials and try again\n');
 				}
@@ -275,7 +300,9 @@ export default class IndexCommand extends BaseCommand {
 	 * @param forceFullIndex If true, forces a full index
 	 * @returns Object indicating if index is up-to-date and whether to use incremental mode
 	 */
-	private async determineIndexScope(forceFullIndex: boolean): Promise<{ isIncremental: boolean; upToDate: boolean }> {
+	private async determineIndexScope(
+		forceFullIndex: boolean,
+	): Promise<{ isIncremental: boolean; upToDate: boolean }> {
 		if (forceFullIndex) {
 			return { isIncremental: false, upToDate: false }; // Not incremental
 		}
@@ -288,7 +315,9 @@ export default class IndexCommand extends BaseCommand {
 			const lastIndexedCommit = projectState?.latestCommit;
 
 			if (!lastIndexedCommit) {
-				console.log(`${BLUE_INFO} No previous index found - performing full index`);
+				console.log(
+					`${BLUE_INFO} No previous index found - performing full index`,
+				);
 				return { isIncremental: false, upToDate: false }; // Full index needed
 			}
 
@@ -299,10 +328,16 @@ export default class IndexCommand extends BaseCommand {
 				return { isIncremental: true, upToDate: true }; // Nothing to do
 			}
 
-			console.log(`${BLUE_INFO} Last indexed commit: ${lastIndexedCommit.substring(0, 8)}`);
-			console.log(`${BLUE_INFO} Current commit: ${currentCommit.substring(0, 8)}`);
+			console.log(
+				`${BLUE_INFO} Last indexed commit: ${lastIndexedCommit.substring(0, 8)}`,
+			);
+			console.log(
+				`${BLUE_INFO} Current commit: ${currentCommit.substring(0, 8)}`,
+			);
 
-			console.log(`${BLUE_INFO} Performing incremental index starting from commit ${lastIndexedCommit.substring(0, 8)}`);
+			console.log(
+				`${BLUE_INFO} Performing incremental index starting from commit ${lastIndexedCommit.substring(0, 8)}`,
+			);
 			return { isIncremental: true, upToDate: false }; // Incremental index
 		} catch (error) {
 			// Re-throw auth errors - don't silently continue with invalid credentials
@@ -310,7 +345,9 @@ export default class IndexCommand extends BaseCommand {
 				throw error;
 			}
 			// For other errors, log and default to full index
-			console.log(`${YELLOW_WARN} Could not determine last index - performing full index`);
+			console.log(
+				`${YELLOW_WARN} Could not determine last index - performing full index`,
+			);
 			return { isIncremental: false, upToDate: false }; // Default to full index
 		}
 	}
@@ -331,31 +368,41 @@ export default class IndexCommand extends BaseCommand {
 				const projectState = await this.apiClient!.getProjectState();
 				if (!projectState?.latestCommit) {
 					// Fallback to full scan if we can't get last commit
-					console.log(`${YELLOW_WARN} Cannot determine changes - falling back to full scan`);
+					console.log(
+						`${YELLOW_WARN} Cannot determine changes - falling back to full scan`,
+					);
 					files = await this.scanner.scanFiles(this.config!);
 				} else {
-					const changes = await this.git!.getChangedFiles(projectState.latestCommit);
+					const changes = await this.git!.getChangedFiles(
+						projectState.latestCommit,
+					);
 					const changedPaths = [
 						...changes.added,
 						...changes.modified,
-						...changes.renamed.map(r => r.to)
+						...changes.renamed.map((r) => r.to),
 					];
 
-					console.log(`${BLUE_INFO} Found ${changedPaths.length} changed files`);
-					files = await this.scanner.scanSpecificFiles(changedPaths, this.config!);
+					console.log(
+						`${BLUE_INFO} Found ${changedPaths.length} changed files`,
+					);
+					files = await this.scanner.scanSpecificFiles(
+						changedPaths,
+						this.config!,
+					);
 
 					// Handle deleted files and old paths from renamed files
 					const filesToDelete = [
 						...changes.deleted,
-						...changes.renamed.map(r => r.from)
+						...changes.renamed.map((r) => r.from),
 					];
 
 					if (filesToDelete.length > 0) {
 						const deletedCount = changes.deleted.length;
 						const renamedCount = changes.renamed.length;
-						const message = renamedCount > 0
-							? `${BLUE_INFO} Removing ${deletedCount} deleted file(s) and ${renamedCount} renamed file(s) from graph`
-							: `${BLUE_INFO} Removing ${deletedCount} deleted file(s) from graph`;
+						const message =
+							renamedCount > 0
+								? `${BLUE_INFO} Removing ${deletedCount} deleted file(s) and ${renamedCount} renamed file(s) from graph`
+								: `${BLUE_INFO} Removing ${deletedCount} deleted file(s) from graph`;
 						console.log(message);
 						await this.apiClient!.deleteFiles(filesToDelete);
 					}
@@ -366,7 +413,9 @@ export default class IndexCommand extends BaseCommand {
 					throw error;
 				}
 				// For other errors, fall back to full scan
-				console.log(`${YELLOW_WARN} Cannot determine changes - falling back to full scan`);
+				console.log(
+					`${YELLOW_WARN} Cannot determine changes - falling back to full scan`,
+				);
 				files = await this.scanner.scanFiles(this.config!);
 			}
 		} else {
@@ -387,7 +436,10 @@ export default class IndexCommand extends BaseCommand {
 	 * @param onComplete Optional callback invoked after all files are processed
 	 * @returns Async generator yielding serialized AST data with compression
 	 */
-	private async* generateASTs(files: FileInfo[], onComplete?: () => void): AsyncGenerator<SerializedAST> {
+	private async *generateASTs(
+		files: FileInfo[],
+		onComplete?: () => void,
+	): AsyncGenerator<SerializedAST> {
 		const timestamp = new Date().toISOString();
 		const totalFiles = files.length;
 		let processedCount = 0;
@@ -401,7 +453,9 @@ export default class IndexCommand extends BaseCommand {
 		// Large projects (>10k files) use reduced concurrency to limit memory pressure
 		const concurrency = totalFiles > 10000 ? 5 : totalFiles > 5000 ? 7 : 10;
 		if (concurrency < 10) {
-			console.log(`${BLUE_INFO} Large project detected - using concurrency of ${concurrency} to optimize memory usage`);
+			console.log(
+				`${BLUE_INFO} Large project detected - using concurrency of ${concurrency} to optimize memory usage`,
+			);
 		}
 
 		// Create promise pool with adaptive concurrency limit
@@ -410,7 +464,9 @@ export default class IndexCommand extends BaseCommand {
 		// Process files with concurrent limit
 		const results = pool.run(files, async (file, index) => {
 			const progress = Math.round(((index + 1) / totalFiles) * 100);
-			console.log(`${BLUE_INFO} Processing file ${file.path.replace(process.cwd() + '/', '')} (${progress}%)...`);
+			console.log(
+				`${BLUE_INFO} Processing file ${file.path.replace(process.cwd() + '/', '')} (${progress}%)...`,
+			);
 
 			try {
 				// Parse file with tree-sitter to get AST
@@ -423,7 +479,9 @@ export default class IndexCommand extends BaseCommand {
 				let importResolutions;
 				if (plugin?.getImportResolver) {
 					// Get build config for this file if available
-					const buildConfigManager = this.buildConfigManagers.get(file.language);
+					const buildConfigManager = this.buildConfigManagers.get(
+						file.language,
+					);
 					const buildConfig = buildConfigManager
 						? await buildConfigManager.getConfigForFile(file.path)
 						: null;
@@ -432,13 +490,15 @@ export default class IndexCommand extends BaseCommand {
 					const resolver = plugin.getImportResolver(file.path, buildConfig);
 					if (resolver) {
 						// Extract import resolutions without modifying AST
-						const { ImportExtractor } = await import('../utils/import-extractor');
+						const { ImportExtractor } = await import(
+							'../utils/import-extractor'
+						);
 						const extractor = new ImportExtractor();
 						importResolutions = await extractor.extractImportResolutions(
 							tree,
 							file.path,
 							file.language,
-							resolver
+							resolver,
 						);
 					}
 				}
@@ -460,15 +520,17 @@ export default class IndexCommand extends BaseCommand {
 					commit: currentCommit,
 					timestamp,
 					ast: compressedAst,
-					importResolutions // Include CLI-resolved import metadata
+					importResolutions, // Include CLI-resolved import metadata
 				};
 
 				processedCount++;
 				return serializedAST;
-
 			} catch (error) {
 				errorCount++;
-				console.error(`    ${YELLOW_WARN} Failed to parse ${file.relativePath}: ${(error as Error).message}`, error);
+				console.error(
+					`    ${YELLOW_WARN} Failed to parse ${file.relativePath}: ${(error as Error).message}`,
+					error,
+				);
 				// Re-throw to let PromisePool handle it
 				throw error;
 			}
@@ -481,7 +543,9 @@ export default class IndexCommand extends BaseCommand {
 
 		// Display completion statistics
 		if (errorCount > 0) {
-			console.log(`${YELLOW_WARN} Completed parsing with ${errorCount} parsing errors`);
+			console.log(
+				`${YELLOW_WARN} Completed parsing with ${errorCount} parsing errors`,
+			);
 		} else {
 			console.log(`${GREEN_CHECK} All files processed successfully`);
 		}
@@ -492,7 +556,6 @@ export default class IndexCommand extends BaseCommand {
 		}
 	}
 
-
 	/**
 	 * Uploads AST data to the Constellation API service.
 	 * Processes files individually with compression to optimize network transfer.
@@ -500,12 +563,23 @@ export default class IndexCommand extends BaseCommand {
 	 * @param incremental Whether this is an incremental index
 	 * @throws Error if upload fails
 	 */
-	private async uploadToAPI(astDataStream: AsyncGenerator<SerializedAST>, incremental: boolean): Promise<void> {
-		const uploadSuccess = await this.apiClient!.streamToApi(astDataStream, 'ast', this.config!.namespace, this.config!.branch, incremental);
+	private async uploadToAPI(
+		astDataStream: AsyncGenerator<SerializedAST>,
+		incremental: boolean,
+	): Promise<void> {
+		const uploadSuccess = await this.apiClient!.streamToApi(
+			astDataStream,
+			'ast',
+			this.config!.projectId,
+			this.config!.branch,
+			incremental,
+		);
 		if (!uploadSuccess) {
 			throw new Error('Failed to upload data to Constellation Service');
 		}
-		console.log(`${GREEN_CHECK} Successfully uploaded data to Constellation Service`);
+		console.log(
+			`${GREEN_CHECK} Successfully uploaded data to Constellation Service`,
+		);
 	}
 
 	/**

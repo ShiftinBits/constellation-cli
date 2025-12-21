@@ -1,13 +1,10 @@
 {
-	"namespace": "constellation-cli",
+	"projectId": "constellation-cli",
 	"branch": "main",
 	"apiUrl": "http://localhost:3000",
 	"languages": {
 		"typescript": {
-			"fileExtensions": [
-				".ts",
-				".tsx"
-			]
+			"fileExtensions": [".ts", ".tsx"]
 		}
 	},
 	"exclude": [

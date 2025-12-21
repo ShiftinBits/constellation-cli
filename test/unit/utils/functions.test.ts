@@ -1,5 +1,5 @@
 import { describe, it, expect, jest } from '@jest/globals';
-import { base32Encode, base32Decode, sanitizeNamespace } from '../../../src/utils/functions';
+import { base32Encode, base32Decode } from '../../../src/utils/functions';
 
 // Mock @scure/base to avoid ESM issues
 jest.mock('@scure/base', () => ({
@@ -11,8 +11,8 @@ jest.mock('@scure/base', () => ({
 		decode: jest.fn((str: string) => {
 			// Simple base32-like decoding for testing
 			return Buffer.from(str, 'base64');
-		})
-	}
+		}),
+	},
 }));
 
 describe('functions utilities', () => {
@@ -81,79 +81,6 @@ describe('functions utilities', () => {
 			const encoded = base32Encode(original);
 			const decoded = base32Decode(encoded);
 			expect(decoded).toBe(original);
-		});
-	});
-
-	describe('sanitizeNamespace', () => {
-		it('should keep alphanumeric characters', () => {
-			const input = 'abc123';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('abc123');
-		});
-
-		it('should keep hyphens', () => {
-			const input = 'my-namespace';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('my-namespace');
-		});
-
-		it('should keep underscores', () => {
-			const input = 'my_namespace';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('my_namespace');
-		});
-
-		it('should remove special characters', () => {
-			const input = 'my@namespace!';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('mynamespace');
-		});
-
-		it('should remove spaces', () => {
-			const input = 'my namespace';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('mynamespace');
-		});
-
-		it('should remove dots', () => {
-			const input = 'my.namespace';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('mynamespace');
-		});
-
-		it('should remove slashes', () => {
-			const input = 'my/namespace\\test';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('mynamespacetest');
-		});
-
-		it('should handle empty string', () => {
-			const result = sanitizeNamespace('');
-			expect(result).toBe('');
-		});
-
-		it('should handle string with only invalid characters', () => {
-			const input = '@#$%^&*()';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('');
-		});
-
-		it('should handle mixed valid and invalid characters', () => {
-			const input = 'my-@#$-namespace_123!';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('my--namespace_123');
-		});
-
-		it('should preserve case', () => {
-			const input = 'MyNameSpace';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('MyNameSpace');
-		});
-
-		it('should handle URL-like strings', () => {
-			const input = 'https://github.com/user/repo';
-			const result = sanitizeNamespace(input);
-			expect(result).toBe('httpsgithubcomuserrepo');
 		});
 	});
 });

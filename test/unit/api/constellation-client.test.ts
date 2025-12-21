@@ -1,5 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { AuthenticationError, ConstellationClient, NotFoundError, RetryableError } from '../../../src/api/constellation-client';
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	jest,
+} from '@jest/globals';
+import {
+	AuthenticationError,
+	ConstellationClient,
+	NotFoundError,
+	RetryableError,
+} from '../../../src/api/constellation-client';
 import { ConstellationConfig } from '../../../src/config/config';
 import { ProjectState, SerializedAST } from '../../../src/types/api';
 import { generateAstId } from '../../../src/utils/id.utils';
@@ -7,7 +19,7 @@ import { NdJsonStreamWriter } from '../../../src/utils/ndjson-streamwriter';
 
 // Mock dependencies
 jest.mock('../../../src/utils/id.utils', () => ({
-	generateAstId: jest.fn()
+	generateAstId: jest.fn(),
 }));
 jest.mock('../../../src/utils/ndjson-streamwriter');
 
@@ -21,20 +33,27 @@ describe('ConstellationClient', () => {
 	const mockAccessKey = 'test-access-key';
 
 	// Helper to create test SerializedAST
-	const createTestAST = (overrides: Partial<SerializedAST> = {}): SerializedAST => ({
+	const createTestAST = (
+		overrides: Partial<SerializedAST> = {},
+	): SerializedAST => ({
 		file: 'src/test.ts',
 		language: 'typescript',
 		commit: 'a'.repeat(40), // Valid SHA-1
 		timestamp: '2023-01-01T00:00:00.000Z',
 		ast: 'H4sIAAAAAAAAA6vmAgAAAAAA', // Valid base64
-		...overrides
+		...overrides,
 	});
 
 	// Helper to create mock Response
-	const createMockResponse = (status: number, ok: boolean, data?: any): any => ({
+	const createMockResponse = (
+		status: number,
+		ok: boolean,
+		data?: any,
+	): any => ({
 		ok,
 		status,
-		statusText: status === 200 ? 'OK' : status === 401 ? 'Unauthorized' : 'Error',
+		statusText:
+			status === 200 ? 'OK' : status === 401 ? 'Unauthorized' : 'Error',
 		// @ts-expect-error - Jest mock typing
 		json: jest.fn().mockResolvedValue(data),
 		headers: new Headers(),
@@ -47,7 +66,7 @@ describe('ConstellationClient', () => {
 		blob: jest.fn(),
 		clone: jest.fn(),
 		formData: jest.fn(),
-		text: jest.fn()
+		text: jest.fn(),
 	});
 
 	beforeEach(() => {
@@ -60,9 +79,9 @@ describe('ConstellationClient', () => {
 		// Create mock configuration
 		mockConfig = {
 			apiUrl: 'https://api.constellation.test',
-			namespace: 'test-project',
+			projectId: 'test-project',
 			branch: 'main',
-			languages: {}
+			languages: {},
 		} as ConstellationConfig;
 
 		// Mock utility functions
@@ -91,11 +110,13 @@ describe('ConstellationClient', () => {
 				latestCommit: 'abc123',
 				fileCount: 10,
 				lastIndexedAt: '2023-01-01T00:00:00.000Z',
-				languages: ['typescript']
+				languages: ['typescript'],
 			};
 
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(200, true, mockProjectState));
+			mockFetch.mockResolvedValue(
+				createMockResponse(200, true, mockProjectState),
+			);
 
 			const result = await client.getProjectState();
 
@@ -108,24 +129,26 @@ describe('ConstellationClient', () => {
 						'x-project-id': 'test-project',
 						'x-branch-name': 'main',
 						Accepts: 'application/json; charset=utf-8',
-						Authorization: `Bearer ${mockAccessKey}`
-					})
-				})
+						Authorization: `Bearer ${mockAccessKey}`,
+					}),
+				}),
 			);
 			expect(result).toEqual(mockProjectState);
 		});
 
 		it('should throw NotFoundError when project not found (404)', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(404, false));
+			mockFetch.mockResolvedValue(createMockResponse(404, false));
 
 			await expect(client.getProjectState()).rejects.toThrow(NotFoundError);
-			await expect(client.getProjectState()).rejects.toThrow('Project not found - no previous index exists');
+			await expect(client.getProjectState()).rejects.toThrow(
+				'Project not found - no previous index exists',
+			);
 		});
 
 		it('should return null when request fails', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockRejectedValue(new Error('Network error'));
+			mockFetch.mockRejectedValue(new Error('Network error'));
 
 			const result = await client.getProjectState();
 
@@ -136,8 +159,12 @@ describe('ConstellationClient', () => {
 			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(401, false));
 
-			await expect(client.getProjectState()).rejects.toThrow(AuthenticationError);
-			await expect(client.getProjectState()).rejects.toThrow('Authentication failed');
+			await expect(client.getProjectState()).rejects.toThrow(
+				AuthenticationError,
+			);
+			await expect(client.getProjectState()).rejects.toThrow(
+				'Authentication failed',
+			);
 		});
 	});
 
@@ -145,23 +172,27 @@ describe('ConstellationClient', () => {
 		it('should delete single file', async () => {
 			const filePaths = ['src/deleted.ts'];
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(200, true));
+			mockFetch.mockResolvedValue(createMockResponse(200, true));
 
 			await client.deleteFiles(filePaths);
 
-			expect(generateAstId).toHaveBeenCalledWith('test-project', 'main', 'src/deleted.ts');
+			expect(generateAstId).toHaveBeenCalledWith(
+				'test-project',
+				'main',
+				'src/deleted.ts',
+			);
 			expect(mockFetch).toHaveBeenCalledWith(
 				'https://api.constellation.test/v1//ast/mock-project-id',
 				expect.objectContaining({
-					method: 'DELETE'
-				})
+					method: 'DELETE',
+				}),
 			);
 		});
 
 		it('should delete multiple files', async () => {
 			const filePaths = ['src/file1.ts', 'src/file2.ts', 'src/file3.ts'];
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(200, true));
+			mockFetch.mockResolvedValue(createMockResponse(200, true));
 
 			await client.deleteFiles(filePaths);
 
@@ -172,7 +203,7 @@ describe('ConstellationClient', () => {
 		it('should handle delete errors', async () => {
 			const filePaths = ['src/error.ts'];
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(500, false));
+			mockFetch.mockResolvedValue(createMockResponse(500, false));
 
 			// Use real timers for this test since we want actual retry behavior
 			jest.useRealTimers();
@@ -193,37 +224,42 @@ describe('ConstellationClient', () => {
 				async *[Symbol.asyncIterator]() {
 					yield createTestAST({ file: 'file1.ts' });
 					yield createTestAST({ file: 'file2.ts' });
-				}
+				},
 			};
 
 			const mockNdJsonStream = {
 				pipe: jest.fn(),
 				on: jest.fn(),
-				read: jest.fn()
+				read: jest.fn(),
 			};
-			(NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>)
-				.mockImplementation(() => mockNdJsonStream as any);
+			(
+				NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>
+			).mockImplementation(() => mockNdJsonStream as any);
 
 			// Mock Readable.toWeb
 			const mockWebStream = {};
 			const mockReadable = {
-				toWeb: jest.fn().mockReturnValue(mockWebStream)
+				toWeb: jest.fn().mockReturnValue(mockWebStream),
 			};
 
 			// Mock dynamic import
-			jest.doMock('stream', () => ({
-				Readable: mockReadable
-			}), { virtual: true });
+			jest.doMock(
+				'stream',
+				() => ({
+					Readable: mockReadable,
+				}),
+				{ virtual: true },
+			);
 
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(200, true));
+			mockFetch.mockResolvedValue(createMockResponse(200, true));
 
 			const result = await client.streamToApi(
 				mockStream as any,
 				'upload',
 				'test-namespace',
 				'test-branch',
-				false
+				false,
 			);
 
 			expect(result).toBe(true);
@@ -235,11 +271,11 @@ describe('ConstellationClient', () => {
 						'Content-Type': 'application/x-ndjson; charset=utf-8',
 						'x-project-id': 'test-namespace',
 						'x-branch-name': 'test-branch',
-						Authorization: `Bearer ${mockAccessKey}`
+						Authorization: `Bearer ${mockAccessKey}`,
 					}),
 					body: mockWebStream,
-					duplex: 'half'
-				})
+					duplex: 'half',
+				}),
 			);
 		});
 
@@ -247,28 +283,31 @@ describe('ConstellationClient', () => {
 			const mockStream = {
 				async *[Symbol.asyncIterator]() {
 					yield createTestAST();
-				}
+				},
 			};
 
 			const mockNdJsonStream = {};
-			(NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>)
-				.mockImplementation(() => mockNdJsonStream as any);
+			(
+				NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>
+			).mockImplementation(() => mockNdJsonStream as any);
 
 			// Mock Readable.toWeb
 			const mockReadable = {
-				toWeb: jest.fn().mockReturnValue({})
+				toWeb: jest.fn().mockReturnValue({}),
 			};
-			jest.doMock('stream', () => ({ Readable: mockReadable }), { virtual: true });
+			jest.doMock('stream', () => ({ Readable: mockReadable }), {
+				virtual: true,
+			});
 
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(400, false));
+			mockFetch.mockResolvedValue(createMockResponse(400, false));
 
 			const result = await client.streamToApi(
 				mockStream as any,
 				'upload',
 				'test-namespace',
 				'test-branch',
-				false
+				false,
 			);
 
 			expect(result).toBe(false);
@@ -278,48 +317,55 @@ describe('ConstellationClient', () => {
 			const mockStream = {
 				async *[Symbol.asyncIterator]() {
 					yield createTestAST();
-				}
+				},
 			};
 
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockRejectedValue(new Error('Network timeout'));
+			mockFetch.mockRejectedValue(new Error('Network timeout'));
 
-			await expect(client.streamToApi(
-				mockStream as any,
-				'upload',
-				'test-namespace',
-				'test-branch',
-				false
-			)).rejects.toThrow(/Failed to upload data to Constellation Service/);
+			await expect(
+				client.streamToApi(
+					mockStream as any,
+					'upload',
+					'test-namespace',
+					'test-branch',
+					false,
+				),
+			).rejects.toThrow(/Failed to upload data to Constellation Service/);
 		});
 
 		it('should throw AuthenticationError on 401', async () => {
 			const mockStream = {
 				async *[Symbol.asyncIterator]() {
 					yield createTestAST();
-				}
+				},
 			};
 
 			const mockNdJsonStream = {};
-			(NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>)
-				.mockImplementation(() => mockNdJsonStream as any);
+			(
+				NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>
+			).mockImplementation(() => mockNdJsonStream as any);
 
 			// Mock Readable.toWeb
 			const mockReadable = {
-				toWeb: jest.fn().mockReturnValue({})
+				toWeb: jest.fn().mockReturnValue({}),
 			};
-			jest.doMock('stream', () => ({ Readable: mockReadable }), { virtual: true });
+			jest.doMock('stream', () => ({ Readable: mockReadable }), {
+				virtual: true,
+			});
 
 			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(401, false));
 
-			await expect(client.streamToApi(
-				mockStream as any,
-				'upload',
-				'test-namespace',
-				'test-branch',
-				false
-			)).rejects.toThrow(AuthenticationError);
+			await expect(
+				client.streamToApi(
+					mockStream as any,
+					'upload',
+					'test-namespace',
+					'test-branch',
+					false,
+				),
+			).rejects.toThrow(AuthenticationError);
 		});
 	});
 
@@ -328,11 +374,13 @@ describe('ConstellationClient', () => {
 			// First two calls fail with 500, third succeeds
 			mockFetch
 				// @ts-expect-error - Jest mock typing
-			.mockResolvedValueOnce(createMockResponse(500, false))
+				.mockResolvedValueOnce(createMockResponse(500, false))
 				// @ts-expect-error - Jest mock typing
-			.mockResolvedValueOnce(createMockResponse(502, false))
+				.mockResolvedValueOnce(createMockResponse(502, false))
 				// @ts-expect-error - Jest mock typing
-			.mockResolvedValueOnce(createMockResponse(200, true, { success: true }));
+				.mockResolvedValueOnce(
+					createMockResponse(200, true, { success: true }),
+				);
 
 			const promise = client.getProjectState();
 			await jest.runAllTimersAsync();
@@ -344,7 +392,7 @@ describe('ConstellationClient', () => {
 
 		it('should not retry on non-retryable errors (4xx)', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(400, false));
+			mockFetch.mockResolvedValue(createMockResponse(400, false));
 
 			// getProjectState catches all errors and returns null
 			const result = await client.getProjectState();
@@ -355,24 +403,26 @@ describe('ConstellationClient', () => {
 
 		it('should throw AuthenticationError on 401 without retry', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(401, false));
+			mockFetch.mockResolvedValue(createMockResponse(401, false));
 
 			// AuthenticationError is now re-thrown, not caught and converted to null
-			await expect(client.getProjectState()).rejects.toThrow(AuthenticationError);
+			await expect(client.getProjectState()).rejects.toThrow(
+				AuthenticationError,
+			);
 			expect(mockFetch).toHaveBeenCalledTimes(1); // No retries for auth errors
 		});
 
 		it('should apply jittered delay between retries', async () => {
 			mockFetch
 				// @ts-expect-error - Jest mock typing
-			.mockResolvedValueOnce(createMockResponse(500, false))
+				.mockResolvedValueOnce(createMockResponse(500, false))
 				// @ts-expect-error - Jest mock typing
-			.mockResolvedValueOnce(createMockResponse(200, true, {}));
+				.mockResolvedValueOnce(createMockResponse(200, true, {}));
 
 			// Mock Math.random to return a predictable value
 			const originalRandom = Math.random;
 			// @ts-expect-error - Math.random mock typing
-		Math.random = jest.fn().mockReturnValue(0.5);
+			Math.random = jest.fn().mockReturnValue(0.5);
 
 			const promise = client.getProjectState();
 			await jest.runAllTimersAsync();
@@ -384,7 +434,7 @@ describe('ConstellationClient', () => {
 
 		it('should exhaust retries and throw final error', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(500, false));
+			mockFetch.mockResolvedValue(createMockResponse(500, false));
 
 			const promise = client.getProjectState();
 			await jest.runAllTimersAsync();
@@ -401,13 +451,13 @@ describe('ConstellationClient', () => {
 			// Mock a request that takes too long
 			const mockAbortController = {
 				abort: jest.fn(),
-				signal: { aborted: false }
+				signal: { aborted: false },
 			};
 			global.AbortController = jest.fn(() => mockAbortController) as any;
 
 			// Create a delayed response that won't resolve before timeout
-			const delayedPromise = new Promise(resolve =>
-				setTimeout(() => resolve(createMockResponse(200, true)), 2000)
+			const delayedPromise = new Promise((resolve) =>
+				setTimeout(() => resolve(createMockResponse(200, true)), 2000),
 			);
 			mockFetch.mockReturnValue(delayedPromise);
 
@@ -423,7 +473,7 @@ describe('ConstellationClient', () => {
 	describe('request headers', () => {
 		it('should include correct headers in requests', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
+			mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
 
 			await client.getProjectState();
 
@@ -435,15 +485,15 @@ describe('ConstellationClient', () => {
 						Accepts: 'application/json; charset=utf-8',
 						Authorization: `Bearer ${mockAccessKey}`,
 						'x-branch-name': 'main',
-						'x-project-id': 'test-project'
-					}
-				})
+						'x-project-id': 'test-project',
+					},
+				}),
 			);
 		});
 
 		it('should merge custom headers with defaults', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
+			mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
 
 			await client.getProjectState();
 
@@ -452,9 +502,9 @@ describe('ConstellationClient', () => {
 				expect.objectContaining({
 					headers: expect.objectContaining({
 						'Content-Type': 'application/json; charset=utf-8',
-						Authorization: `Bearer ${mockAccessKey}`
-					})
-				})
+						Authorization: `Bearer ${mockAccessKey}`,
+					}),
+				}),
 			);
 		});
 	});
@@ -462,7 +512,7 @@ describe('ConstellationClient', () => {
 	describe('error handling', () => {
 		it('should handle fetch rejections gracefully', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
+			mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
 
 			// getProjectState catches all errors and returns null
 			const result = await client.getProjectState();
@@ -472,7 +522,7 @@ describe('ConstellationClient', () => {
 		it('should log errors when sendRequest fails', async () => {
 			const originalError = new Error('Original error');
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockRejectedValue(originalError);
+			mockFetch.mockRejectedValue(originalError);
 
 			// getProjectState catches all errors and returns null
 			const result = await client.getProjectState();
@@ -480,13 +530,15 @@ describe('ConstellationClient', () => {
 
 			// Should log the error once (no retries for non-RetryableError)
 			expect(console.log).toHaveBeenCalledWith(
-				expect.stringContaining('HTTP request attempt 1/3 failed: Original error')
+				expect.stringContaining(
+					'HTTP request attempt 1/3 failed: Original error',
+				),
 			);
 		});
 
 		it('should handle non-Error objects in catch blocks', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockRejectedValue('String error');
+			mockFetch.mockRejectedValue('String error');
 
 			// getProjectState catches all errors and returns null
 			const result = await client.getProjectState();
@@ -494,7 +546,9 @@ describe('ConstellationClient', () => {
 
 			// Should log the string error once
 			expect(console.log).toHaveBeenCalledWith(
-				expect.stringContaining('HTTP request attempt 1/3 failed: String error')
+				expect.stringContaining(
+					'HTTP request attempt 1/3 failed: String error',
+				),
 			);
 		});
 	});
@@ -502,13 +556,13 @@ describe('ConstellationClient', () => {
 	describe('API version handling', () => {
 		it('should use v1 API version in all requests', async () => {
 			// @ts-expect-error - Jest mock typing
-		mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
+			mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
 
 			await client.getProjectState();
 
 			expect(mockFetch).toHaveBeenCalledWith(
 				'https://api.constellation.test/v1/project',
-				expect.any(Object)
+				expect.any(Object),
 			);
 		});
 	});

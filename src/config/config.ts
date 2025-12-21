@@ -1,6 +1,6 @@
-import { ParserLanguage } from "../languages/language.registry";
-import { FileUtils } from "../utils/file.utils";
-import { RED_X } from "../utils/unicode-chars";
+import { ParserLanguage } from '../languages/language.registry';
+import { FileUtils } from '../utils/file.utils';
+import { RED_X } from '../utils/unicode-chars';
 
 /**
  * Configuration mapping for supported programming languages.
@@ -22,8 +22,8 @@ export interface IConstellationConfig {
 	readonly branch: string;
 	/** Language-specific configuration including file extensions */
 	readonly languages: IConstellationLanguageConfig;
-	/** Project namespace identifier (typically project name) */
-	readonly namespace: string;
+	/** Unique project identifier (created in Constellation web app) */
+	readonly projectId: string;
 	/** Glob patterns to exclude from indexing (optional) */
 	readonly exclude?: string[];
 }
@@ -40,14 +40,14 @@ export class ConstellationConfig implements IConstellationConfig {
 	 * Creates a new ConstellationConfig instance.
 	 * @param branch Git branch to track and index
 	 * @param languages Language-specific configuration including file extensions
-	 * @param namespace Project namespace identifier
+	 * @param projectId Unique project identifier (created in Constellation web app)
 	 * @param exclude Glob patterns to exclude from indexing (optional)
 	 */
 	constructor(
 		readonly branch: string,
 		readonly languages: IConstellationLanguageConfig,
-		readonly namespace: string,
-		readonly exclude?: string[]
+		readonly projectId: string,
+		readonly exclude?: string[],
 	) {
 		this.apiUrl = process.env.CONSTELLATION_API_URL || 'http://localhost:3000';
 	}
@@ -70,8 +70,8 @@ export class ConstellationConfig implements IConstellationConfig {
 			const config = new ConstellationConfig(
 				parsed.branch,
 				parsed.languages,
-				parsed.namespace,
-				parsed.exclude
+				parsed.projectId,
+				parsed.exclude,
 			);
 			// Validate the configuration immediately after loading
 			config.validate();
@@ -96,26 +96,32 @@ export class ConstellationConfig implements IConstellationConfig {
 			throw new Error('Invalid configuration: no languages configured');
 		}
 
-		if (!this.namespace) {
-			throw new Error('Invalid configuration: namespace is missing');
+		if (!this.projectId) {
+			throw new Error('Invalid configuration: projectId is missing');
 		}
 
 		// Validate apiUrl is a valid URL
 		try {
 			new URL(this.apiUrl);
 		} catch {
-			throw new Error(`Invalid configuration: apiUrl "${this.apiUrl}" is not a valid URL`);
+			throw new Error(
+				`Invalid configuration: apiUrl "${this.apiUrl}" is not a valid URL`,
+			);
 		}
 
 		// Validate language configurations
 		for (const [lang, config] of Object.entries(this.languages)) {
 			if (!config.fileExtensions || config.fileExtensions.length === 0) {
-				throw new Error(`Invalid configuration: language "${lang}" has no file extensions`);
+				throw new Error(
+					`Invalid configuration: language "${lang}" has no file extensions`,
+				);
 			}
 			// Ensure all extensions start with a dot
 			for (const ext of config.fileExtensions) {
 				if (!ext.startsWith('.')) {
-					throw new Error(`Invalid configuration: file extension "${ext}" for language "${lang}" must start with a dot`);
+					throw new Error(
+						`Invalid configuration: file extension "${ext}" for language "${lang}" must start with a dot`,
+					);
 				}
 			}
 		}
@@ -124,11 +130,15 @@ export class ConstellationConfig implements IConstellationConfig {
 		if (this.exclude && this.exclude.length > 0) {
 			// Ensure exclude is an array of strings
 			if (!Array.isArray(this.exclude)) {
-				throw new Error('Invalid configuration: exclude must be an array of strings');
+				throw new Error(
+					'Invalid configuration: exclude must be an array of strings',
+				);
 			}
 			for (const pattern of this.exclude) {
 				if (typeof pattern !== 'string') {
-					throw new Error('Invalid configuration: exclude patterns must be strings');
+					throw new Error(
+						'Invalid configuration: exclude patterns must be strings',
+					);
 				}
 			}
 		}
@@ -147,7 +157,7 @@ export class ConstellationConfig implements IConstellationConfig {
 		if (this.branch !== currentBranch) {
 			throw new Error(
 				`Current branch "${currentBranch}" does not match configured branch "${this.branch}". ` +
-				`Update constellation.json or switch to "${this.branch}" branch.`
+					`Update constellation.json or switch to "${this.branch}" branch.`,
 			);
 		}
 	}

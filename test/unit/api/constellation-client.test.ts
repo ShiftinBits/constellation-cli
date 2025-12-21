@@ -24,8 +24,8 @@ jest.mock('../../../src/utils/id.utils', () => ({
 jest.mock('../../../src/utils/ndjson-streamwriter');
 
 // Mock global fetch
-const mockFetch = jest.fn();
-global.fetch = mockFetch as any;
+const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
+global.fetch = mockFetch;
 
 describe('ConstellationClient', () => {
 	let client: ConstellationClient;
@@ -113,7 +113,6 @@ describe('ConstellationClient', () => {
 				languages: ['typescript'],
 			};
 
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(
 				createMockResponse(200, true, mockProjectState),
 			);
@@ -137,7 +136,6 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should throw NotFoundError when project not found (404)', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(404, false));
 
 			await expect(client.getProjectState()).rejects.toThrow(NotFoundError);
@@ -147,7 +145,6 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should return null when request fails', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockRejectedValue(new Error('Network error'));
 
 			const result = await client.getProjectState();
@@ -156,7 +153,6 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should throw AuthenticationError when authentication fails', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(401, false));
 
 			await expect(client.getProjectState()).rejects.toThrow(
@@ -171,7 +167,6 @@ describe('ConstellationClient', () => {
 	describe('deleteFiles', () => {
 		it('should delete single file', async () => {
 			const filePaths = ['src/deleted.ts'];
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(200, true));
 
 			await client.deleteFiles(filePaths);
@@ -191,7 +186,6 @@ describe('ConstellationClient', () => {
 
 		it('should delete multiple files', async () => {
 			const filePaths = ['src/file1.ts', 'src/file2.ts', 'src/file3.ts'];
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(200, true));
 
 			await client.deleteFiles(filePaths);
@@ -202,7 +196,6 @@ describe('ConstellationClient', () => {
 
 		it('should handle delete errors', async () => {
 			const filePaths = ['src/error.ts'];
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(500, false));
 
 			// Use real timers for this test since we want actual retry behavior
@@ -251,7 +244,6 @@ describe('ConstellationClient', () => {
 				{ virtual: true },
 			);
 
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(200, true));
 
 			const result = await client.streamToApi(
@@ -299,7 +291,6 @@ describe('ConstellationClient', () => {
 				virtual: true,
 			});
 
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(400, false));
 
 			const result = await client.streamToApi(
@@ -320,7 +311,6 @@ describe('ConstellationClient', () => {
 				},
 			};
 
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockRejectedValue(new Error('Network timeout'));
 
 			await expect(
@@ -354,7 +344,6 @@ describe('ConstellationClient', () => {
 				virtual: true,
 			});
 
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(401, false));
 
 			await expect(
@@ -373,11 +362,8 @@ describe('ConstellationClient', () => {
 		it('should retry on retryable errors (5xx)', async () => {
 			// First two calls fail with 500, third succeeds
 			mockFetch
-				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce(createMockResponse(500, false))
-				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce(createMockResponse(502, false))
-				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce(
 					createMockResponse(200, true, { success: true }),
 				);
@@ -391,7 +377,6 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should not retry on non-retryable errors (4xx)', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(400, false));
 
 			// getProjectState catches all errors and returns null
@@ -402,7 +387,6 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should throw AuthenticationError on 401 without retry', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(401, false));
 
 			// AuthenticationError is now re-thrown, not caught and converted to null
@@ -414,9 +398,7 @@ describe('ConstellationClient', () => {
 
 		it('should apply jittered delay between retries', async () => {
 			mockFetch
-				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce(createMockResponse(500, false))
-				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce(createMockResponse(200, true, {}));
 
 			// Mock Math.random to return a predictable value
@@ -433,7 +415,6 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should exhaust retries and throw final error', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(500, false));
 
 			const promise = client.getProjectState();
@@ -456,7 +437,7 @@ describe('ConstellationClient', () => {
 			global.AbortController = jest.fn(() => mockAbortController) as any;
 
 			// Create a delayed response that won't resolve before timeout
-			const delayedPromise = new Promise((resolve) =>
+			const delayedPromise = new Promise<Response>((resolve) =>
 				setTimeout(() => resolve(createMockResponse(200, true)), 2000),
 			);
 			mockFetch.mockReturnValue(delayedPromise);
@@ -472,7 +453,6 @@ describe('ConstellationClient', () => {
 
 	describe('request headers', () => {
 		it('should include correct headers in requests', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
 
 			await client.getProjectState();
@@ -492,7 +472,6 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should merge custom headers with defaults', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
 
 			await client.getProjectState();
@@ -511,7 +490,6 @@ describe('ConstellationClient', () => {
 
 	describe('error handling', () => {
 		it('should handle fetch rejections gracefully', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
 
 			// getProjectState catches all errors and returns null
@@ -521,7 +499,6 @@ describe('ConstellationClient', () => {
 
 		it('should log errors when sendRequest fails', async () => {
 			const originalError = new Error('Original error');
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockRejectedValue(originalError);
 
 			// getProjectState catches all errors and returns null
@@ -537,7 +514,6 @@ describe('ConstellationClient', () => {
 		});
 
 		it('should handle non-Error objects in catch blocks', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockRejectedValue('String error');
 
 			// getProjectState catches all errors and returns null
@@ -555,7 +531,6 @@ describe('ConstellationClient', () => {
 
 	describe('API version handling', () => {
 		it('should use v1 API version in all requests', async () => {
-			// @ts-expect-error - Jest mock typing
 			mockFetch.mockResolvedValue(createMockResponse(200, true, {}));
 
 			await client.getProjectState();

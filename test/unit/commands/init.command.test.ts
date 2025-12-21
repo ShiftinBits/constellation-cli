@@ -42,35 +42,35 @@ describe('InitCommand', () => {
 		consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 		consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-		// Create mock git client
+		// Create mock git client with proper typing
 		mockGit = {
-			// @ts-expect-error - Jest mock typing
-			isGitAvailable: jest.fn().mockResolvedValue(true),
-			// @ts-expect-error - Jest mock typing
-			isGitRepository: jest.fn().mockResolvedValue(true),
-			// @ts-expect-error - Jest mock typing
-			getRootDir: jest.fn().mockResolvedValue('/test/repo'),
-			// @ts-expect-error - Jest mock typing
-			status: jest.fn().mockResolvedValue({
-				currentBranch: 'main',
-				clean: true,
-			}),
-			// @ts-expect-error - Jest mock typing
+			isGitAvailable: jest.fn<() => Promise<boolean>>().mockResolvedValue(true),
+			isGitRepository: jest
+				.fn<() => Promise<boolean>>()
+				.mockResolvedValue(true),
+			getRootDir: jest
+				.fn<() => Promise<string>>()
+				.mockResolvedValue('/test/repo'),
+			status: jest
+				.fn<() => Promise<{ currentBranch: string; clean: boolean }>>()
+				.mockResolvedValue({
+					currentBranch: 'main',
+					clean: true,
+				}),
 			listBranches: jest
-				.fn()
+				.fn<() => Promise<string[]>>()
 				.mockResolvedValue(['main', 'develop', 'feature/test']),
-			// @ts-expect-error - Jest mock typing
 			getRemoteOriginUrl: jest
-				.fn()
+				.fn<() => Promise<string>>()
 				.mockResolvedValue('https://github.com/user/test-project.git'),
-			// @ts-expect-error - Jest mock typing
-			stageFile: jest.fn().mockResolvedValue(undefined),
-		} as any;
+			stageFile: jest
+				.fn<(path: string) => Promise<void>>()
+				.mockResolvedValue(undefined),
+		} as unknown as jest.Mocked<GitClient>;
 
 		// Mock FileUtils
-		// @ts-expect-error - Jest mock typing
 		(FileUtils.fileIsReadable as jest.Mock) = jest
-			.fn()
+			.fn<() => Promise<boolean>>()
 			.mockResolvedValue(false);
 		(FileUtils.writeFile as jest.Mock) = jest.fn();
 

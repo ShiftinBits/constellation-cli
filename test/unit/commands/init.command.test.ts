@@ -140,7 +140,7 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-ignore - Jest mock typing
+			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
 				JSON.stringify(existingConfig),
 			);
@@ -166,7 +166,7 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-ignore - Jest mock typing
+			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
 				JSON.stringify(existingConfig),
 			);
@@ -192,7 +192,7 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-ignore - Jest mock typing
+			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
 				JSON.stringify(existingConfig),
 			);
@@ -217,7 +217,7 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-ignore - Jest mock typing
+			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
 				JSON.stringify(existingConfig),
 			);
@@ -244,7 +244,7 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-ignore - Jest mock typing
+			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
 				JSON.stringify(existingConfig),
 			);
@@ -295,7 +295,7 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-ignore - Jest mock typing
+			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
 				JSON.stringify(existingConfig),
 			);

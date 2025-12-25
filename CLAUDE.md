@@ -20,75 +20,16 @@ Local Code → Tree-sitter Parser → AST → Compress (gzip) → Base64 → Upl
 
 ## Commands
 
-**Development**:
-
-```bash
-npm start                      # Run CLI (tsx)
-npm start -- index             # Index current directory
-npm start -- index --full      # Full re-index (clear + reindex)
-npm start -- init              # Initialize new project
-npm start -- auth login        # Authenticate
-npm run build                  # Build with tsup
-```
-
-**Testing**:
-
-```bash
-npm test                       # All tests
-npm run test:watch             # Watch mode
-npm run test:coverage          # With coverage
-npm run test:ci                # CI mode
-```
-
-**Code Quality**:
-
-```bash
-npm run lint                   # ESLint check
-npm run lint:fix               # Auto-fix lint issues
-npm run type-check             # TypeScript type checking
-```
-
-## Key Files
-
-```
-src/
-├── commands/
-│   ├── base.command.ts        # Base class with DI pattern
-│   ├── command.deps.ts        # Dependency injection interface
-│   ├── index.command.ts       # Main index command
-│   ├── auth.command.ts        # Authentication
-│   └── init.command.ts        # Project initialization
-├── parsers/
-│   └── source.parser.ts       # Tree-sitter AST parsing
-├── languages/
-│   ├── language.registry.ts   # Language parser registry
-│   ├── language.detector.ts   # File extension → language mapping
-│   └── plugins/
-│       ├── base-plugin.ts     # Plugin interface
-│       ├── javascript.plugin.ts
-│       ├── typescript.plugin.ts
-│       ├── build-config/      # tsconfig/jsconfig managers
-│       └── resolvers/         # Import path resolution
-├── config/
-│   └── config.ts              # ConstellationConfig loader
-├── env/
-│   └── env-manager.ts         # Cross-platform env handling
-├── schemas/
-│   └── ast.schema.ts          # Zod validation schemas
-├── types/
-│   └── api.ts                 # API types (sync with Core)
-├── api/
-│   └── constellation-client.ts # HTTP client with NDJSON streaming
-├── scanners/
-│   └── file-scanner.ts        # File system scanning
-├── utils/
-│   ├── ast-compressor.ts      # gzip + base64 encoding
-│   ├── ast-serializer.ts      # AST serialization
-│   ├── git-client.ts          # Git operations
-│   ├── promise-pool.ts        # Concurrent processing
-│   └── ...                    # Other utilities
-└── index.ts                   # CLI entry point (Commander.js)
-```
+| Task       | Command                                         |
+| ---------- | ----------------------------------------------- |
+| Run CLI    | `npm start`                                     |
+| Index      | `npm start -- index [--full\|--dirty\|--watch]` |
+| Init       | `npm start -- init`                             |
+| Auth       | `npm start -- auth login`                       |
+| Build      | `npm run build`                                 |
+| Test       | `npm test` / `npm run test:coverage`            |
+| Lint       | `npm run lint` / `npm run lint:fix`             |
+| Type-check | `npm run type-check`                            |
 
 ## Parser Pattern
 
@@ -154,19 +95,9 @@ const encoded = compressed.toString('base64');
 
 ## Authentication
 
-**Environment Variable** (required):
+Set `CONSTELLATION_ACCESS_KEY` env var or run `npm start -- auth login`.
 
-```bash
-export CONSTELLATION_ACCESS_KEY=ak_00000000-...
-export CONSTELLATION_API_URL=http://localhost:3000
-```
-
-**Auth Flow**:
-
-1. `npm start -- auth login` → Opens browser, authenticates
-2. Stores key in `~/.constellation/config.json`
-3. CLI reads key from config or `$CONSTELLATION_ACCESS_KEY`
-4. Sends as `Authorization: Bearer <key>` header
+See `/cli-auth-setup` skill for complete authentication guide.
 
 ## Project Identification
 
@@ -183,78 +114,31 @@ git remote get-url origin
 
 ## Index Workflow
 
-```bash
-npm start -- index
-```
+**Pipeline**: Scan → Parse → Serialize → Compress → Upload → Store
 
-**Steps**:
+**Flags**: `--full` (re-index all), `--dirty` (skip git check), `--watch` (continuous), `--concurrency N`
 
-1. Scan: Find all supported files (.js, .ts, .jsx, .tsx)
-2. Parse: Generate AST with source.parser.ts
-3. Serialize: Strip source code, keep structure
-4. Compress: gzip + base64 encode
-5. Upload: POST to constellation-core:3000/api/v1/projects/{id}/ast
-6. Core: Extracts intelligence, stores in Neo4j
+See `/cli-indexing-workflow` skill for complete indexing guide.
 
-**Flags**:
+## Type Sync
 
-- `--full`: Clear existing data + full re-index
-- `--dirty`: Skip git status check (useful for CI)
-- `--watch`: Watch mode (re-index on file changes)
-- `--concurrency N`: Parallel file processing (default: CPU cores)
-
-## Type Sync (MANUAL)
-
-**CLI types** (`src/types/api.ts`) must match Core DTOs:
-
-```typescript
-// Core: constellation-core/apps/client-api/src/dto/project-state.dto.ts
-export interface ProjectState { ... }
-
-// CLI: constellation-cli/src/types/api.ts (MUST MATCH)
-export interface ProjectState { ... }
-```
-
-**Check sync**:
-
-```bash
-# See workspace CLAUDE.md Section 3 for diff command
-```
+CLI types (`src/types/api.ts`) must match Core DTOs. See `../CLAUDE.md` Section 3 and `/syncing-constellation-types` skill.
 
 ## Error Handling
 
-**Common Errors**:
+**Codes**: `PARSE_ERROR` | `AUTH_ERROR` | `NETWORK_ERROR` | `VALIDATION_ERROR`
 
-- `PARSE_ERROR`: Invalid syntax, unsupported construct
-- `AUTH_ERROR`: Missing/invalid CONSTELLATION_ACCESS_KEY
-- `NETWORK_ERROR`: Cannot reach constellation-core:3000
-- `VALIDATION_ERROR`: Invalid AST format
+**Debug**: `DEBUG=* npm start -- index` or `--dry-run` flag
 
-**Debug**:
-
-```bash
-DEBUG=* npm start -- index  # Verbose logging
-npm start -- index --dry-run  # Parse but don't upload
-```
+See `/cli-debugging` skill for troubleshooting guide.
 
 ## Language Support
 
-**Currently Supported**:
+**Current**: JavaScript (.js), TypeScript (.ts, .tsx), JSX (.jsx)
 
-- JavaScript (.js)
-- TypeScript (.ts, .tsx)
-- JSX (.jsx)
+**Future**: Python, Go, Rust, Java, C# (via Tree-sitter grammars)
 
-**Future** (via Tree-sitter grammars):
-
-- Python, Go, Rust, Java, C#, etc.
-
-**Add Language**:
-
-1. Install Tree-sitter grammar: `npm install tree-sitter-{lang}`
-2. Create plugin: `src/languages/plugins/{lang}.plugin.ts`
-3. Register in `language.registry.ts`
-4. Add to supported extensions
+See `/implementing-language-support` skill for adding new languages.
 
 ## Performance
 
@@ -356,7 +240,4 @@ CLI resolves import paths using plugin-based resolvers:
 
 ## Extended Docs
 
-- `../CLAUDE.md` - Workspace architecture, Neo4j access, type sync
-- `../TROUBLESHOOTING.md` - Error codes: PARSE_ERROR, AUTH_ERROR, NETWORK_ERROR
-- `../COMMANDS.md` - Full CLI command reference
-- `../ADR.md` - ADR-001 (Privacy), ADR-007 (Tree-sitter), ADR-011 (Commander), ADR-015 (Compression)
+See `../CLAUDE.md` Section 9 for complete documentation reference (workspace architecture, ADRs, troubleshooting).

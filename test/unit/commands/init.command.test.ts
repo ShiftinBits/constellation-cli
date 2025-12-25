@@ -11,14 +11,19 @@ import { GitClient } from '../../../src/utils/git-client';
 import { FileUtils } from '../../../src/utils/file.utils';
 import { LANGUAGE_EXTENSIONS } from '../../../src/languages/language.registry';
 
-// Mock enquirer
+// Mock enquirer - needs to handle both static prompt and instance prompt
 jest.mock('enquirer', () => {
-	const mockPrompt = jest.fn();
+	// Create the mock function inside the factory
+	const promptMock = jest.fn();
+	// Export it so we can access it in tests
+	(global as any).__enquirerMockPrompt = promptMock;
+	// Create a mock class that has prompt as instance method
+	const MockEnquirer = jest.fn().mockImplementation(() => ({
+		prompt: promptMock,
+	}));
 	return {
 		__esModule: true,
-		default: {
-			prompt: mockPrompt,
-		},
+		default: MockEnquirer,
 	};
 });
 
@@ -34,9 +39,8 @@ describe('InitCommand', () => {
 	let mockPrompt: jest.Mock;
 
 	beforeEach(async () => {
-		// Get mock prompt from enquirer
-		const enquirer = await import('enquirer');
-		mockPrompt = enquirer.default.prompt as jest.Mock;
+		// Get the mock prompt from global (set by mock factory)
+		mockPrompt = (global as any).__enquirerMockPrompt;
 
 		// Spy on console methods
 		consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -72,6 +76,9 @@ describe('InitCommand', () => {
 		(FileUtils.fileIsReadable as jest.Mock) = jest
 			.fn<() => Promise<boolean>>()
 			.mockResolvedValue(false);
+		(FileUtils.readFile as jest.Mock) = jest
+			.fn<() => Promise<string>>()
+			.mockResolvedValue('{}');
 		(FileUtils.writeFile as jest.Mock) = jest.fn();
 
 		// Mock prompt
@@ -121,17 +128,183 @@ describe('InitCommand', () => {
 			);
 		});
 
-		it('should exit early if constellation.json already exists', async () => {
+		it('should load existing config and pre-populate prompts when constellation.json exists', async () => {
+			const existingConfig = {
+				projectId: 'existing-project',
+				branch: 'develop',
+				languages: {
+					typescript: { fileExtensions: ['.ts', '.tsx'] },
+					javascript: { fileExtensions: ['.js', '.jsx'] },
+				},
+			};
+
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
+			// @ts-ignore - Jest mock typing
+			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				JSON.stringify(existingConfig),
+			);
+
+			await command.run();
+
+			// Should show info message about using existing values
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Found existing constellation.json'),
+			);
+
+			// Should still proceed to prompt and write file
+			expect(FileUtils.writeFile).toHaveBeenCalled();
+			expect(mockGit.stageFile).toHaveBeenCalled();
+		});
+
+		it('should pre-populate projectId with existing value', async () => {
+			const existingConfig = {
+				projectId: 'my-existing-project',
+				branch: 'main',
+				languages: { typescript: { fileExtensions: ['.ts'] } },
+			};
+
+			// @ts-expect-error - Jest mock typing
+			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
+			// @ts-ignore - Jest mock typing
+			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				JSON.stringify(existingConfig),
+			);
+
+			await command.run();
+
+			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
+			expect(promptQuestions[0].initial).toBe('my-existing-project');
+		});
+
+		it('should pre-select existing branch in branch selector', async () => {
+			const existingConfig = {
+				projectId: 'test-project',
+				branch: 'develop',
+				languages: { typescript: { fileExtensions: ['.ts'] } },
+			};
+
+			mockGit.listBranches.mockResolvedValue([
+				'main',
+				'develop',
+				'feature/test',
+			]);
+
+			// @ts-expect-error - Jest mock typing
+			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
+			// @ts-ignore - Jest mock typing
+			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				JSON.stringify(existingConfig),
+			);
+
+			await command.run();
+
+			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
+			// develop should be at index 1 in the list [main, develop, feature/test]
+			// But wait, current branch is 'main' so list is [main, develop, feature/test]
+			expect(promptQuestions[1].initial).toBe(1); // develop is at index 1
+		});
+
+		it('should pre-check existing languages in language selector', async () => {
+			const existingConfig = {
+				projectId: 'test-project',
+				branch: 'main',
+				languages: {
+					typescript: { fileExtensions: ['.ts'] },
+					python: { fileExtensions: ['.py'] },
+				},
+			};
+
+			// @ts-expect-error - Jest mock typing
+			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
+			// @ts-ignore - Jest mock typing
+			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				JSON.stringify(existingConfig),
+			);
+
+			await command.run();
+
+			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
+			const languageQuestion = promptQuestions[2];
+
+			// Verify initial property is set with display names for pre-selection
+			// Enquirer multiselect expects choice names (display text), not values
+			expect(languageQuestion.initial).toEqual(
+				expect.arrayContaining(['TypeScript', 'Python']),
+			);
+			expect(languageQuestion.initial).toHaveLength(2);
+		});
+
+		it('should show Updated message when reconfiguring existing project', async () => {
+			const existingConfig = {
+				projectId: 'test-project',
+				branch: 'main',
+				languages: { typescript: { fileExtensions: ['.ts'] } },
+			};
+
+			// @ts-expect-error - Jest mock typing
+			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
+			// @ts-ignore - Jest mock typing
+			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				JSON.stringify(existingConfig),
+			);
 
 			await command.run();
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('project already initialized'),
+				expect.stringContaining('Updated configuration file'),
 			);
-			expect(FileUtils.writeFile).not.toHaveBeenCalled();
-			expect(mockGit.stageFile).not.toHaveBeenCalled();
+		});
+
+		it('should handle invalid JSON in existing config gracefully', async () => {
+			// @ts-expect-error - Jest mock typing
+			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
+			// @ts-ignore - Jest mock typing
+			(FileUtils.readFile as jest.Mock).mockResolvedValue('invalid json {');
+
+			await command.run();
+
+			// Should show warning about invalid config
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('invalid, starting fresh'),
+			);
+
+			// Should still proceed with prompts and create new config
+			expect(mockPrompt).toHaveBeenCalled();
+			expect(FileUtils.writeFile).toHaveBeenCalled();
+		});
+
+		it('should use empty string as initial projectId when no existing config', async () => {
+			// @ts-expect-error - Jest mock typing
+			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(false);
+
+			await command.run();
+
+			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
+			expect(promptQuestions[0].initial).toBe('');
+		});
+
+		it('should default to current branch when existing config branch not in list', async () => {
+			const existingConfig = {
+				projectId: 'test-project',
+				branch: 'deleted-branch',
+				languages: { typescript: { fileExtensions: ['.ts'] } },
+			};
+
+			mockGit.listBranches.mockResolvedValue(['main', 'develop']);
+
+			// @ts-expect-error - Jest mock typing
+			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
+			// @ts-ignore - Jest mock typing
+			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				JSON.stringify(existingConfig),
+			);
+
+			await command.run();
+
+			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
+			// Should default to 0 (current branch) since deleted-branch is not in list
+			expect(promptQuestions[1].initial).toBe(0);
 		});
 
 		it('should throw error if git is not available', async () => {
@@ -156,15 +329,15 @@ describe('InitCommand', () => {
 			expect(FileUtils.writeFile).not.toHaveBeenCalled();
 		});
 
-		it('should prompt for project ID without default value', async () => {
+		it('should prompt for project ID with empty string as default when no existing config', async () => {
 			await command.run();
 
-			// Verify prompt was called with no initial value for project ID
+			// Verify prompt was called with empty initial value for project ID
 			expect(mockPrompt).toHaveBeenCalled();
 			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
 			expect(promptQuestions[0].name).toBe('projectId');
 			expect(promptQuestions[0].message).toBe('Constellation Project ID:');
-			expect(promptQuestions[0].initial).toBeUndefined();
+			expect(promptQuestions[0].initial).toBe('');
 			expect(promptQuestions[0].validate).toBeDefined();
 		});
 
@@ -208,6 +381,7 @@ describe('InitCommand', () => {
 			const promptQuestions = mockPrompt.mock.calls[0][0] as any;
 			const languageQuestion = promptQuestions[2];
 
+			// Choices should have name and value for each supported language
 			expect(languageQuestion.choices).toEqual([
 				{ name: 'C', value: 'c' },
 				{ name: 'C#', value: 'c-sharp' },
@@ -222,6 +396,9 @@ describe('InitCommand', () => {
 				{ name: 'Shell (Bash)', value: 'bash' },
 				{ name: 'TypeScript', value: 'typescript' },
 			]);
+
+			// Initial should be empty when no existing config
+			expect(languageQuestion.initial).toEqual([]);
 		});
 
 		it('should trim whitespace from project ID', async () => {

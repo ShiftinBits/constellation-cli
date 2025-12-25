@@ -1,9 +1,15 @@
-import pkg from 'enquirer';
+import Enquirer from 'enquirer';
 import path from 'node:path';
-const { prompt } = pkg;
+const { prompt } = Enquirer;
 
-import { IConstellationConfig } from '../config/config';
+import type {
+	IConstellationConfig,
+	IConstellationLanguageConfig,
+} from '../config/config';
 import { LANGUAGE_EXTENSIONS } from '../languages/language.registry';
+import { ConfigWriter } from '../mcp/config-writer';
+import { AI_TOOLS, getToolById } from '../mcp/tool-registry';
+import type { InitOptions, ToolConfigResult } from '../mcp/types';
 import { FileUtils } from '../utils/file.utils';
 import {
 	BLUE_INFO,
@@ -33,10 +39,11 @@ interface PromptResults {
 export default class InitCommand extends BaseCommand {
 	/**
 	 * Executes the initialization process.
-	 * Prompts user for configuration, creates constellation.json, and stages the file.
+	 * Prompts user for configuration, creates constellation.json, configures MCP servers, and stages files.
+	 * @param options - Optional configuration options
 	 * @throws Error if git is not available or directory is not a git repository
 	 */
-	public async run(): Promise<void> {
+	public async run(options: InitOptions = {}): Promise<void> {
 		try {
 			console.log(`${YELLOW_LIGHTNING}Initializing project configuration...\n`);
 
@@ -50,13 +57,22 @@ export default class InitCommand extends BaseCommand {
 
 			const configFilePath = path.join(process.cwd(), 'constellation.json');
 
-			// Exit early if config file already exists
+			// Load existing config if present (for idempotent re-initialization)
+			let existingConfig: IConstellationConfig | null = null;
 			const configExists = await FileUtils.fileIsReadable(configFilePath);
 			if (configExists) {
-				console.log(
-					`${GREEN_CHECK} Found existing constellation.json file, project already initialized.`,
-				);
-				return;
+				try {
+					const content = await FileUtils.readFile(configFilePath);
+					existingConfig = JSON.parse(content) as IConstellationConfig;
+					console.log(
+						`${BLUE_INFO} Found existing constellation.json, current values will be used as defaults.\n`,
+					);
+				} catch {
+					// Invalid JSON, proceed with fresh init
+					console.log(
+						`${YELLOW_WARN} Existing constellation.json is invalid, starting fresh.\n`,
+					);
+				}
 			}
 
 			// Check if CWD in a git repository
@@ -86,18 +102,30 @@ export default class InitCommand extends BaseCommand {
 				(branch) => branch !== currentBranch,
 			);
 
+			// Build branch choices and calculate initial selection
+			const branchChoices = currentBranch
+				? [currentBranch, ...otherBranches]
+				: otherBranches;
+			const branchInitialIndex = this.getBranchInitialIndex(
+				branchChoices,
+				existingConfig?.branch,
+			);
+
+			const existingLangs = this.getInitialLanguages(existingConfig);
+
 			// Prompt user for configuration values
 			const questions = [
 				{
 					message: 'Constellation Project ID:',
 					name: 'projectId',
 					type: 'input',
+					initial: existingConfig?.projectId ?? '',
 					validate: (value: string) =>
 						value.trim().length > 0 || 'Project ID is required',
 				},
 				{
-					choices: [currentBranch, ...otherBranches],
-					initial: 0,
+					choices: branchChoices,
+					initial: branchInitialIndex,
 					limit: 10,
 					maxChoices: 1,
 					message: 'Branch to index:',
@@ -108,21 +136,10 @@ export default class InitCommand extends BaseCommand {
 				{
 					type: 'multiselect',
 					name: 'languages',
+					multiple: true,
 					message: 'Select Language(s):',
-					choices: [
-						{ name: 'C', value: 'c' },
-						{ name: 'C#', value: 'c-sharp' },
-						{ name: 'C++', value: 'cpp' },
-						{ name: 'Go', value: 'go' },
-						{ name: 'JSON', value: 'json' },
-						{ name: 'Java', value: 'java' },
-						{ name: 'JavaScript', value: 'javascript' },
-						{ name: 'PHP', value: 'php' },
-						{ name: 'Python', value: 'python' },
-						{ name: 'Ruby', value: 'ruby' },
-						{ name: 'Shell (Bash)', value: 'bash' },
-						{ name: 'TypeScript', value: 'typescript' },
-					],
+					choices: this.buildLanguageChoices(existingConfig),
+					initial: existingLangs,
 					result(names: string[]) {
 						return names.map((name: string) => {
 							const choice = this.choices.find(
@@ -134,8 +151,10 @@ export default class InitCommand extends BaseCommand {
 				},
 			];
 
+			// Use Enquirer instance for better multiselect initial support
+			const enquirer = new Enquirer<PromptResults>();
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const answers = await prompt<PromptResults>(questions as any);
+			const answers = await enquirer.prompt(questions as any);
 
 			// Compose Constellation config
 			const constellationSettings: IConstellationConfig = {
@@ -166,7 +185,7 @@ export default class InitCommand extends BaseCommand {
 			// Write file to disk
 			FileUtils.writeFile(configFilePath, constellationJson);
 			console.log(
-				`${GREEN_CHECK} Initialized configuration file at ${configFilePath}`,
+				`${GREEN_CHECK} ${configExists ? 'Updated' : 'Initialized'} configuration file at ${configFilePath}`,
 			);
 
 			// Stage new file in git
@@ -174,6 +193,11 @@ export default class InitCommand extends BaseCommand {
 			console.log(
 				`${GREEN_CHECK} Added constellation.json to staged changes in git`,
 			);
+
+			// Configure MCP servers for AI coding assistants (unless skipped)
+			if (!options.skipMcp) {
+				await this.configureMCPServers();
+			}
 		} catch (error) {
 			const errorMessage =
 				(error as Error).message ?? 'An unexpected error occurred';
@@ -181,5 +205,175 @@ export default class InitCommand extends BaseCommand {
 				`${RED_X} Failed to initialize configuration file.\n${errorMessage}`,
 			);
 		}
+	}
+
+	/**
+	 * Configure MCP servers for AI coding assistants.
+	 */
+	private async configureMCPServers(): Promise<void> {
+		// Ask user if they want to configure MCP servers
+		const { configureMcp } = await prompt<{ configureMcp: boolean }>({
+			type: 'confirm',
+			name: 'configureMcp',
+			message: 'Configure MCP servers for AI coding assistants?',
+			initial: true,
+		});
+
+		if (!configureMcp) {
+			return;
+		}
+
+		// Build choices from all available tools
+		const choices = AI_TOOLS.map((tool) => ({
+			name: tool.displayName,
+			value: tool.id,
+		}));
+
+		// Multi-select prompt for tool selection
+		const { selectedTools } = await prompt<{ selectedTools: string[] }>({
+			type: 'multiselect',
+			name: 'selectedTools',
+			message: 'Select AI coding assistants to configure:',
+			choices,
+			result(names: string[]) {
+				return names.map((name: string) => {
+					const choice = this.choices.find(
+						(c: { name: string; value: string }) => c.name === name,
+					);
+					return choice?.value ?? name;
+				});
+			},
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		} as any);
+
+		if (selectedTools.length === 0) {
+			console.log(`${BLUE_INFO} No tools selected, skipping MCP configuration`);
+			return;
+		}
+
+		// Configure selected tools
+		const writer = new ConfigWriter(process.cwd());
+		const results: ToolConfigResult[] = [];
+
+		for (const toolId of selectedTools) {
+			const tool = getToolById(toolId);
+			if (!tool) continue;
+
+			console.log(`  ${BLUE_INFO} Configuring ${tool.displayName}...`);
+
+			const result = await writer.configureTool(tool);
+			results.push(result);
+
+			if (result.success) {
+				console.log(
+					`  ${GREEN_CHECK} ${tool.displayName} configured at ${result.configuredPath}`,
+				);
+				if (tool.permissionsConfig) {
+					console.log(
+						`  ${GREEN_CHECK} ${tool.displayName} permissions set in ${tool.permissionsConfig.filePath}`,
+					);
+				}
+			} else {
+				console.log(`  ${YELLOW_WARN} ${tool.displayName}: ${result.error}`);
+			}
+		}
+
+		// Summary
+		const successful = results.filter((r) => r.success).length;
+		const failed = results.filter((r) => !r.success).length;
+
+		console.log(
+			`\n${GREEN_CHECK} MCP configuration complete: ${successful} configured`,
+		);
+		if (failed > 0) {
+			console.log(`${YELLOW_WARN} ${failed} tool(s) could not be configured`);
+		}
+
+		// Reminder for tools that need restart
+		console.log(
+			`\n${BLUE_INFO} Some tools may require restart to pick up new configuration.`,
+		);
+	}
+
+	/**
+	 * Build language choices with pre-selection based on existing config.
+	 */
+	private buildLanguageChoices(
+		existingConfig: IConstellationConfig | null,
+	): Array<{
+		name: string;
+		value: string;
+	}> {
+		const languageList = [
+			{ name: 'C', value: 'c' },
+			{ name: 'C#', value: 'c-sharp' },
+			{ name: 'C++', value: 'cpp' },
+			{ name: 'Go', value: 'go' },
+			{ name: 'JSON', value: 'json' },
+			{ name: 'Java', value: 'java' },
+			{ name: 'JavaScript', value: 'javascript' },
+			{ name: 'PHP', value: 'php' },
+			{ name: 'Python', value: 'python' },
+			{ name: 'Ruby', value: 'ruby' },
+			{ name: 'Shell (Bash)', value: 'bash' },
+			{ name: 'TypeScript', value: 'typescript' },
+		];
+
+		return languageList;
+	}
+
+	/**
+	 * Get the language names to pre-select based on existing config.
+	 * Returns an array of display names for the enquirer initial property.
+	 * Enquirer multiselect initial expects choice names (display text), not values.
+	 */
+	private getInitialLanguages(
+		existingConfig: IConstellationConfig | null,
+	): string[] {
+		if (!existingConfig?.languages) {
+			return [];
+		}
+
+		// Map from config keys (values) to display names that enquirer expects
+		const valueToName: Record<string, string> = {
+			c: 'C',
+			'c-sharp': 'C#',
+			cpp: 'C++',
+			go: 'Go',
+			json: 'JSON',
+			java: 'Java',
+			javascript: 'JavaScript',
+			php: 'PHP',
+			python: 'Python',
+			ruby: 'Ruby',
+			bash: 'Shell (Bash)',
+			typescript: 'TypeScript',
+		};
+
+		// Return display names for languages that exist in the config
+		return Object.keys(existingConfig.languages)
+			.filter(
+				(key) =>
+					existingConfig.languages[
+						key as keyof IConstellationLanguageConfig
+					] !== undefined,
+			)
+			.map((key) => valueToName[key])
+			.filter((name): name is string => name !== undefined);
+	}
+
+	/**
+	 * Get the initial branch index based on existing config or default to current branch.
+	 */
+	private getBranchInitialIndex(
+		branches: string[],
+		existingBranch: string | undefined,
+	): number {
+		if (existingBranch) {
+			const idx = branches.indexOf(existingBranch);
+			if (idx !== -1) return idx;
+		}
+		// Default to current branch (always first in array)
+		return 0;
 	}
 }

@@ -1,0 +1,145 @@
+import { describe, expect, it } from '@jest/globals';
+import {
+	AI_TOOLS,
+	CONSTELLATION_MCP_CONFIG,
+	getProjectConfigurableTools,
+	getToolById,
+} from '../../../src/mcp/tool-registry';
+
+describe('tool-registry', () => {
+	describe('CONSTELLATION_MCP_CONFIG', () => {
+		it('should have correct command', () => {
+			expect(CONSTELLATION_MCP_CONFIG.command).toBe('npx');
+		});
+
+		it('should have correct args', () => {
+			expect(CONSTELLATION_MCP_CONFIG.args).toEqual([
+				'-y',
+				'@constellationdev/cli@latest',
+			]);
+		});
+	});
+
+	describe('AI_TOOLS', () => {
+		it('should contain 9 tools (project-configurable only)', () => {
+			expect(AI_TOOLS).toHaveLength(9);
+		});
+
+		it('should have all required properties for each tool', () => {
+			for (const tool of AI_TOOLS) {
+				expect(tool).toHaveProperty('id');
+				expect(tool).toHaveProperty('displayName');
+				expect(tool).toHaveProperty('configPath');
+				expect(tool).toHaveProperty('format');
+				expect(tool).toHaveProperty('mcpServersKeyPath');
+			}
+		});
+
+		it('should not include global-only tools', () => {
+			const globalOnlyIds = ['windsurf', 'codex-cli', 'opencode'];
+			for (const id of globalOnlyIds) {
+				const tool = AI_TOOLS.find((t) => t.id === id);
+				expect(tool).toBeUndefined();
+			}
+		});
+
+		it('should have cursor tool', () => {
+			const cursor = AI_TOOLS.find((t) => t.id === 'cursor');
+			expect(cursor).toBeDefined();
+			expect(cursor?.displayName).toBe('Cursor');
+			expect(cursor?.format).toBe('json');
+			expect(cursor?.configPath).toBe('.cursor/mcp.json');
+		});
+
+		it('should have claude-code tool with permissions config', () => {
+			const claudeCode = AI_TOOLS.find((t) => t.id === 'claude-code');
+			expect(claudeCode).toBeDefined();
+			expect(claudeCode?.displayName).toBe('Claude Code');
+			expect(claudeCode?.permissionsConfig).toBeDefined();
+			expect(claudeCode?.permissionsConfig?.filePath).toBe(
+				'.claude/settings.json',
+			);
+			expect(claudeCode?.permissionsConfig?.allowKeyPath).toEqual([
+				'permissions',
+				'allow',
+			]);
+			expect(claudeCode?.permissionsConfig?.allowValue).toBe(
+				'mcp__constellation__*',
+			);
+		});
+
+		it('should have gemini-cli tool', () => {
+			const gemini = AI_TOOLS.find((t) => t.id === 'gemini-cli');
+			expect(gemini).toBeDefined();
+			expect(gemini?.displayName).toBe('Gemini CLI');
+		});
+
+		it('should have github-copilot tool with servers keyPath', () => {
+			const copilot = AI_TOOLS.find((t) => t.id === 'github-copilot');
+			expect(copilot).toBeDefined();
+			expect(copilot?.displayName).toBe('GitHub Copilot');
+			expect(copilot?.mcpServersKeyPath).toEqual(['servers']);
+		});
+
+		it('should have amazon-q tool', () => {
+			const amazonQ = AI_TOOLS.find((t) => t.id === 'amazon-q');
+			expect(amazonQ).toBeDefined();
+			expect(amazonQ?.displayName).toBe('Amazon Q');
+		});
+
+		it('should have jetbrains-ai tool', () => {
+			const jetbrains = AI_TOOLS.find((t) => t.id === 'jetbrains-ai');
+			expect(jetbrains).toBeDefined();
+			expect(jetbrains?.displayName).toBe('JetBrains AI');
+		});
+
+		it('should have tabnine tool', () => {
+			const tabnine = AI_TOOLS.find((t) => t.id === 'tabnine');
+			expect(tabnine).toBeDefined();
+			expect(tabnine?.displayName).toBe('Tabnine');
+		});
+
+		it('should have cline tool', () => {
+			const cline = AI_TOOLS.find((t) => t.id === 'cline');
+			expect(cline).toBeDefined();
+			expect(cline?.displayName).toBe('Cline');
+		});
+
+		it('should have kilo-code tool with permissions config', () => {
+			const kilo = AI_TOOLS.find((t) => t.id === 'kilo-code');
+			expect(kilo).toBeDefined();
+			expect(kilo?.displayName).toBe('Kilo Code');
+			expect(kilo?.permissionsConfig).toBeDefined();
+			expect(kilo?.permissionsConfig?.filePath).toBe('.kilocode/mcp.json');
+			expect(kilo?.permissionsConfig?.allowKeyPath).toEqual([
+				'mcpServers',
+				'constellation',
+				'alwaysAllow',
+			]);
+			expect(kilo?.permissionsConfig?.allowValue).toBe('execute_code');
+		});
+	});
+
+	describe('getToolById', () => {
+		it('should return tool when found', () => {
+			const tool = getToolById('cursor');
+			expect(tool).toBeDefined();
+			expect(tool?.id).toBe('cursor');
+		});
+
+		it('should return undefined when not found', () => {
+			const tool = getToolById('nonexistent');
+			expect(tool).toBeUndefined();
+		});
+	});
+
+	describe('getProjectConfigurableTools', () => {
+		it('should return all tools (all have configPath)', () => {
+			const tools = getProjectConfigurableTools();
+			expect(tools).toHaveLength(AI_TOOLS.length);
+			for (const tool of tools) {
+				expect(tool.configPath).toBeDefined();
+			}
+		});
+	});
+});

@@ -8,7 +8,7 @@
 
 ## Reporting a Vulnerability
 
-We take security seriously. If you discover a security vulnerability in this GitHub Action, please report it responsibly.
+We take security seriously. If you discover a security vulnerability in this repository, please report it responsibly.
 
 ### How to Report
 
@@ -20,7 +20,7 @@ We take security seriously. If you discover a security vulnerability in this Git
 
 ### What to Expect
 
-- **Acknowledgment**: Within 48 hours
+- **Acknowledgment**: Within 72 hours
 - **Initial Assessment**: Within 7 days
 - **Resolution Timeline**: Depends on severity, typically within 30 days
 

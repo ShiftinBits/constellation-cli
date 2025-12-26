@@ -1,15 +1,15 @@
 import {
-	describe,
-	it,
-	expect,
-	jest,
-	beforeEach,
 	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	jest,
 } from '@jest/globals';
 import InitCommand from '../../../src/commands/init.command';
-import { GitClient } from '../../../src/utils/git-client';
-import { FileUtils } from '../../../src/utils/file.utils';
 import { LANGUAGE_EXTENSIONS } from '../../../src/languages/language.registry';
+import { FileUtils } from '../../../src/utils/file.utils';
+import { GitClient } from '../../../src/utils/git-client';
 
 // Mock enquirer - needs to handle both static prompt and instance prompt
 jest.mock('enquirer', () => {
@@ -140,8 +140,8 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				// @ts-expect-error - Jest mock typing
 				JSON.stringify(existingConfig),
 			);
 
@@ -166,8 +166,8 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				// @ts-expect-error - Jest mock typing
 				JSON.stringify(existingConfig),
 			);
 
@@ -192,8 +192,9 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-expect-error - Jest mock typing
+
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				// @ts-expect-error - Jest mock typing
 				JSON.stringify(existingConfig),
 			);
 
@@ -217,8 +218,8 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				// @ts-expect-error - Jest mock typing
 				JSON.stringify(existingConfig),
 			);
 
@@ -244,8 +245,8 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				// @ts-expect-error - Jest mock typing
 				JSON.stringify(existingConfig),
 			);
 
@@ -295,8 +296,8 @@ describe('InitCommand', () => {
 
 			// @ts-expect-error - Jest mock typing
 			(FileUtils.fileIsReadable as jest.Mock).mockResolvedValue(true);
-			// @ts-expect-error - Jest mock typing
 			(FileUtils.readFile as jest.Mock).mockResolvedValue(
+				// @ts-expect-error - Jest mock typing
 				JSON.stringify(existingConfig),
 			);
 

@@ -1,24 +1,13 @@
-<div align="center">
+# Constellation CLI
 
-# 🌟 Constellation CLI
+[![NPM Version](https://img.shields.io/npm/v/@constellationdev/cli?logo=npm&logoColor=white)](https://www.npmjs.com/package/@constellationdev/cli) [![MCP Server](https://img.shields.io/badge/mcp-@constellationdev/mcp-black.svg?logo=modelcontextprotocol)](https://github.com/ShiftinBits/constellation-mcp) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0) [![Made with Claude Code](https://img.shields.io/badge/made%20with%20claude%20code-D97757.svg?logo=claude&logoColor=white)](https://www.anthropic.com/claude-code)
 
-**Connecting the stars in your code into intelligent patterns**
+[Installation](#installation) •
+[Quick Start](#quick-start) •
+[Commands](#commands) •
+[Configuration](#configuration)
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
-
-[Installation](#-installation) •
-[Quick Start](#-quick-start) •
-[Commands](#-commands) •
-[Configuration](#-configuration) •
-[Development](#-development)
-
-</div>
-
----
-
-## 📖 Overview
+## Overview
 
 The Constellation CLI parses your source code locally using Tree-sitter and uploads Abstract Syntax Tree (AST) metadata to the Constellation service. This creates a shared code intelligence graph that powers AI development tools via the Constellation MCP server.
 
@@ -31,16 +20,16 @@ The Constellation CLI parses your source code locally using Tree-sitter and uplo
 - **Always Current**: Incremental indexing keeps intelligence synchronized with your codebase
 - **Zero Local Overhead**: AI assistants get instant context via MCP without indexing delays
 
-## ✨ Features
+## Features
 
-### 🚀 Smart Indexing
+### Smart Indexing
 
 - **Incremental Updates**: Only processes files changed since last index
 - **Full Re-indexing**: Force complete project re-analysis when needed
 - **Git-Aware**: Automatically tracks changes using Git history
 - **CI/CD Ready**: Integrate into pipelines to keep intelligence current
 
-### 🌐 Multi-Language Support
+### Multi-Language Support
 
 Currently supports:
 
@@ -49,14 +38,14 @@ Currently supports:
 
 _Additional languages (C, C++, C#, Go, Java, JSON, PHP, Python, Ruby, Shell) coming soon_
 
-### 🔒 Security
+### Security
 
-- Local parsing with Tree-sitter—source code never transmitted
-- Only AST metadata sent (compressed with gzip)
-- API key-based authentication
+- Local parsing of source code, never transmitted
+- Only code metadata sent (compressed with gzip)
+- API key based authentication
 - Respects `.gitignore` and Git configuration
 
-## 📦 Installation
+## Installation
 
 ### Globally Install NPM Package
 
@@ -70,7 +59,7 @@ npm install -g @constellationdev/cli@latest
 - Git installed and available in PATH
 - Git repository
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Initialize Your Project
 
@@ -108,7 +97,7 @@ constellation index
 constellation index --full
 ```
 
-## 📚 Commands
+## Commands
 
 ### `constellation init`
 
@@ -164,7 +153,7 @@ constellation index [options]
 - Git-tracked files only (respects `.gitignore`)
 - Files from configured branch
 
-## ⚙️ Configuration
+## Configuration
 
 The `constellation.json` file controls indexing:
 
@@ -266,7 +255,7 @@ jobs:
 - Processes all project files
 - Use after significant configuration changes or first-time setup
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 | Issue                          | Solution                                                           |
 | ------------------------------ | ------------------------------------------------------------------ |
@@ -281,17 +270,17 @@ jobs:
 
 - Documentation: `constellation --help`
 - Issues: [GitHub Issues](https://github.com/ShiftinBits/constellation-cli/issues)
-- Website: [constellationdev.io](https://constellationdev.io)
+- Documentation: [docs.constellationdev.io](https://docs.constellationdev.io/docs/cli)
 
-## 📄 License
+## License
 
 GNU Affero General Public License v3.0 (AGPL-3.0)
 
-Copyright (C) 2025 ShiftinBits Inc.
+Copyright © 2026 ShiftinBits Inc.
 
 See [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [Tree-sitter](https://tree-sitter.github.io/tree-sitter/) for fast, reliable parsing
 - [Commander.js](https://github.com/tj/commander.js) for CLI framework

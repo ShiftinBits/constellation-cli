@@ -1,6 +1,6 @@
 # Constellation CLI
 
-[![NPM Version](https://img.shields.io/npm/v/@constellationdev/cli?logo=npm&logoColor=white)](https://www.npmjs.com/package/@constellationdev/cli) [![MCP Server](https://img.shields.io/badge/mcp-@constellationdev/mcp-black.svg?logo=modelcontextprotocol)](https://github.com/ShiftinBits/constellation-mcp) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0) [![Made with Claude Code](https://img.shields.io/badge/made%20with%20Claude%20Code-D97757.svg?logo=claude&logoColor=white)](https://www.anthropic.com/claude-code)
+[![NPM Version](https://img.shields.io/npm/v/@constellationdev/cli?logo=npm&logoColor=white)](https://www.npmjs.com/package/@constellationdev/cli) [![MCP Server](https://img.shields.io/badge/mcp-@constellationdev/mcp-black.svg?logo=modelcontextprotocol)](https://github.com/ShiftinBits/constellation-mcp) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE) [![Made with Claude Code](https://img.shields.io/badge/made%20with%20Claude%20Code-D97757.svg?logo=claude&logoColor=white)](https://www.anthropic.com/claude-code)
 
 [Installation](#installation) •
 [Quick Start](#quick-start) •

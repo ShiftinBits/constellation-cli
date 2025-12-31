@@ -297,7 +297,12 @@ export class ConstellationClient {
 	 * @throws Error if request fails with non-retryable error
 	 */
 	private async delete(path: string): Promise<void> {
-		const response = await this.sendRequest(path, undefined, 'DELETE');
+		// Include required project headers for API authorization
+		const headers = {
+			'x-project-id': this.config.projectId,
+			'x-branch-name': this.config.branch,
+		};
+		const response = await this.sendRequest(path, undefined, 'DELETE', headers);
 
 		// Handle 401 responses gracefully
 		if (!response) {

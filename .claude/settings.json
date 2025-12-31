@@ -21,5 +21,16 @@
 		"deny": [],
 		"ask": []
 	},
-	"enableAllProjectMcpServers": true
+	"enableAllProjectMcpServers": true,
+	"extraKnownMarketplaces": {
+		"constellation-marketplace": {
+			"source": {
+				"source": "github",
+				"repo": "ShiftinBits/constellation-claude"
+			}
+		}
+	},
+	"enabledPlugins": {
+		"constellation@constellation-marketplace": true
+	}
 }

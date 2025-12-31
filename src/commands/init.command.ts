@@ -215,7 +215,8 @@ export default class InitCommand extends BaseCommand {
 		const { configureMcp } = await prompt<{ configureMcp: boolean }>({
 			type: 'confirm',
 			name: 'configureMcp',
-			message: 'Configure MCP servers for AI coding assistants?',
+			message:
+				'Automatically configure Constellation for AI coding assistants?',
 			initial: true,
 		});
 
@@ -275,6 +276,24 @@ export default class InitCommand extends BaseCommand {
 				}
 			} else {
 				console.log(`  ${YELLOW_WARN} ${tool.displayName}: ${result.error}`);
+			}
+		}
+
+		// Stage Claude Code settings file if it was configured
+		const claudeCodeResult = results.find(
+			(r) => r.tool.id === 'claude-code' && r.success,
+		);
+		if (claudeCodeResult) {
+			const settingsPath = path.join(process.cwd(), '.claude/settings.json');
+			try {
+				await this.git!.stageFile(settingsPath);
+				console.log(
+					`  ${GREEN_CHECK} Added .claude/settings.json to staged changes in git`,
+				);
+			} catch {
+				console.log(
+					`  ${YELLOW_WARN} Could not stage .claude/settings.json in git`,
+				);
 			}
 		}
 

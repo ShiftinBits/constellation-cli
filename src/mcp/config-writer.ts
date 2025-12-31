@@ -6,7 +6,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { FileUtils } from '../utils/file.utils';
 import { CONSTELLATION_MCP_CONFIG } from './tool-registry';
-import type { AITool, PermissionsConfig, ToolConfigResult } from './types';
+import type {
+	AITool,
+	MarketplaceConfig,
+	PermissionsConfig,
+	ToolConfigResult,
+} from './types';
 
 // Dynamic import for TOML support (only loaded when needed)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,6 +69,11 @@ export class ConfigWriter {
 			// Handle permissions if configured
 			if (tool.permissionsConfig) {
 				await this.configurePermissions(tool.permissionsConfig);
+			}
+
+			// Handle marketplace configuration if configured
+			if (tool.marketplaceConfig) {
+				await this.configureMarketplace(tool.marketplaceConfig);
 			}
 
 			return {
@@ -214,5 +224,70 @@ export class ConfigWriter {
 			permissionsPath,
 			JSON.stringify(settings, null, '\t') + '\n',
 		);
+	}
+
+	/**
+	 * Configure marketplace settings for tools that support plugin marketplaces.
+	 * Deep merges the configuration to preserve existing settings.
+	 */
+	private async configureMarketplace(
+		marketplaceConfig: MarketplaceConfig,
+	): Promise<void> {
+		const marketplacePath = path.join(this.cwd, marketplaceConfig.filePath);
+		await this.ensureDirectoryExists(marketplacePath);
+
+		let settings: Record<string, unknown> = {};
+
+		try {
+			const exists = await FileUtils.fileIsReadable(marketplacePath);
+			if (exists) {
+				const content = await FileUtils.readFile(marketplacePath);
+				settings = JSON.parse(content) as Record<string, unknown>;
+			}
+		} catch {
+			// File doesn't exist or is invalid - start fresh
+		}
+
+		// Deep merge the marketplace configuration
+		settings = this.deepMerge(settings, marketplaceConfig.config);
+
+		await FileUtils.writeFile(
+			marketplacePath,
+			JSON.stringify(settings, null, '\t') + '\n',
+		);
+	}
+
+	/**
+	 * Deep merge two objects, preserving nested structures.
+	 * Arrays are replaced, not merged.
+	 */
+	private deepMerge(
+		target: Record<string, unknown>,
+		source: Record<string, unknown>,
+	): Record<string, unknown> {
+		const result = { ...target };
+
+		for (const key of Object.keys(source)) {
+			const sourceValue = source[key];
+			const targetValue = target[key];
+
+			if (
+				sourceValue &&
+				typeof sourceValue === 'object' &&
+				!Array.isArray(sourceValue) &&
+				targetValue &&
+				typeof targetValue === 'object' &&
+				!Array.isArray(targetValue)
+			) {
+				result[key] = this.deepMerge(
+					targetValue as Record<string, unknown>,
+					sourceValue as Record<string, unknown>,
+				);
+			} else {
+				result[key] = sourceValue;
+			}
+		}
+
+		return result;
 	}
 }

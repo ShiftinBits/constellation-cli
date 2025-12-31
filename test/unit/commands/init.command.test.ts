@@ -703,5 +703,18 @@ describe('InitCommand', () => {
 			const configContent = JSON.parse(writeCall[1] as string);
 			expect(configContent.projectId).toBe('test-project_v2.0');
 		});
+
+		it('should skip MCP configuration when skipMcp option is true', async () => {
+			await command.run({ skipMcp: true });
+
+			// constellation.json should still be created
+			expect(FileUtils.writeFile).toHaveBeenCalled();
+			expect(mockGit.stageFile).toHaveBeenCalledWith(
+				expect.stringContaining('constellation.json'),
+			);
+
+			// Only one stageFile call (constellation.json, no MCP-related staging)
+			expect(mockGit.stageFile).toHaveBeenCalledTimes(1);
+		});
 	});
 });

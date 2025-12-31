@@ -128,13 +128,112 @@ describe('ConfigWriter', () => {
 			const claudeCode = AI_TOOLS.find((t) => t.id === 'claude-code')!;
 			await writer.configureTool(claudeCode);
 
-			// Should have two write calls: config and permissions
-			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(2);
+			// Should have three write calls: config, permissions, and marketplace
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(3);
 
 			// Check permissions file was written with correct structure
 			const permissionsCall = mockFileUtils.writeFile.mock.calls[1];
 			const settings = JSON.parse(permissionsCall[1] as string);
 			expect(settings.permissions.allow).toContain('mcp__constellation__*');
+		});
+
+		it('should configure Claude Code marketplace settings', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const claudeCode = AI_TOOLS.find((t) => t.id === 'claude-code')!;
+			await writer.configureTool(claudeCode);
+
+			// Should have three write calls: config, permissions, and marketplace
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(3);
+
+			// Find the marketplace write call (last one to .claude/settings.json)
+			const marketplaceCall = mockFileUtils.writeFile.mock.calls[2];
+			const settings = JSON.parse(marketplaceCall[1] as string);
+
+			// Check marketplace configuration
+			expect(settings.extraKnownMarketplaces).toBeDefined();
+			expect(
+				settings.extraKnownMarketplaces['constellation-marketplace'],
+			).toBeDefined();
+			expect(
+				settings.extraKnownMarketplaces['constellation-marketplace'].source
+					.source,
+			).toBe('github');
+			expect(
+				settings.extraKnownMarketplaces['constellation-marketplace'].source
+					.repo,
+			).toBe('ShiftinBits/constellation-claude');
+
+			// Check enabled plugins
+			expect(settings.enabledPlugins).toBeDefined();
+			expect(
+				settings.enabledPlugins['constellation@constellation-marketplace'],
+			).toBe(true);
+		});
+
+		it('should deep merge marketplace settings preserving existing properties', async () => {
+			const existingSettings = {
+				someExistingProperty: 'value',
+				extraKnownMarketplaces: {
+					'other-marketplace': {
+						source: { source: 'github', repo: 'other/repo' },
+					},
+				},
+				enabledPlugins: {
+					'other-plugin@other-marketplace': true,
+				},
+			};
+
+			mockFileUtils.fileIsReadable.mockImplementation(async (path) => {
+				if (typeof path === 'string' && path.includes('settings.json')) {
+					return true;
+				}
+				return false;
+			});
+			mockFileUtils.readFile.mockImplementation(async (path) => {
+				if (typeof path === 'string' && path.includes('settings.json')) {
+					return JSON.stringify(existingSettings);
+				}
+				return '{}';
+			});
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const claudeCode = AI_TOOLS.find((t) => t.id === 'claude-code')!;
+			await writer.configureTool(claudeCode);
+
+			// Find the last marketplace write call
+			const marketplaceCalls = mockFileUtils.writeFile.mock.calls.filter(
+				(call) =>
+					typeof call[0] === 'string' && call[0].includes('settings.json'),
+			);
+			const lastMarketplaceCall = marketplaceCalls[marketplaceCalls.length - 1];
+			const settings = JSON.parse(lastMarketplaceCall[1] as string);
+
+			// Should preserve existing top-level property
+			expect(settings.someExistingProperty).toBe('value');
+
+			// Should preserve existing marketplace
+			expect(
+				settings.extraKnownMarketplaces['other-marketplace'],
+			).toBeDefined();
+
+			// Should add new marketplace
+			expect(
+				settings.extraKnownMarketplaces['constellation-marketplace'],
+			).toBeDefined();
+
+			// Should preserve existing enabled plugin
+			expect(settings.enabledPlugins['other-plugin@other-marketplace']).toBe(
+				true,
+			);
+
+			// Should add new enabled plugin
+			expect(
+				settings.enabledPlugins['constellation@constellation-marketplace'],
+			).toBe(true);
 		});
 
 		it('should configure Kilo Code permissions with different allowKeyPath', async () => {

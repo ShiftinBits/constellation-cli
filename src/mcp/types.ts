@@ -27,6 +27,16 @@ export interface PermissionsConfig {
 }
 
 /**
+ * Marketplace configuration for tools that support plugin marketplaces.
+ */
+export interface MarketplaceConfig {
+	/** Project-level config path (relative to cwd) */
+	filePath: string;
+	/** Configuration object to deep merge into the file */
+	config: Record<string, unknown>;
+}
+
+/**
  * Represents an AI coding assistant tool that supports MCP.
  */
 export interface AITool {
@@ -40,6 +50,8 @@ export interface AITool {
 	format: 'json' | 'toml';
 	/** Permissions file locations (project only - never set global permissions) */
 	permissionsConfig?: PermissionsConfig;
+	/** Marketplace configuration (for tools that support plugin marketplaces) */
+	marketplaceConfig?: MarketplaceConfig;
 	/** Key path within config where mcpServers lives */
 	mcpServersKeyPath: string[];
 }

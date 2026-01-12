@@ -54,6 +54,8 @@ export interface AITool {
 	marketplaceConfig?: MarketplaceConfig;
 	/** Key path within config where mcpServers lives */
 	mcpServersKeyPath: string[];
+	/** Tool-specific environment variables to add to MCP server config */
+	mcpEnv?: Record<string, string>;
 }
 
 /**

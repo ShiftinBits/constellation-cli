@@ -148,7 +148,12 @@ export class ConfigWriter {
 
 		// Add constellation server (idempotent - won't overwrite if exists)
 		if (!mcpServers.constellation) {
-			mcpServers.constellation = { ...CONSTELLATION_MCP_CONFIG };
+			const serverConfig = { ...CONSTELLATION_MCP_CONFIG };
+			// Merge tool-specific environment variables if defined
+			if (tool.mcpEnv) {
+				serverConfig.env = { ...serverConfig.env, ...tool.mcpEnv };
+			}
+			mcpServers.constellation = serverConfig;
 		}
 
 		return config;

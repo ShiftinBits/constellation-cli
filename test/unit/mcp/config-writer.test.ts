@@ -256,6 +256,22 @@ describe('ConfigWriter', () => {
 			);
 		});
 
+		it('should include env configuration for Kilo Code', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const kiloCode = AI_TOOLS.find((t) => t.id === 'kilo-code')!;
+			await writer.configureTool(kiloCode);
+
+			// Check MCP config has env block
+			const configCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(configCall[1] as string);
+			expect(config.mcpServers.constellation.env).toEqual({
+				CONSTELLATION_ACCESS_KEY: '${env:CONSTELLATION_ACCESS_KEY}',
+			});
+		});
+
 		it('should preserve existing permissions when adding constellation', async () => {
 			mockFileUtils.fileIsReadable.mockImplementation(async (path) => {
 				if (typeof path === 'string' && path.includes('settings.json')) {

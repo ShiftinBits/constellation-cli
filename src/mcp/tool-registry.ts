@@ -111,6 +111,9 @@ export const AI_TOOLS: AITool[] = [
 			allowValue: 'execute_code',
 		},
 		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: '${env:CONSTELLATION_ACCESS_KEY}',
+		},
 	},
 ];
 

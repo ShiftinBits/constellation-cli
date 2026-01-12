@@ -21,8 +21,8 @@ describe('tool-registry', () => {
 	});
 
 	describe('AI_TOOLS', () => {
-		it('should contain 9 tools (project-configurable only)', () => {
-			expect(AI_TOOLS).toHaveLength(9);
+		it('should contain 10 tools', () => {
+			expect(AI_TOOLS).toHaveLength(10);
 		});
 
 		it('should have all required properties for each tool', () => {
@@ -35,9 +35,9 @@ describe('tool-registry', () => {
 			}
 		});
 
-		it('should not include global-only tools', () => {
-			const globalOnlyIds = ['windsurf', 'codex-cli', 'opencode'];
-			for (const id of globalOnlyIds) {
+		it('should not include unsupported global-only tools', () => {
+			const unsupportedGlobalIds = ['windsurf', 'opencode'];
+			for (const id of unsupportedGlobalIds) {
 				const tool = AI_TOOLS.find((t) => t.id === id);
 				expect(tool).toBeUndefined();
 			}
@@ -103,6 +103,16 @@ describe('tool-registry', () => {
 			const cline = AI_TOOLS.find((t) => t.id === 'cline');
 			expect(cline).toBeDefined();
 			expect(cline?.displayName).toBe('Cline');
+		});
+
+		it('should have codex-cli tool with TOML format', () => {
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli');
+			expect(codex).toBeDefined();
+			expect(codex?.displayName).toBe('Codex CLI');
+			expect(codex?.format).toBe('toml');
+			expect(codex?.isGlobalConfig).toBe(true);
+			expect(codex?.mcpServersKeyPath).toEqual(['mcp_servers']);
+			expect(codex?.getGlobalConfigPaths).toBeDefined();
 		});
 
 		it('should have kilo-code tool with permissions config', () => {

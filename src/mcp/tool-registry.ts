@@ -5,6 +5,8 @@
 import {
 	getClinePrimarySettingsPath,
 	getClineSettingsPaths,
+	getCodexConfigPaths,
+	getCodexPrimaryConfigPath,
 } from '../utils/platform.utils';
 import type { AITool, MCPServerConfig } from './types';
 
@@ -34,9 +36,8 @@ export const CLAUDE_CODE_MARKETPLACE_CONFIG = {
 };
 
 /**
- * Registry of AI coding assistant tools that support project-level MCP configuration.
- * NOTE: Only tools with local project config support are included.
- * Global-only tools (windsurf, codex-cli, opencode) are excluded.
+ * Registry of AI coding assistant tools that support MCP configuration.
+ * Includes both project-level and global config tools.
  */
 export const AI_TOOLS: AITool[] = [
 	{
@@ -109,6 +110,15 @@ export const AI_TOOLS: AITool[] = [
 			alwaysAllow: ['execute_code'],
 			disabled: false,
 		},
+	},
+	{
+		id: 'codex-cli',
+		displayName: 'Codex CLI',
+		configPath: getCodexPrimaryConfigPath(),
+		isGlobalConfig: true,
+		getGlobalConfigPaths: getCodexConfigPaths,
+		format: 'toml',
+		mcpServersKeyPath: ['mcp_servers'],
 	},
 	{
 		id: 'kilo-code',

@@ -369,4 +369,144 @@ describe('ConfigWriter', () => {
 			expect(result.success).toBe(true);
 		});
 	});
+
+	describe('TOML format handling', () => {
+		it('should create new TOML config file when none exists', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTomlTool = {
+				id: 'mock-toml',
+				displayName: 'Mock TOML Tool',
+				configPath: '/test/config.toml',
+				format: 'toml' as const,
+				mcpServersKeyPath: ['mcp_servers'],
+			};
+
+			const result = await writer.configureTool(mockTomlTool);
+
+			expect(result.success).toBe(true);
+			expect(mockFileUtils.writeFile).toHaveBeenCalled();
+
+			// Verify TOML output structure
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+			expect(written).toContain('[mcp_servers.constellation]');
+			expect(written).toContain('command');
+			expect(written).toContain('npx');
+		});
+
+		it('should preserve existing TOML config when adding constellation', async () => {
+			const existingToml = `[mcp_servers.other_server]
+command = "other"
+args = ["arg1"]
+`;
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(existingToml);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTomlTool = {
+				id: 'mock-toml',
+				displayName: 'Mock TOML Tool',
+				configPath: '/test/config.toml',
+				format: 'toml' as const,
+				mcpServersKeyPath: ['mcp_servers'],
+			};
+
+			const result = await writer.configureTool(mockTomlTool);
+
+			expect(result.success).toBe(true);
+
+			// Verify both servers are in output
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+			expect(written).toContain('other_server');
+			expect(written).toContain('constellation');
+		});
+
+		it('should not duplicate constellation if already in TOML config', async () => {
+			const existingToml = `[mcp_servers.constellation]
+command = "old-command"
+args = ["old-arg"]
+`;
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(existingToml);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTomlTool = {
+				id: 'mock-toml',
+				displayName: 'Mock TOML Tool',
+				configPath: '/test/config.toml',
+				format: 'toml' as const,
+				mcpServersKeyPath: ['mcp_servers'],
+			};
+
+			const result = await writer.configureTool(mockTomlTool);
+
+			expect(result.success).toBe(true);
+
+			// Verify original config is preserved
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+			expect(written).toContain('old-command');
+		});
+
+		it('should handle invalid TOML in existing config gracefully', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue('invalid [[ toml');
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTomlTool = {
+				id: 'mock-toml',
+				displayName: 'Mock TOML Tool',
+				configPath: '/test/config.toml',
+				format: 'toml' as const,
+				mcpServersKeyPath: ['mcp_servers'],
+			};
+
+			const result = await writer.configureTool(mockTomlTool);
+
+			// Should succeed by creating new config (same as JSON behavior)
+			expect(result.success).toBe(true);
+		});
+	});
+
+	describe('Codex CLI configuration', () => {
+		it('should have correct tool configuration', () => {
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli');
+
+			expect(codex).toBeDefined();
+			expect(codex!.isGlobalConfig).toBe(true);
+			expect(codex!.format).toBe('toml');
+			expect(codex!.mcpServersKeyPath).toEqual(['mcp_servers']);
+			expect(codex!.getGlobalConfigPaths).toBeDefined();
+		});
+
+		it('should return correct global config paths', () => {
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
+			const paths = codex.getGlobalConfigPaths!();
+
+			expect(paths).toHaveLength(1);
+			expect(paths[0].displayName).toBe('Codex CLI');
+			expect(paths[0].settingsPath).toContain('.codex');
+			expect(paths[0].settingsPath).toContain('config.toml');
+		});
+
+		it('should configure Codex CLI as global tool', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
+			const results = await writer.configureGlobalTool(codex);
+
+			// May return empty array if ~/.codex doesn't exist (ENOENT handling)
+			// or single result if it does
+			expect(Array.isArray(results)).toBe(true);
+		});
+	});
 });

@@ -282,14 +282,18 @@ export default class InitCommand extends BaseCommand {
 				}
 
 				if (anySuccess) {
+					const settingsType =
+						tool.id === 'cline' ? 'global VS Code settings' : 'global settings';
 					console.log(
-						`  ${BLUE_INFO} Note: ${tool.displayName} uses global VS Code settings (not project-level)`,
+						`  ${BLUE_INFO} Note: ${tool.displayName} uses ${settingsType} (not project-level)`,
 					);
 				}
 				if (globalResults.length === 0) {
-					console.log(
-						`  ${YELLOW_WARN} ${tool.displayName}: No VS Code installations found`,
-					);
+					const notFoundMsg =
+						tool.id === 'cline'
+							? 'No VS Code installations found'
+							: 'Configuration directory not found';
+					console.log(`  ${YELLOW_WARN} ${tool.displayName}: ${notFoundMsg}`);
 				}
 			} else {
 				// Handle project-level config tools

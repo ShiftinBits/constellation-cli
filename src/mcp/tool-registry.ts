@@ -2,6 +2,10 @@
  * Registry of all supported AI coding assistant tools and their MCP configuration.
  */
 
+import {
+	getClinePrimarySettingsPath,
+	getClineSettingsPaths,
+} from '../utils/platform.utils';
 import type { AITool, MCPServerConfig } from './types';
 
 /**
@@ -96,9 +100,15 @@ export const AI_TOOLS: AITool[] = [
 	{
 		id: 'cline',
 		displayName: 'Cline',
-		configPath: '.vscode/mcp.json',
+		configPath: getClinePrimarySettingsPath(),
+		isGlobalConfig: true,
+		getGlobalConfigPaths: getClineSettingsPaths,
 		format: 'json',
 		mcpServersKeyPath: ['mcpServers'],
+		mcpServerExtras: {
+			alwaysAllow: ['execute_code'],
+			disabled: false,
+		},
 	},
 	{
 		id: 'kilo-code',

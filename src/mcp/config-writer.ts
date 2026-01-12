@@ -8,6 +8,7 @@ import { FileUtils } from '../utils/file.utils';
 import { CONSTELLATION_MCP_CONFIG } from './tool-registry';
 import type {
 	AITool,
+	GlobalConfigPath,
 	MarketplaceConfig,
 	PermissionsConfig,
 	ToolConfigResult,
@@ -91,6 +92,67 @@ export class ConfigWriter {
 	}
 
 	/**
+	 * Configure a global tool (like Cline) that may have multiple installation paths.
+	 * Configures all available installations.
+	 */
+	async configureGlobalTool(tool: AITool): Promise<ToolConfigResult[]> {
+		if (!tool.getGlobalConfigPaths) {
+			return [
+				{ tool, success: false, error: 'No global config paths defined' },
+			];
+		}
+
+		const paths: GlobalConfigPath[] = tool.getGlobalConfigPaths();
+		const results: ToolConfigResult[] = [];
+
+		for (const { displayName, settingsPath } of paths) {
+			try {
+				// Ensure directory exists
+				await this.ensureDirectoryExists(settingsPath);
+
+				// Read existing config or create new
+				let config = await this.readConfig(settingsPath, tool.format);
+
+				// Add Constellation MCP server
+				config = this.addConstellationServer(config, tool);
+
+				// Write updated config
+				await this.writeConfig(settingsPath, config, tool.format);
+
+				results.push({
+					tool: {
+						...tool,
+						displayName: `${tool.displayName} (${displayName})`,
+					},
+					success: true,
+					configuredPath: settingsPath,
+				});
+			} catch (error) {
+				// Skip installations that don't exist (VS Code variant not installed)
+				// Only report actual errors, not ENOENT for parent directories
+				const errorMessage =
+					error instanceof Error ? error.message : String(error);
+				const isNotFound =
+					errorMessage.includes('ENOENT') ||
+					errorMessage.includes('no such file');
+
+				if (!isNotFound) {
+					results.push({
+						tool: {
+							...tool,
+							displayName: `${tool.displayName} (${displayName})`,
+						},
+						success: false,
+						error: errorMessage,
+					});
+				}
+			}
+		}
+
+		return results;
+	}
+
+	/**
 	 * Ensure the directory for a config file exists.
 	 */
 	private async ensureDirectoryExists(filePath: string): Promise<void> {
@@ -148,11 +210,20 @@ export class ConfigWriter {
 
 		// Add constellation server (idempotent - won't overwrite if exists)
 		if (!mcpServers.constellation) {
-			const serverConfig = { ...CONSTELLATION_MCP_CONFIG };
+			const serverConfig: Record<string, unknown> = {
+				...CONSTELLATION_MCP_CONFIG,
+			};
+
+			// Add tool-specific extras (alwaysAllow, disabled, etc.)
+			if (tool.mcpServerExtras) {
+				Object.assign(serverConfig, tool.mcpServerExtras);
+			}
+
 			// Merge tool-specific environment variables if defined
 			if (tool.mcpEnv) {
-				serverConfig.env = { ...serverConfig.env, ...tool.mcpEnv };
+				serverConfig.env = { ...CONSTELLATION_MCP_CONFIG.env, ...tool.mcpEnv };
 			}
+
 			mcpServers.constellation = serverConfig;
 		}
 

@@ -262,20 +262,52 @@ export default class InitCommand extends BaseCommand {
 
 			console.log(`  ${BLUE_INFO} Configuring ${tool.displayName}...`);
 
-			const result = await writer.configureTool(tool);
-			results.push(result);
+			// Handle global config tools (like Cline) with multiple installation paths
+			if (tool.isGlobalConfig && tool.getGlobalConfigPaths) {
+				const globalResults = await writer.configureGlobalTool(tool);
+				let anySuccess = false;
 
-			if (result.success) {
-				console.log(
-					`  ${GREEN_CHECK} ${tool.displayName} configured at ${result.configuredPath}`,
-				);
-				if (tool.permissionsConfig) {
+				for (const result of globalResults) {
+					results.push(result);
+					if (result.success) {
+						anySuccess = true;
+						console.log(
+							`  ${GREEN_CHECK} ${result.tool.displayName} configured at ${result.configuredPath}`,
+						);
+					} else if (result.error) {
+						console.log(
+							`  ${YELLOW_WARN} ${result.tool.displayName}: ${result.error}`,
+						);
+					}
+				}
+
+				if (anySuccess) {
 					console.log(
-						`  ${GREEN_CHECK} ${tool.displayName} permissions set in ${tool.permissionsConfig.filePath}`,
+						`  ${BLUE_INFO} Note: ${tool.displayName} uses global VS Code settings (not project-level)`,
+					);
+				}
+				if (globalResults.length === 0) {
+					console.log(
+						`  ${YELLOW_WARN} ${tool.displayName}: No VS Code installations found`,
 					);
 				}
 			} else {
-				console.log(`  ${YELLOW_WARN} ${tool.displayName}: ${result.error}`);
+				// Handle project-level config tools
+				const result = await writer.configureTool(tool);
+				results.push(result);
+
+				if (result.success) {
+					console.log(
+						`  ${GREEN_CHECK} ${tool.displayName} configured at ${result.configuredPath}`,
+					);
+					if (tool.permissionsConfig) {
+						console.log(
+							`  ${GREEN_CHECK} ${tool.displayName} permissions set in ${tool.permissionsConfig.filePath}`,
+						);
+					}
+				} else {
+					console.log(`  ${YELLOW_WARN} ${tool.displayName}: ${result.error}`);
+				}
 			}
 		}
 

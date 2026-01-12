@@ -37,6 +37,16 @@ export interface MarketplaceConfig {
 }
 
 /**
+ * Global config path entry for tools that support multiple installations.
+ */
+export interface GlobalConfigPath {
+	/** Display name for the installation (e.g., 'VS Code', 'VS Code Insiders') */
+	displayName: string;
+	/** Absolute path to the settings file */
+	settingsPath: string;
+}
+
+/**
  * Represents an AI coding assistant tool that supports MCP.
  */
 export interface AITool {
@@ -56,6 +66,12 @@ export interface AITool {
 	mcpServersKeyPath: string[];
 	/** Tool-specific environment variables to add to MCP server config */
 	mcpEnv?: Record<string, string>;
+	/** Whether this tool uses global config (requires special handling) */
+	isGlobalConfig?: boolean;
+	/** Function to get all config paths for global configs (supports multiple installations) */
+	getGlobalConfigPaths?: () => GlobalConfigPath[];
+	/** Additional server properties (like alwaysAllow, disabled) */
+	mcpServerExtras?: Record<string, unknown>;
 }
 
 /**

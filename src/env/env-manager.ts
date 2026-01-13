@@ -1,11 +1,11 @@
 import { spawn } from 'child_process';
 import * as os from 'os';
+import * as path from 'path';
 import { FileUtils } from '../utils/file.utils';
 
 // Abstract base class for environment variable managers
 abstract class EnvironmentManager {
 	abstract setVariable(key: string, value: string): Promise<void>;
-	abstract hasPrivileges(): Promise<boolean>;
 
 	public getVariable(key: string): Promise<string | undefined> {
 		return Promise.resolve(process.env[key]);
@@ -70,25 +70,7 @@ abstract class EnvironmentManager {
 // Windows implementation
 class WindowsEnvironmentManager extends EnvironmentManager {
 	/**
-	 * Check if the current process is running with administrator privileges.
-	 */
-	private async isAdmin(): Promise<boolean> {
-		return new Promise<boolean>((resolve) => {
-			const proc = spawn('net', ['session'], {
-				shell: false,
-				windowsHide: true,
-			});
-			proc.on('close', (code) => resolve(code === 0));
-			proc.on('error', () => resolve(false));
-		});
-	}
-
-	async hasPrivileges(): Promise<boolean> {
-		return this.isAdmin();
-	}
-
-	/**
-	 * Retrieves an environment variable from the Windows registry.
+	 * Retrieves an environment variable from the Windows user registry.
 	 * NOTE: This method has a side effect - it syncs the retrieved value to process.env
 	 * to ensure consistency between registry and runtime environment.
 	 * @param key The environment variable name
@@ -96,23 +78,12 @@ class WindowsEnvironmentManager extends EnvironmentManager {
 	 */
 	override async getVariable(key: string): Promise<string | undefined> {
 		try {
-			// Query user environment variables
+			// Query user environment variables only
 			const userResult = await this.queryRegistry('HKCU\\Environment', key);
 
 			if (userResult) {
 				process.env[key] = userResult;
 				return userResult;
-			}
-
-			// Query system environment variables
-			const systemResult = await this.queryRegistry(
-				'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
-				key,
-			);
-
-			if (systemResult) {
-				process.env[key] = systemResult;
-				return systemResult;
 			}
 
 			// Variable not found, remove from process.env if it exists
@@ -134,18 +105,11 @@ class WindowsEnvironmentManager extends EnvironmentManager {
 			);
 		}
 
-		// Check for administrator privileges before system-level write
-		if (!(await this.isAdmin())) {
-			throw new Error(
-				'Administrator privileges required to set system environment variables.',
-			);
-		}
-
 		try {
 			// Use spawn to avoid shell interpretation - prevents command injection
-			// /M flag sets variable at system level (HKLM) instead of user level (HKCU)
+			// No /M flag = user level (HKCU) instead of system level (HKLM)
 			await new Promise<void>((resolve, reject) => {
-				const proc = spawn('setx', [key, value, '/M'], {
+				const proc = spawn('setx', [key, value], {
 					shell: false, // Critical: no shell interpretation
 					windowsHide: true,
 				});
@@ -176,13 +140,13 @@ class WindowsEnvironmentManager extends EnvironmentManager {
 	}
 
 	private async queryRegistry(
-		path: string,
+		registryPath: string,
 		key: string,
 	): Promise<string | undefined> {
 		try {
 			// Use spawn for safer execution
 			const stdout = await new Promise<string>((resolve, reject) => {
-				const proc = spawn('reg', ['query', path, '/v', key], {
+				const proc = spawn('reg', ['query', registryPath, '/v', key], {
 					shell: false,
 					windowsHide: true,
 				});
@@ -223,29 +187,16 @@ class WindowsEnvironmentManager extends EnvironmentManager {
 
 // Unix-like implementation (macOS/Linux)
 class UnixEnvironmentManager extends EnvironmentManager {
-	// System config files to write to (may be multiple for cross-shell compatibility)
-	private readonly systemConfigFiles: string[];
+	// User config files to write to (multiple for cross-shell compatibility)
+	private readonly userConfigFiles: string[];
 
 	constructor() {
 		super();
-		if (os.platform() === 'darwin') {
-			// macOS: Write to both zshenv (zsh default) and profile (bash/other shells)
-			this.systemConfigFiles = ['/etc/zshenv', '/etc/profile'];
-		} else {
-			// Linux: Use profile.d directory (sourced by all POSIX shells at login)
-			this.systemConfigFiles = ['/etc/profile.d/constellation.sh'];
-		}
-	}
-
-	/**
-	 * Check if the current process is running as root.
-	 */
-	private isRoot(): boolean {
-		return process.getuid?.() === 0;
-	}
-
-	async hasPrivileges(): Promise<boolean> {
-		return Promise.resolve(this.isRoot());
+		// Write to both zsh and bash user config files for broad shell compatibility
+		this.userConfigFiles = [
+			path.join(os.homedir(), '.zshrc'),
+			path.join(os.homedir(), '.bashrc'),
+		];
 	}
 
 	async setVariable(key: string, value: string): Promise<void> {
@@ -259,20 +210,13 @@ class UnixEnvironmentManager extends EnvironmentManager {
 			);
 		}
 
-		// Check for root privileges before system-level write
-		if (!this.isRoot()) {
-			throw new Error(
-				'Root privileges required to set system environment variables.',
-			);
-		}
-
 		// Properly escape the value for shell safety
 		const escapedValue = this.escapeShellValue(value);
 		const exportLine = `export ${key}="${escapedValue}"`;
 
 		try {
-			// Write to all configured system config files for cross-shell compatibility
-			for (const configFile of this.systemConfigFiles) {
+			// Write to all configured user config files for cross-shell compatibility
+			for (const configFile of this.userConfigFiles) {
 				await this.writeToConfigFile(configFile, key, exportLine);
 			}
 
@@ -296,10 +240,7 @@ class UnixEnvironmentManager extends EnvironmentManager {
 		try {
 			content = await FileUtils.readFile(configFile, 'utf-8');
 		} catch {
-			// File doesn't exist - create with header for Linux profile.d
-			if (configFile.includes('profile.d')) {
-				content = '#!/bin/sh\n# Constellation CLI environment variables\n';
-			}
+			// File doesn't exist - will be created
 		}
 
 		// Check if variable already exists and update it
@@ -348,13 +289,6 @@ export class CrossPlatformEnvironment {
 
 	async getKey(key: string): Promise<string | undefined> {
 		return this.manager.getVariable(key.toUpperCase());
-	}
-
-	/**
-	 * Check if the current process has the required privileges to set system environment variables.
-	 */
-	async hasPrivileges(): Promise<boolean> {
-		return this.manager.hasPrivileges();
 	}
 
 	/**

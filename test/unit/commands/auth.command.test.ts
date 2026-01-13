@@ -18,17 +18,10 @@ jest.mock('enquirer', () => ({
 	},
 }));
 jest.mock('../../../src/env/env-manager');
-jest.mock('os', () => ({
-	platform: jest.fn().mockReturnValue('darwin'),
-}));
-jest.mock('child_process', () => ({
-	spawnSync: jest.fn(),
-}));
 
 // Import mocked modules
 import pkg from 'enquirer';
 const { prompt } = pkg;
-import { spawnSync } from 'child_process';
 
 // Valid access key format for tests (ak: prefix + 32 hex chars, no dashes)
 const VALID_ACCESS_KEY = 'ak:00000000000040008000000000000002';
@@ -46,7 +39,6 @@ describe('AuthCommand', () => {
 			getKey: jest.fn<() => Promise<string | undefined>>(),
 			setKey: jest.fn<() => Promise<void>>(),
 			isCI: jest.fn<() => boolean>().mockReturnValue(false),
-			hasPrivileges: jest.fn<() => Promise<boolean>>().mockResolvedValue(true),
 		} as unknown as jest.Mocked<CrossPlatformEnvironment>;
 
 		// Spy on console methods
@@ -70,7 +62,6 @@ describe('AuthCommand', () => {
 	describe('run', () => {
 		it('should prompt for access key when no existing key', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockResolvedValue(undefined);
 			// @ts-expect-error - Jest mock typing
@@ -96,9 +87,8 @@ describe('AuthCommand', () => {
 			);
 		});
 
-		it('should prompt to replace existing key with system-level message', async () => {
+		it('should prompt to replace existing key', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue('existing-key');
 			mockEnv.setKey.mockResolvedValue(undefined);
 
@@ -112,7 +102,7 @@ describe('AuthCommand', () => {
 
 			expect(prompt).toHaveBeenCalledWith(
 				expect.objectContaining({
-					message: 'Replace existing system-level Constellation access key?',
+					message: 'Replace existing Constellation access key?',
 					type: 'confirm',
 				}),
 			);
@@ -129,7 +119,6 @@ describe('AuthCommand', () => {
 
 		it('should keep existing key when user declines replacement', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue('existing-key');
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockResolvedValue({ replaceKey: false });
@@ -144,7 +133,6 @@ describe('AuthCommand', () => {
 
 		it('should display starting message', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockResolvedValue(undefined);
 			// @ts-expect-error - Jest mock typing
@@ -159,7 +147,6 @@ describe('AuthCommand', () => {
 
 		it('should handle error when getting existing key fails', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockRejectedValue(new Error('Failed to read env'));
 
 			await authCommand.run();
@@ -174,7 +161,6 @@ describe('AuthCommand', () => {
 
 		it('should handle error when setting key fails', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockRejectedValue(new Error('Failed to write env'));
 			// @ts-expect-error - Jest mock typing
@@ -192,7 +178,6 @@ describe('AuthCommand', () => {
 
 		it('should handle error when prompt fails', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockRejectedValue(new Error('User cancelled'));
@@ -207,7 +192,6 @@ describe('AuthCommand', () => {
 
 		it('should use correct environment variable name', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockResolvedValue(undefined);
 			// @ts-expect-error - Jest mock typing
@@ -222,7 +206,6 @@ describe('AuthCommand', () => {
 
 		it('should handle non-Error objects in catch block', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockRejectedValue('String error');
 
 			await authCommand.run();
@@ -239,7 +222,6 @@ describe('AuthCommand', () => {
 	describe('access key validation', () => {
 		it('should accept valid access key format', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockResolvedValue(undefined);
 			// @ts-expect-error - Jest mock typing
@@ -255,7 +237,6 @@ describe('AuthCommand', () => {
 
 		it('should reject invalid access key format and allow retry', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockResolvedValue(undefined);
 
@@ -278,7 +259,6 @@ describe('AuthCommand', () => {
 
 		it('should fail after max invalid attempts', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 
 			(prompt as jest.Mock)
@@ -299,7 +279,6 @@ describe('AuthCommand', () => {
 
 		it('should reject empty access key', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockResolvedValue(undefined);
 
@@ -324,7 +303,6 @@ describe('AuthCommand', () => {
 
 		it('should trim whitespace from access key', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockResolvedValue(undefined);
 			// @ts-expect-error - Jest mock typing
@@ -344,7 +322,6 @@ describe('AuthCommand', () => {
 	describe('error message sanitization', () => {
 		it('should redact access keys from error messages', async () => {
 			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockRejectedValue(
 				new Error(`Failed to set key: ${VALID_ACCESS_KEY}`),
@@ -400,152 +377,6 @@ describe('AuthCommand', () => {
 			);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
 				expect.stringContaining('GitLab CI'),
-			);
-		});
-	});
-
-	describe('privilege checks', () => {
-		it('should check privileges before prompting for key', async () => {
-			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(true);
-			mockEnv.getKey.mockResolvedValue(undefined);
-			mockEnv.setKey.mockResolvedValue(undefined);
-			// @ts-expect-error - Jest mock typing
-			(prompt as jest.Mock).mockResolvedValue({ accessKey: VALID_ACCESS_KEY });
-
-			await authCommand.run();
-
-			expect(mockEnv.hasPrivileges).toHaveBeenCalled();
-			expect(mockEnv.getKey).toHaveBeenCalled();
-		});
-
-		it('should show instructions on Windows when not admin', async () => {
-			const os = require('os');
-			os.platform.mockReturnValue('win32');
-
-			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(false);
-
-			await authCommand.run();
-
-			// Now uses console.log for consistency with Unix path
-			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Administrator privileges required'),
-			);
-			expect(mockEnv.getKey).not.toHaveBeenCalled();
-		});
-
-		it('should offer sudo retry on Unix when not root', async () => {
-			const os = require('os');
-			os.platform.mockReturnValue('darwin');
-
-			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(false);
-			// @ts-expect-error - Jest mock typing
-			(prompt as jest.Mock).mockResolvedValue({ retrySudo: false });
-
-			await authCommand.run();
-
-			expect(prompt).toHaveBeenCalledWith(
-				expect.objectContaining({
-					message: 'Root privileges required. Retry with sudo?',
-					type: 'confirm',
-				}),
-			);
-		});
-
-		it('should show manual sudo instruction when user declines', async () => {
-			const os = require('os');
-			os.platform.mockReturnValue('darwin');
-
-			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(false);
-			// @ts-expect-error - Jest mock typing
-			(prompt as jest.Mock).mockResolvedValue({ retrySudo: false });
-
-			await authCommand.run();
-
-			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('sudo constellation auth'),
-			);
-		});
-
-		it('should re-execute with sudo using constellation command', async () => {
-			const os = require('os');
-			os.platform.mockReturnValue('darwin');
-
-			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(false);
-			// @ts-expect-error - Jest mock typing
-			(prompt as jest.Mock).mockResolvedValue({ retrySudo: true });
-			(spawnSync as jest.Mock).mockReturnValue({ status: 0 });
-
-			await authCommand.run();
-
-			expect(spawnSync).toHaveBeenCalledWith(
-				'sudo',
-				['constellation', 'auth'],
-				{ stdio: 'inherit' },
-			);
-			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Re-running with sudo'),
-			);
-		});
-
-		it('should show success message after sudo succeeds', async () => {
-			const os = require('os');
-			os.platform.mockReturnValue('darwin');
-
-			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(false);
-			// @ts-expect-error - Jest mock typing
-			(prompt as jest.Mock).mockResolvedValue({ retrySudo: true });
-			(spawnSync as jest.Mock).mockReturnValue({ status: 0 });
-
-			await authCommand.run();
-
-			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Authentication configured successfully'),
-			);
-		});
-
-		it('should handle sudo command not found', async () => {
-			const os = require('os');
-			os.platform.mockReturnValue('darwin');
-
-			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(false);
-			// @ts-expect-error - Jest mock typing
-			(prompt as jest.Mock).mockResolvedValue({ retrySudo: true });
-			(spawnSync as jest.Mock).mockReturnValue({
-				error: new Error('ENOENT'),
-				status: null,
-			});
-
-			await authCommand.run();
-
-			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining("Could not execute 'constellation' command"),
-			);
-			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('sudo npm start -- auth'),
-			);
-		});
-
-		it('should show error when sudo execution fails', async () => {
-			const os = require('os');
-			os.platform.mockReturnValue('darwin');
-
-			mockEnv.isCI.mockReturnValue(false);
-			mockEnv.hasPrivileges.mockResolvedValue(false);
-			// @ts-expect-error - Jest mock typing
-			(prompt as jest.Mock).mockResolvedValue({ retrySudo: true });
-			(spawnSync as jest.Mock).mockReturnValue({ status: 1 });
-
-			await authCommand.run();
-
-			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Elevated command failed'),
 			);
 		});
 	});

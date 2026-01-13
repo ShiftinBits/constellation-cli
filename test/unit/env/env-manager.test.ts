@@ -47,29 +47,15 @@ function clearCIEnvironment() {
 	delete process.env.CODEBUILD_BUILD_ID;
 }
 
-// Helper to mock root privileges for Unix systems
-function mockRootPrivileges() {
-	// @ts-expect-error - Mocking getuid
-	process.getuid = jest.fn().mockReturnValue(0);
-}
-
-// Helper to mock non-root user for Unix systems
-function mockNonRootUser() {
-	// @ts-expect-error - Mocking getuid
-	process.getuid = jest.fn().mockReturnValue(1000);
-}
-
 describe('CrossPlatformEnvironment', () => {
 	let env: CrossPlatformEnvironment;
 	let originalEnv: NodeJS.ProcessEnv;
 	let originalPlatform: string;
-	let originalGetuid: typeof process.getuid;
 
 	beforeEach(() => {
 		// Save original environment
 		originalEnv = { ...process.env };
 		originalPlatform = process.platform;
-		originalGetuid = process.getuid;
 
 		// Clear mocks
 		jest.clearAllMocks();
@@ -81,7 +67,6 @@ describe('CrossPlatformEnvironment', () => {
 		Object.defineProperty(process, 'platform', {
 			value: originalPlatform,
 		});
-		process.getuid = originalGetuid;
 	});
 
 	describe('constructor', () => {
@@ -206,94 +191,11 @@ describe('CrossPlatformEnvironment', () => {
 		});
 	});
 
-	describe('hasPrivileges - Unix', () => {
+	describe('setKey - Unix (darwin/linux)', () => {
 		beforeEach(() => {
 			(os.platform as jest.Mock).mockReturnValue('darwin');
 			(os.homedir as jest.Mock).mockReturnValue('/home/testuser');
 			clearCIEnvironment();
-		});
-
-		it('should return true when running as root', async () => {
-			mockRootPrivileges();
-			env = new CrossPlatformEnvironment();
-			expect(await env.hasPrivileges()).toBe(true);
-		});
-
-		it('should return false when running as non-root user', async () => {
-			mockNonRootUser();
-			env = new CrossPlatformEnvironment();
-			expect(await env.hasPrivileges()).toBe(false);
-		});
-	});
-
-	describe('hasPrivileges - Windows', () => {
-		let mockSpawn: jest.Mock;
-
-		beforeEach(() => {
-			(os.platform as jest.Mock).mockReturnValue('win32');
-			clearCIEnvironment();
-
-			const childProcess = require('child_process');
-			mockSpawn = jest.fn();
-			childProcess.spawn = mockSpawn;
-		});
-
-		it('should return true when running as administrator', async () => {
-			const mockProcess = new MockChildProcess();
-			mockSpawn.mockReturnValue(mockProcess);
-
-			env = new CrossPlatformEnvironment();
-			const promise = env.hasPrivileges();
-
-			// Simulate successful net session (admin)
-			setImmediate(() => {
-				mockProcess.emit('close', 0);
-			});
-
-			expect(await promise).toBe(true);
-			expect(mockSpawn).toHaveBeenCalledWith('net', ['session'], {
-				shell: false,
-				windowsHide: true,
-			});
-		});
-
-		it('should return false when not running as administrator', async () => {
-			const mockProcess = new MockChildProcess();
-			mockSpawn.mockReturnValue(mockProcess);
-
-			env = new CrossPlatformEnvironment();
-			const promise = env.hasPrivileges();
-
-			// Simulate failed net session (not admin)
-			setImmediate(() => {
-				mockProcess.emit('close', 1);
-			});
-
-			expect(await promise).toBe(false);
-		});
-
-		it('should return false on spawn error', async () => {
-			const mockProcess = new MockChildProcess();
-			mockSpawn.mockReturnValue(mockProcess);
-
-			env = new CrossPlatformEnvironment();
-			const promise = env.hasPrivileges();
-
-			// Simulate spawn error
-			setImmediate(() => {
-				mockProcess.emit('error', new Error('Command not found'));
-			});
-
-			expect(await promise).toBe(false);
-		});
-	});
-
-	describe('setKey - Unix (darwin)', () => {
-		beforeEach(() => {
-			(os.platform as jest.Mock).mockReturnValue('darwin');
-			(os.homedir as jest.Mock).mockReturnValue('/home/testuser');
-			clearCIEnvironment();
-			mockRootPrivileges();
 			env = new CrossPlatformEnvironment();
 		});
 
@@ -313,18 +215,18 @@ describe('CrossPlatformEnvironment', () => {
 			expect(writeCall[1]).toContain('export TEST_KEY=');
 		});
 
-		it('should write to both /etc/zshenv and /etc/profile on macOS', async () => {
+		it('should write to user config files ~/.zshrc and ~/.bashrc', async () => {
 			setupFileMocks();
 
 			await env.setKey('test_key', 'test-value');
 
-			// Should write to both files for cross-shell compatibility
+			// Should write to both user config files for cross-shell compatibility
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/etc/zshenv',
+				'/home/testuser/.zshrc',
 				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/etc/profile',
+				'/home/testuser/.bashrc',
 				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 			expect(FileUtils.writeFile).toHaveBeenCalledTimes(2);
@@ -364,13 +266,12 @@ describe('CrossPlatformEnvironment', () => {
 
 			await env.setKey('test_key', 'test-value');
 
-			// Should write to both /etc/zshenv and /etc/profile on macOS
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/etc/zshenv',
+				'/home/testuser/.zshrc',
 				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/etc/profile',
+				'/home/testuser/.bashrc',
 				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 		});
@@ -381,16 +282,6 @@ describe('CrossPlatformEnvironment', () => {
 
 			await expect(env.setKey('test_key', 'test-value')).rejects.toThrow(
 				'Cannot set environment variables in CI/CD environments',
-			);
-			expect(FileUtils.writeFile).not.toHaveBeenCalled();
-		});
-
-		it('should throw error when not running as root', async () => {
-			mockNonRootUser();
-			env = new CrossPlatformEnvironment();
-
-			await expect(env.setKey('test_key', 'test-value')).rejects.toThrow(
-				'Root privileges required to set system environment variables',
 			);
 			expect(FileUtils.writeFile).not.toHaveBeenCalled();
 		});
@@ -409,50 +300,11 @@ describe('CrossPlatformEnvironment', () => {
 		});
 	});
 
-	describe('setKey - Unix (linux)', () => {
-		beforeEach(() => {
-			(os.platform as jest.Mock).mockReturnValue('linux');
-			(os.homedir as jest.Mock).mockReturnValue('/home/testuser');
-			clearCIEnvironment();
-			mockRootPrivileges();
-			env = new CrossPlatformEnvironment();
-		});
-
-		it('should write to /etc/profile.d/constellation.sh on Linux', async () => {
-			setupFileMocks();
-
-			await env.setKey('test_key', 'test-value');
-
-			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/etc/profile.d/constellation.sh',
-				expect.stringContaining('export TEST_KEY="test-value"'),
-			);
-		});
-
-		it('should add shebang header when creating new file on Linux', async () => {
-			(FileUtils.readFile as jest.Mock).mockRejectedValue(
-				// @ts-expect-error - Jest mock typing
-				new Error('File not found'),
-			);
-			// @ts-expect-error - Jest mock typing
-			(FileUtils.writeFile as jest.Mock).mockResolvedValue(undefined);
-
-			await env.setKey('test_key', 'test-value');
-
-			const writeCall = (FileUtils.writeFile as jest.Mock).mock.calls[0];
-			expect(writeCall[1]).toContain('#!/bin/sh');
-			expect(writeCall[1]).toContain(
-				'# Constellation CLI environment variables',
-			);
-		});
-	});
-
 	describe('setKey - validation', () => {
 		beforeEach(() => {
 			(os.platform as jest.Mock).mockReturnValue('darwin');
 			(os.homedir as jest.Mock).mockReturnValue('/home/testuser');
 			clearCIEnvironment();
-			mockRootPrivileges();
 			env = new CrossPlatformEnvironment();
 			setupFileMocks();
 		});
@@ -510,7 +362,6 @@ describe('CrossPlatformEnvironment', () => {
 		beforeEach(() => {
 			(os.platform as jest.Mock).mockReturnValue('darwin');
 			(os.homedir as jest.Mock).mockReturnValue('/home/testuser');
-			mockRootPrivileges();
 		});
 
 		it('should throw error with GitHub Actions', async () => {
@@ -557,22 +408,13 @@ describe('CrossPlatformEnvironment', () => {
 	describe('setKey - Windows (win32)', () => {
 		let mockSpawn: jest.Mock;
 		let mockProcess: MockChildProcess;
-		let adminCheckProcess: MockChildProcess;
 
 		beforeEach(() => {
 			(os.platform as jest.Mock).mockReturnValue('win32');
 			clearCIEnvironment();
 
-			// Create separate mock processes for admin check and setx
-			adminCheckProcess = new MockChildProcess();
 			mockProcess = new MockChildProcess();
-
-			mockSpawn = jest.fn().mockImplementation((cmd) => {
-				if (cmd === 'net') {
-					return adminCheckProcess;
-				}
-				return mockProcess;
-			});
+			mockSpawn = jest.fn().mockReturnValue(mockProcess);
 
 			const childProcess = require('child_process');
 			childProcess.spawn = mockSpawn;
@@ -580,27 +422,19 @@ describe('CrossPlatformEnvironment', () => {
 			env = new CrossPlatformEnvironment();
 		});
 
-		it('should set environment variable using setx command with /M flag', async () => {
+		it('should set environment variable using setx command without /M flag (user level)', async () => {
 			const promise = env.setKey('test_key', 'test-value');
 
-			// Simulate successful admin check
+			// Simulate successful setx execution
 			setImmediate(() => {
-				adminCheckProcess.emit('close', 0);
-				// Then simulate successful setx execution
-				setImmediate(() => {
-					mockProcess.emit('close', 0);
-				});
+				mockProcess.emit('close', 0);
 			});
 
 			await promise;
 
-			expect(mockSpawn).toHaveBeenCalledWith('net', ['session'], {
-				shell: false,
-				windowsHide: true,
-			});
 			expect(mockSpawn).toHaveBeenCalledWith(
 				'setx',
-				['TEST_KEY', 'test-value', '/M'],
+				['TEST_KEY', 'test-value'],
 				{
 					shell: false,
 					windowsHide: true,
@@ -609,32 +443,14 @@ describe('CrossPlatformEnvironment', () => {
 			expect(process.env.TEST_KEY).toBe('test-value');
 		});
 
-		it('should throw error when not running as administrator', async () => {
-			const promise = env.setKey('test_key', 'test-value');
-
-			// Simulate failed admin check
-			setImmediate(() => {
-				adminCheckProcess.emit('close', 1);
-			});
-
-			await expect(promise).rejects.toThrow(
-				'Administrator privileges required to set system environment variables',
-			);
-		});
-
 		it('should handle setx command failure', async () => {
 			const promise = env.setKey('test_key', 'test-value');
 
-			// Simulate successful admin check
 			setImmediate(() => {
-				adminCheckProcess.emit('close', 0);
-				// Then simulate setx failure
-				setImmediate(() => {
-					if (mockProcess.stderr) {
-						mockProcess.stderr.emit('data', Buffer.from('Access denied'));
-					}
-					mockProcess.emit('close', 1);
-				});
+				if (mockProcess.stderr) {
+					mockProcess.stderr.emit('data', Buffer.from('Access denied'));
+				}
+				mockProcess.emit('close', 1);
 			});
 
 			await expect(promise).rejects.toThrow(
@@ -645,13 +461,8 @@ describe('CrossPlatformEnvironment', () => {
 		it('should handle spawn error', async () => {
 			const promise = env.setKey('test_key', 'test-value');
 
-			// Simulate successful admin check
 			setImmediate(() => {
-				adminCheckProcess.emit('close', 0);
-				// Then simulate spawn error
-				setImmediate(() => {
-					mockProcess.emit('error', new Error('Command not found'));
-				});
+				mockProcess.emit('error', new Error('Command not found'));
 			});
 
 			await expect(promise).rejects.toThrow(
@@ -666,7 +477,6 @@ describe('CrossPlatformEnvironment', () => {
 			await expect(env.setKey('test_key', 'test-value')).rejects.toThrow(
 				'Cannot set environment variables in CI/CD environments',
 			);
-			// Should not even check for admin privileges
 			expect(mockSpawn).not.toHaveBeenCalledWith(
 				'setx',
 				expect.anything(),
@@ -674,22 +484,18 @@ describe('CrossPlatformEnvironment', () => {
 			);
 		});
 
-		it('should escape special characters properly', async () => {
+		it('should handle values with spaces', async () => {
 			const promise = env.setKey('test_key', 'value with spaces');
 
-			// Simulate successful admin check and setx
 			setImmediate(() => {
-				adminCheckProcess.emit('close', 0);
-				setImmediate(() => {
-					mockProcess.emit('close', 0);
-				});
+				mockProcess.emit('close', 0);
 			});
 
 			await promise;
 
 			expect(mockSpawn).toHaveBeenCalledWith(
 				'setx',
-				['TEST_KEY', 'value with spaces', '/M'],
+				['TEST_KEY', 'value with spaces'],
 				expect.any(Object),
 			);
 		});
@@ -737,55 +543,7 @@ describe('CrossPlatformEnvironment', () => {
 			);
 		});
 
-		it('should fallback to system registry if not in user registry', async () => {
-			let callCount = 0;
-			mockSpawn = jest.fn().mockImplementation(() => {
-				callCount++;
-				const proc = new MockChildProcess();
-
-				if (callCount === 1) {
-					// First call (user registry) - not found
-					setImmediate(() => {
-						proc.emit('close', 1);
-					});
-				} else if (callCount === 2) {
-					// Second call (system registry) - found
-					setImmediate(() => {
-						if (proc.stdout) {
-							proc.stdout.emit(
-								'data',
-								Buffer.from('TEST_KEY    REG_SZ    system-value\r\n'),
-							);
-						}
-						proc.emit('close', 0);
-					});
-				}
-
-				return proc;
-			});
-
-			const childProcess = require('child_process');
-			childProcess.spawn = mockSpawn;
-			env = new CrossPlatformEnvironment();
-
-			const result = await env.getKey('TEST_KEY');
-
-			expect(result).toBe('system-value');
-			expect(mockSpawn).toHaveBeenCalledTimes(2);
-			expect(mockSpawn).toHaveBeenNthCalledWith(
-				2,
-				'reg',
-				[
-					'query',
-					'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
-					'/v',
-					'TEST_KEY',
-				],
-				expect.any(Object),
-			);
-		});
-
-		it('should return undefined when key not found in either registry', async () => {
+		it('should return undefined when key not found in user registry', async () => {
 			mockSpawn = jest.fn().mockImplementation(() => {
 				const proc = new MockChildProcess();
 				setImmediate(() => {

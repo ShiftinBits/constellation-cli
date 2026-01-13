@@ -6,6 +6,7 @@ import {
 import { BuildConfigManager } from '../languages/plugins/base-plugin';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
+import { SerializedASTSchema } from '../schemas/ast.schema';
 import { SerializedAST } from '../types/api';
 import { ASTCompressor } from '../utils/ast-compressor';
 import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
@@ -523,8 +524,16 @@ export default class IndexCommand extends BaseCommand {
 					importResolutions, // Include CLI-resolved import metadata
 				};
 
+				// Validate AST structure before upload (security + data integrity)
+				const parseResult = SerializedASTSchema.safeParse(serializedAST);
+				if (!parseResult.success) {
+					throw new Error(
+						`AST validation failed: ${parseResult.error.issues[0].message}`,
+					);
+				}
+
 				processedCount++;
-				return serializedAST;
+				return parseResult.data;
 			} catch (error) {
 				errorCount++;
 				console.error(

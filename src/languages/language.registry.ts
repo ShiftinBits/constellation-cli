@@ -1,17 +1,17 @@
-import jsTreeSitter from "tree-sitter-javascript";
-import tsTreeSitter from "tree-sitter-typescript";
+import jsTreeSitter from 'tree-sitter-javascript';
+import tsTreeSitter from 'tree-sitter-typescript';
 
-import { ConstellationConfig } from "../config/config";
-import { LanguagePlugin } from "./plugins/base-plugin";
-import { TypeScriptPlugin } from "./plugins/typescript.plugin";
-import { JavaScriptPlugin } from "./plugins/javascript.plugin";
+import { ConstellationConfig } from '../config/config';
+import { LanguagePlugin } from './plugins/base-plugin';
+import { TypeScriptPlugin } from './plugins/typescript.plugin';
+import { JavaScriptPlugin } from './plugins/javascript.plugin';
 
 /**
  * Supported programming languages for Tree-sitter parsing.
  * These correspond to available Tree-sitter grammars.
  */
 export type ParserLanguage =
-	'bash'
+	| 'bash'
 	| 'c'
 	| 'c-sharp'
 	| 'cpp'
@@ -23,7 +23,6 @@ export type ParserLanguage =
 	| 'python'
 	| 'ruby'
 	| 'typescript';
-
 
 /**
  * Default file extensions for each supported programming language.
@@ -48,13 +47,15 @@ export const LANGUAGE_EXTENSIONS: { [key: string]: string[] } = {
  * Interface defining language registry structure.
  * Maps language identifiers to their Tree-sitter parsers and file extensions.
  */
-export type ILangaugeRegistry = {
-	[key in ParserLanguage]: {
-		/** Function returning the Tree-sitter language parser */
-		language: () => unknown;
-		/** Function returning supported file extensions for this language */
-		fileExtensions: () => string[]
-	} | undefined;
+export type ILanguageRegistry = {
+	[key in ParserLanguage]:
+		| {
+				/** Function returning the Tree-sitter language parser */
+				language: () => unknown;
+				/** Function returning supported file extensions for this language */
+				fileExtensions: () => string[];
+		  }
+		| undefined;
 };
 
 /**
@@ -62,7 +63,7 @@ export type ILangaugeRegistry = {
  * Provides access to language parsers with configuration-based extension overrides.
  * Also manages language-specific plugins for build configuration and import resolution.
  */
-export class LanguageRegistry implements ILangaugeRegistry {
+export class LanguageRegistry implements ILanguageRegistry {
 	/** Map of language plugins for advanced language-specific functionality */
 	private readonly plugins: Map<ParserLanguage, LanguagePlugin> = new Map();
 
@@ -98,7 +99,9 @@ export class LanguageRegistry implements ILangaugeRegistry {
 		language: () => {
 			return jsTreeSitter;
 		},
-		fileExtensions: () => this.config?.languages['javascript']?.fileExtensions ?? LANGUAGE_EXTENSIONS['javascript']
+		fileExtensions: () =>
+			this.config?.languages['javascript']?.fileExtensions ??
+			LANGUAGE_EXTENSIONS['javascript'],
 	};
 
 	/** TypeScript language parser configuration */
@@ -106,7 +109,9 @@ export class LanguageRegistry implements ILangaugeRegistry {
 		language: () => {
 			return tsTreeSitter.typescript;
 		},
-		fileExtensions: () => this.config?.languages['typescript']?.fileExtensions ?? LANGUAGE_EXTENSIONS['typescript']
+		fileExtensions: () =>
+			this.config?.languages['typescript']?.fileExtensions ??
+			LANGUAGE_EXTENSIONS['typescript'],
 	};
 
 	/** Python language parser (not yet implemented) */
@@ -129,4 +134,4 @@ export class LanguageRegistry implements ILangaugeRegistry {
 	['bash']: undefined;
 	/** Ruby language parser (not yet implemented) */
 	['ruby']: undefined;
-};
+}

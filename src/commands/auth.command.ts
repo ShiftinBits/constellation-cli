@@ -1,5 +1,3 @@
-import { spawnSync } from 'child_process';
-import * as os from 'os';
 import pkg from 'enquirer';
 const { prompt } = pkg;
 
@@ -40,12 +38,12 @@ function sanitizeErrorMessage(message: string): string {
 }
 
 /**
- * Command to set or update system environment variable for Constellation authentication.
+ * Command to set or update user environment variable for Constellation authentication.
  */
 export default class AuthCommand extends BaseCommand {
 	/**
 	 * Executes the access key storage process.
-	 * Checks privileges before prompting, then stores in system environment variables.
+	 * Stores access key in user-level environment variables.
 	 * @throws Error if unable to store value in environment variables.
 	 */
 	public async run(): Promise<void> {
@@ -74,75 +72,11 @@ export default class AuthCommand extends BaseCommand {
 				return;
 			}
 
-			// 2. Check privileges before prompting for access key (don't waste user's time)
-			const hasPrivileges = await this.env.hasPrivileges();
-
-			if (!hasPrivileges) {
-				if (os.platform() === 'win32') {
-					// Windows: Show instructions and exit (consistent with Unix path - no error thrown)
-					console.log(
-						`${YELLOW_WARN} Administrator privileges required\n\n` +
-							`  System environment variables require an elevated terminal.\n\n` +
-							`  To run as Administrator:\n` +
-							`    1. Press Win+X\n` +
-							`    2. Select "Terminal (Admin)" or "PowerShell (Admin)"\n` +
-							`    3. Re-run: constellation auth\n`,
-					);
-					return;
-				} else {
-					// macOS/Linux: Offer to retry with sudo
-					const { retrySudo } = await prompt<{ retrySudo: boolean }>({
-						type: 'confirm',
-						name: 'retrySudo',
-						message: 'Root privileges required. Retry with sudo?',
-						initial: true,
-					});
-
-					if (retrySudo) {
-						console.log(`\n${BLUE_INFO} Re-running with sudo...\n`);
-						// Use 'constellation' command name - works when globally installed
-						// Falls back gracefully if not in PATH (sudo will report command not found)
-						const result = spawnSync('sudo', ['constellation', 'auth'], {
-							stdio: 'inherit',
-						});
-
-						if (result.error) {
-							// Handle case where constellation is not in PATH
-							console.log(
-								`\n${YELLOW_WARN} Could not execute 'constellation' command.\n` +
-									`  If running in development, use:\n` +
-									`    sudo npm start -- auth\n`,
-							);
-							return;
-						}
-
-						if (result.status !== 0) {
-							console.error(
-								`\n${RED_X} Elevated command failed (exit code: ${result.status ?? 1})`,
-							);
-							return;
-						}
-
-						// sudo succeeded, exit cleanly
-						console.log(
-							`\n${GREEN_CHECK} Authentication configured successfully.`,
-						);
-						return;
-					} else {
-						console.log(
-							`\n${BLUE_INFO} Run manually with:\n` +
-								`    sudo constellation auth\n`,
-						);
-						return;
-					}
-				}
-			}
-
-			// 3. Check for existing stored Constellation access key
+			// 2. Check for existing stored Constellation access key
 			const existingAccessKey = await this.env.getKey(ACCESS_KEY_ENV_VAR);
 			if (existingAccessKey) {
 				const { replaceKey } = await prompt<{ replaceKey: boolean }>({
-					message: 'Replace existing system-level Constellation access key?',
+					message: 'Replace existing Constellation access key?',
 					name: 'replaceKey',
 					type: 'confirm',
 					initial: false,
@@ -155,7 +89,7 @@ export default class AuthCommand extends BaseCommand {
 				}
 			}
 
-			// 4. Prompt for access key with validation
+			// 3. Prompt for access key with validation
 			let accessKey: string;
 			let attempts = 0;
 			const maxAttempts = 3;
@@ -198,11 +132,11 @@ export default class AuthCommand extends BaseCommand {
 				break;
 			}
 
-			// 5. Set system env var value
+			// 4. Set user env var value
 			await this.env.setKey(ACCESS_KEY_ENV_VAR, accessKey!);
 
 			console.log(
-				`${GREEN_CHECK} Stored access key in ${ACCESS_KEY_ENV_VAR} system environment variable`,
+				`${GREEN_CHECK} Stored access key in ${ACCESS_KEY_ENV_VAR} user environment variable`,
 			);
 			console.log(
 				`${BLUE_INFO} You must restart this terminal session to properly load the new access key value.`,

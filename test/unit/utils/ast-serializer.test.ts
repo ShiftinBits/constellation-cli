@@ -1,7 +1,9 @@
 import { describe, it, expect, jest } from '@jest/globals';
 import { SyntaxNode } from 'tree-sitter';
-import { serializeAST, SerializedNode } from '../../../src/utils/ast-serializer';
-import { createMockASTNode } from '../../helpers/mocks';
+import {
+	serializeAST,
+	SerializedNode,
+} from '../../../src/utils/ast-serializer';
 
 describe('ASTSerializer', () => {
 	describe('serializeAST', () => {
@@ -302,8 +304,10 @@ describe('ASTSerializer', () => {
 			expect(result.children).toHaveLength(2);
 
 			// Check field names are preserved
-			const paramChild = result.children!.find(c => c.fieldName === 'parameters');
-			const bodyChild = result.children!.find(c => c.fieldName === 'body');
+			const paramChild = result.children!.find(
+				(c) => c.fieldName === 'parameters',
+			);
+			const bodyChild = result.children!.find((c) => c.fieldName === 'body');
 
 			expect(paramChild).toBeDefined();
 			expect(paramChild!.text).toBe('param');

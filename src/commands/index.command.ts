@@ -146,7 +146,7 @@ export default class IndexCommand extends BaseCommand {
 				// This happens when processing finishes before network upload completes
 				if (!uploadComplete) {
 					console.log(
-						`${BLUE_INFO} Uploading data to Constellation Service...`,
+						`${BLUE_INFO} Uploading metadata, processing, and indexing...`,
 					);
 				}
 			};

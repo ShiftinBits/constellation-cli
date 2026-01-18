@@ -466,7 +466,7 @@ export default class IndexCommand extends BaseCommand {
 		const results = pool.run(files, async (file, index) => {
 			const progress = Math.round(((index + 1) / totalFiles) * 100);
 			console.log(
-				`${BLUE_INFO} Processing file ${file.path.replace(process.cwd() + '/', '')} (${progress}%)...`,
+				`${BLUE_INFO} Analyzing file ${file.path.replace(process.cwd() + '/', '')} (${progress}%)...`,
 			);
 
 			try {
@@ -556,7 +556,7 @@ export default class IndexCommand extends BaseCommand {
 				`${YELLOW_WARN} Completed parsing with ${errorCount} parsing errors`,
 			);
 		} else {
-			console.log(`${GREEN_CHECK} All files processed successfully`);
+			console.log(`${GREEN_CHECK} All files analyzed successfully`);
 		}
 
 		// Notify caller that AST generation is complete

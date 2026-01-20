@@ -226,7 +226,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '24'
       - name: Install Constellation CLI
         run: npm install -g @constellationdev/cli
       - name: Run Incremental Index

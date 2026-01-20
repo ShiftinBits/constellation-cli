@@ -2,7 +2,32 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-const DEFAULT_CONSTELLATION_DIR = path.join(os.homedir(), '.constellation');
+/**
+ * Gets the platform-appropriate cache directory for Constellation.
+ * - macOS: ~/Library/Caches/constellation
+ * - Windows: %LOCALAPPDATA%/constellation/cache
+ * - Linux: $XDG_CACHE_HOME/constellation or ~/.cache/constellation
+ */
+function getDefaultCacheDir(): string {
+	const platform = os.platform();
+
+	if (platform === 'darwin') {
+		// macOS: Use ~/Library/Caches
+		return path.join(os.homedir(), 'Library', 'Caches', 'constellation');
+	} else if (platform === 'win32') {
+		// Windows: Use LOCALAPPDATA
+		const localAppData =
+			process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+		return path.join(localAppData, 'constellation', 'cache');
+	} else {
+		// Linux and others: Use XDG_CACHE_HOME or ~/.cache
+		const xdgCache =
+			process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache');
+		return path.join(xdgCache, 'constellation');
+	}
+}
+
+const DEFAULT_CONSTELLATION_DIR = getDefaultCacheDir();
 const UPDATE_STATE_FILENAME = 'update-state.json';
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 

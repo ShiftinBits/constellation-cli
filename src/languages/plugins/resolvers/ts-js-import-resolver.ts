@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { TSConfckParseResult } from 'tsconfck';
 import { ImportResolver } from '../base-plugin';
+import { relativePosix } from '../../../utils/path.utils';
 import { WorkspacePackageResolver } from './workspace-package-resolver';
 
 /**
@@ -48,23 +49,29 @@ export class TsJsImportResolver implements ImportResolver {
 	 */
 	constructor(
 		sourceFilePath: string,
-		tsconfigResult: TSConfckParseResult | null
+		tsconfigResult: TSConfckParseResult | null,
 	) {
 		this.sourceFilePath = sourceFilePath;
 		this.sourceDir = path.dirname(sourceFilePath);
 		this.projectRoot = process.cwd();
 
 		// Initialize workspace package resolver
-		this.workspaceResolver = new WorkspacePackageResolver(this.projectRoot, tsconfigResult);
+		this.workspaceResolver = new WorkspacePackageResolver(
+			this.projectRoot,
+			tsconfigResult,
+		);
 
-		// Determine extensions based on file type
-		const isTypeScriptFile = sourceFilePath.endsWith('.ts') ||
-		                         sourceFilePath.endsWith('.tsx') ||
-		                         sourceFilePath.endsWith('.d.ts');
-		const isJavaScriptFile = sourceFilePath.endsWith('.js') ||
-		                         sourceFilePath.endsWith('.jsx') ||
-		                         sourceFilePath.endsWith('.mjs') ||
-		                         sourceFilePath.endsWith('.cjs');
+		// Determine extensions based on file type (case-insensitive for Windows compatibility)
+		const lowerPath = sourceFilePath.toLowerCase();
+		const isTypeScriptFile =
+			lowerPath.endsWith('.ts') ||
+			lowerPath.endsWith('.tsx') ||
+			lowerPath.endsWith('.d.ts');
+		const isJavaScriptFile =
+			lowerPath.endsWith('.js') ||
+			lowerPath.endsWith('.jsx') ||
+			lowerPath.endsWith('.mjs') ||
+			lowerPath.endsWith('.cjs');
 
 		if (isTypeScriptFile) {
 			this.extensions = ['.ts', '.tsx', '.d.ts'];
@@ -167,11 +174,12 @@ export class TsJsImportResolver implements ImportResolver {
 	/**
 	 * Converts an absolute file path to a project-relative path.
 	 * All returned paths will start with './' to indicate they are project-root relative.
+	 * Uses POSIX separators for cross-platform compatibility.
 	 * @param absolutePath Absolute file system path
 	 * @returns Project-relative path starting with './'
 	 */
 	private toProjectRelative(absolutePath: string): string {
-		const relativePath = path.relative(this.projectRoot, absolutePath);
+		const relativePath = relativePosix(this.projectRoot, absolutePath);
 		// Ensure all project-root relative paths start with ./
 		return relativePath.startsWith('./') ? relativePath : `./${relativePath}`;
 	}
@@ -193,7 +201,12 @@ export class TsJsImportResolver implements ImportResolver {
 
 			// Try each substitution
 			for (const substitution of substitutions) {
-				const resolved = await this.trySubstitution(specifier, pattern, substitution, match);
+				const resolved = await this.trySubstitution(
+					specifier,
+					pattern,
+					substitution,
+					match,
+				);
 				if (resolved) {
 					return resolved;
 				}
@@ -228,7 +241,9 @@ export class TsJsImportResolver implements ImportResolver {
 
 		// Extract the wildcard match content
 		const matchStart = prefix.length;
-		const matchEnd = suffix ? specifier.length - suffix.length : specifier.length;
+		const matchEnd = suffix
+			? specifier.length - suffix.length
+			: specifier.length;
 		return specifier.substring(matchStart, matchEnd);
 	}
 
@@ -244,7 +259,7 @@ export class TsJsImportResolver implements ImportResolver {
 		specifier: string,
 		pattern: string,
 		substitution: string,
-		wildcardMatch: string
+		wildcardMatch: string,
 	): Promise<string | null> {
 		// Replace wildcard in substitution
 		const resolvedPath = substitution.replace('*', wildcardMatch);
@@ -283,10 +298,14 @@ export class TsJsImportResolver implements ImportResolver {
 	 * @param basePath Base path without extension
 	 * @returns Resolved absolute path or null if not found
 	 */
-	private async findFileWithExtensions(basePath: string): Promise<string | null> {
+	private async findFileWithExtensions(
+		basePath: string,
+	): Promise<string | null> {
 		// Check if path already has a known extension - if so, try it as-is first
-		const hasKnownExtension = this.extensions.some(ext => basePath.endsWith(ext));
-		if (hasKnownExtension && await this.fileExists(basePath)) {
+		const hasKnownExtension = this.extensions.some((ext) =>
+			basePath.endsWith(ext),
+		);
+		if (hasKnownExtension && (await this.fileExists(basePath))) {
 			return await this.resolveSymlink(basePath);
 		}
 
@@ -294,7 +313,7 @@ export class TsJsImportResolver implements ImportResolver {
 		// TypeScript requires .js in imports but files are actually .ts
 		// Example: import './foo.js' should resolve to './foo.ts'
 		const jsExtensions = ['.js', '.jsx', '.mjs', '.cjs'];
-		const hasJsExtension = jsExtensions.some(ext => basePath.endsWith(ext));
+		const hasJsExtension = jsExtensions.some((ext) => basePath.endsWith(ext));
 
 		let basePathWithoutExt = basePath;
 		if (hasJsExtension && !hasKnownExtension) {
@@ -433,7 +452,9 @@ export class TsJsImportResolver implements ImportResolver {
 	 * @param specifier Import specifier to resolve (must start with #)
 	 * @returns Resolved absolute path or null if not matched
 	 */
-	private async resolveWithPackageImports(specifier: string): Promise<string | null> {
+	private async resolveWithPackageImports(
+		specifier: string,
+	): Promise<string | null> {
 		// Ensure imports are loaded
 		await this.loadPackageImports();
 
@@ -461,7 +482,10 @@ export class TsJsImportResolver implements ImportResolver {
 			if (Array.isArray(target)) {
 				for (const targetPath of target) {
 					if (typeof targetPath === 'string') {
-						const resolved = await this.tryPackageImportSubstitution(targetPath, match);
+						const resolved = await this.tryPackageImportSubstitution(
+							targetPath,
+							match,
+						);
 						if (resolved) {
 							return resolved;
 						}
@@ -481,7 +505,7 @@ export class TsJsImportResolver implements ImportResolver {
 	 */
 	private async tryPackageImportSubstitution(
 		targetPath: string,
-		wildcardMatch: string
+		wildcardMatch: string,
 	): Promise<string | null> {
 		if (!this.packageJsonDir) {
 			return null;

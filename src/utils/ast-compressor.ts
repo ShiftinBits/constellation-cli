@@ -52,7 +52,9 @@ export class ASTCompressor {
 	 * @param jsonStream Generator yielding JSON string chunks
 	 * @returns Base64-encoded compressed AST data
 	 */
-	async compressStream(jsonStream: Generator<string> | AsyncGenerator<string>): Promise<string> {
+	async compressStream(
+		jsonStream: Generator<string> | AsyncGenerator<string>,
+	): Promise<string> {
 		const chunks: Buffer[] = [];
 		const gzipStream = zlib.createGzip();
 
@@ -111,6 +113,6 @@ export class ASTCompressor {
 	async decompress(base64Data: string): Promise<SerializedNode> {
 		const buffer = Buffer.from(base64Data, 'base64');
 		const decompressed = await gunzip(buffer);
-		return JSON.parse(decompressed.toString('utf8'));
+		return JSON.parse(decompressed.toString('utf-8'));
 	}
 }

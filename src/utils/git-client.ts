@@ -75,11 +75,15 @@ export class GitClient {
 			added: [],
 			modified: [],
 			deleted: [],
-			renamed: []
+			renamed: [],
 		};
 
 		// Parse lines like: "A\tpath", "M\tpath", "D\tpath", "R100\told\tnew"
-		const lines = diff.split('\n').map(l => l.trim()).filter(Boolean);
+		// Use /\r?\n/ to handle both Unix (LF) and Windows (CRLF) line endings
+		const lines = diff
+			.split(/\r?\n/)
+			.map((l) => l.trim())
+			.filter(Boolean);
 
 		for (const line of lines) {
 			const parts = line.split('\t');
@@ -98,7 +102,7 @@ export class GitClient {
 				if (parts.length >= 3) {
 					result.renamed.push({
 						from: parts[1],
-						to: parts[2]
+						to: parts[2],
 					});
 				}
 			}
@@ -211,17 +215,22 @@ export class GitClient {
 					staged: status.staged.length,
 				};
 
-				console.error('❌ Cannot pull: Working directory has uncommitted changes');
+				console.error(
+					'❌ Cannot pull: Working directory has uncommitted changes',
+				);
 				console.error('   Details:', JSON.stringify(details, null, 2));
 
 				if (status.conflicted.length > 0) {
-					console.error('   ⚠️  Conflicted files:', status.conflicted.join(', '));
+					console.error(
+						'   ⚠️  Conflicted files:',
+						status.conflicted.join(', '),
+					);
 				}
 
 				throw new Error(
 					`Cannot pull with uncommitted changes. Please commit or stash your changes first.\n` +
-					`Modified: ${details.modified}, Created: ${details.created}, Deleted: ${details.deleted}, ` +
-					`Conflicted: ${details.conflicted}, Staged: ${details.staged}`
+						`Modified: ${details.modified}, Created: ${details.created}, Deleted: ${details.deleted}, ` +
+						`Conflicted: ${details.conflicted}, Staged: ${details.staged}`,
 				);
 			}
 
@@ -229,35 +238,49 @@ export class GitClient {
 			const pullResult: PullResult = await this.git.pull();
 
 			// Check if the pull resulted in conflicts
-			if (pullResult.summary.changes === 0 && pullResult.summary.insertions === 0 && pullResult.summary.deletions === 0) {
+			if (
+				pullResult.summary.changes === 0 &&
+				pullResult.summary.insertions === 0 &&
+				pullResult.summary.deletions === 0
+			) {
 				// No changes were pulled - check if we're already up to date
 				const afterStatus = await this.git.status();
 
 				if (afterStatus.conflicted.length > 0) {
 					console.error('❌ Pull failed: Merge conflicts detected');
-					console.error('   Conflicted files:', afterStatus.conflicted.join(', '));
-					console.error('   Please resolve conflicts manually and commit the result');
+					console.error(
+						'   Conflicted files:',
+						afterStatus.conflicted.join(', '),
+					);
+					console.error(
+						'   Please resolve conflicts manually and commit the result',
+					);
 
 					throw new Error(
-						`Pull resulted in merge conflicts in ${afterStatus.conflicted.length} file(s): ${afterStatus.conflicted.join(', ')}`
+						`Pull resulted in merge conflicts in ${afterStatus.conflicted.length} file(s): ${afterStatus.conflicted.join(', ')}`,
 					);
 				}
 			}
 
 			// Log successful pull details
 			if (pullResult.summary.changes > 0) {
-				console.log(`✅ Pull successful: ${pullResult.summary.changes} files changed, ` +
-					`${pullResult.summary.insertions} insertions(+), ${pullResult.summary.deletions} deletions(-)`);
+				console.log(
+					`✅ Pull successful: ${pullResult.summary.changes} files changed, ` +
+						`${pullResult.summary.insertions} insertions(+), ${pullResult.summary.deletions} deletions(-)`,
+				);
 			}
 
 			// Final check for any unexpected conflicts after pull
 			const finalStatus = await this.git.status();
 			if (finalStatus.conflicted.length > 0) {
 				console.error('❌ Unexpected conflicts after pull:');
-				console.error('   Conflicted files:', finalStatus.conflicted.join(', '));
+				console.error(
+					'   Conflicted files:',
+					finalStatus.conflicted.join(', '),
+				);
 
 				throw new Error(
-					`Unexpected merge conflicts detected after pull: ${finalStatus.conflicted.join(', ')}`
+					`Unexpected merge conflicts detected after pull: ${finalStatus.conflicted.join(', ')}`,
 				);
 			}
 
@@ -269,26 +292,37 @@ export class GitClient {
 				if (error.message.includes('CONFLICT')) {
 					console.error('❌ Pull failed due to merge conflicts');
 					console.error('   Run "git status" to see conflicted files');
-					console.error('   Resolve conflicts, then run "git add" and "git commit"');
+					console.error(
+						'   Resolve conflicts, then run "git add" and "git commit"',
+					);
 				} else if (error.message.includes('not a git repository')) {
 					console.error('❌ Pull failed: Not in a git repository');
-				} else if (error.message.includes('Could not resolve host') ||
-						   error.message.includes('unable to access')) {
-					console.error('❌ Pull failed: Network error - unable to reach remote repository');
+				} else if (
+					error.message.includes('Could not resolve host') ||
+					error.message.includes('unable to access')
+				) {
+					console.error(
+						'❌ Pull failed: Network error - unable to reach remote repository',
+					);
 				} else if (error.message.includes('Authentication failed')) {
-					console.error('❌ Pull failed: Authentication error - check your credentials');
+					console.error(
+						'❌ Pull failed: Authentication error - check your credentials',
+					);
 				} else if (error.message.includes('uncommitted changes')) {
 					// Already handled above, but just in case
-					console.error('❌ Pull failed: Uncommitted changes in working directory');
+					console.error(
+						'❌ Pull failed: Uncommitted changes in working directory',
+					);
 				}
 
 				// Preserve the full error with cause chain
-				throw new Error(`Git pull operation failed: ${error.message}`, { cause: error });
+				throw new Error(`Git pull operation failed: ${error.message}`, {
+					cause: error,
+				});
 			}
 
 			// Handle non-Error objects
 			throw new Error(`Git pull operation failed: ${String(error)}`);
 		}
 	}
-
 }

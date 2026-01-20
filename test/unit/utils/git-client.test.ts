@@ -1,6 +1,24 @@
-import { jest, describe, it, beforeEach, afterEach, expect } from '@jest/globals';
-import { GitClient, GitStatus, ChangedFiles } from '../../../src/utils/git-client';
-import { SimpleGit, StatusResult, PullResult, LogResult, RemoteWithRefs, BranchSummary } from 'simple-git';
+import {
+	jest,
+	describe,
+	it,
+	beforeEach,
+	afterEach,
+	expect,
+} from '@jest/globals';
+import {
+	GitClient,
+	GitStatus,
+	ChangedFiles,
+} from '../../../src/utils/git-client';
+import {
+	SimpleGit,
+	StatusResult,
+	PullResult,
+	LogResult,
+	RemoteWithRefs,
+	BranchSummary,
+} from 'simple-git';
 
 // Mock simple-git module
 jest.mock('simple-git');
@@ -11,23 +29,26 @@ describe('GitClient', () => {
 	const testPath = '/test/repo';
 
 	// Helper function to create a mock StatusResult
-	const createMockStatusResult = (overrides: Partial<StatusResult> = {}): StatusResult => ({
-		not_added: [],
-		conflicted: [],
-		created: [],
-		deleted: [],
-		modified: [],
-		renamed: [],
-		files: [],
-		staged: [],
-		ahead: 0,
-		behind: 0,
-		current: 'main',
-		tracking: null,
-		detached: false,
-		isClean: () => true,
-		...overrides
-	} as StatusResult);
+	const createMockStatusResult = (
+		overrides: Partial<StatusResult> = {},
+	): StatusResult =>
+		({
+			not_added: [],
+			conflicted: [],
+			created: [],
+			deleted: [],
+			modified: [],
+			renamed: [],
+			files: [],
+			staged: [],
+			ahead: 0,
+			behind: 0,
+			current: 'main',
+			tracking: null,
+			detached: false,
+			isClean: () => true,
+			...overrides,
+		}) as StatusResult;
 
 	beforeEach(() => {
 		// Create a mock SimpleGit instance
@@ -92,7 +113,9 @@ describe('GitClient', () => {
 
 			mockGit.log.mockResolvedValue(mockLogResult);
 
-			await expect(gitClient.getLatestCommitHash()).rejects.toThrow('No commits found in repository');
+			await expect(gitClient.getLatestCommitHash()).rejects.toThrow(
+				'No commits found in repository',
+			);
 		});
 	});
 
@@ -103,12 +126,16 @@ describe('GitClient', () => {
 
 			const result = await gitClient.getChangedFiles('base-commit');
 
-			expect(mockGit.diff).toHaveBeenCalledWith(['--name-status', 'base-commit', 'HEAD']);
+			expect(mockGit.diff).toHaveBeenCalledWith([
+				'--name-status',
+				'base-commit',
+				'HEAD',
+			]);
 			expect(result).toEqual({
 				added: ['src/new-file.ts', 'src/another-file.js'],
 				modified: [],
 				deleted: [],
-				renamed: []
+				renamed: [],
 			});
 		});
 
@@ -122,7 +149,7 @@ describe('GitClient', () => {
 				added: [],
 				modified: ['src/existing-file.ts', 'src/other-file.js'],
 				deleted: [],
-				renamed: []
+				renamed: [],
 			});
 		});
 
@@ -136,12 +163,13 @@ describe('GitClient', () => {
 				added: [],
 				modified: [],
 				deleted: ['src/deleted-file.ts', 'src/old-file.js'],
-				renamed: []
+				renamed: [],
 			});
 		});
 
 		it('should parse git diff output for renamed files', async () => {
-			const diffOutput = 'R100\tsrc/old-name.ts\tsrc/new-name.ts\nR90\tlib/old.js\tlib/new.js';
+			const diffOutput =
+				'R100\tsrc/old-name.ts\tsrc/new-name.ts\nR90\tlib/old.js\tlib/new.js';
 			mockGit.diff.mockResolvedValue(diffOutput);
 
 			const result = await gitClient.getChangedFiles('base-commit');
@@ -152,13 +180,14 @@ describe('GitClient', () => {
 				deleted: [],
 				renamed: [
 					{ from: 'src/old-name.ts', to: 'src/new-name.ts' },
-					{ from: 'lib/old.js', to: 'lib/new.js' }
-				]
+					{ from: 'lib/old.js', to: 'lib/new.js' },
+				],
 			});
 		});
 
 		it('should parse mixed git diff output', async () => {
-			const diffOutput = 'A\tsrc/new.ts\nM\tsrc/modified.ts\nD\tsrc/deleted.ts\nR100\tsrc/old.ts\tsrc/renamed.ts';
+			const diffOutput =
+				'A\tsrc/new.ts\nM\tsrc/modified.ts\nD\tsrc/deleted.ts\nR100\tsrc/old.ts\tsrc/renamed.ts';
 			mockGit.diff.mockResolvedValue(diffOutput);
 
 			const result = await gitClient.getChangedFiles('base-commit');
@@ -167,7 +196,7 @@ describe('GitClient', () => {
 				added: ['src/new.ts'],
 				modified: ['src/modified.ts'],
 				deleted: ['src/deleted.ts'],
-				renamed: [{ from: 'src/old.ts', to: 'src/renamed.ts' }]
+				renamed: [{ from: 'src/old.ts', to: 'src/renamed.ts' }],
 			});
 		});
 
@@ -180,12 +209,13 @@ describe('GitClient', () => {
 				added: [],
 				modified: [],
 				deleted: [],
-				renamed: []
+				renamed: [],
 			});
 		});
 
 		it('should handle malformed lines gracefully', async () => {
-			const diffOutput = 'A\tsrc/new.ts\nINVALID_LINE\nM\tsrc/modified.ts\nR100\tincomplete_rename';
+			const diffOutput =
+				'A\tsrc/new.ts\nINVALID_LINE\nM\tsrc/modified.ts\nR100\tincomplete_rename';
 			mockGit.diff.mockResolvedValue(diffOutput);
 
 			const result = await gitClient.getChangedFiles('base-commit');
@@ -194,7 +224,39 @@ describe('GitClient', () => {
 				added: ['src/new.ts'],
 				modified: ['src/modified.ts'],
 				deleted: [],
-				renamed: []
+				renamed: [],
+			});
+		});
+
+		it('should handle Windows CRLF line endings in diff output', async () => {
+			// Windows git may return CRLF line endings
+			const diffOutput =
+				'A\tsrc/new-file.ts\r\nM\tsrc/modified-file.ts\r\nD\tsrc/deleted-file.ts\r\n';
+			mockGit.diff.mockResolvedValue(diffOutput);
+
+			const result = await gitClient.getChangedFiles('base-commit');
+
+			expect(result).toEqual({
+				added: ['src/new-file.ts'],
+				modified: ['src/modified-file.ts'],
+				deleted: ['src/deleted-file.ts'],
+				renamed: [],
+			});
+		});
+
+		it('should handle mixed LF and CRLF line endings', async () => {
+			// Mixed line endings can occur in edge cases
+			const diffOutput =
+				'A\tsrc/file1.ts\r\nM\tsrc/file2.ts\nD\tsrc/file3.ts\r\n';
+			mockGit.diff.mockResolvedValue(diffOutput);
+
+			const result = await gitClient.getChangedFiles('base-commit');
+
+			expect(result).toEqual({
+				added: ['src/file1.ts'],
+				modified: ['src/file2.ts'],
+				deleted: ['src/file3.ts'],
+				renamed: [],
 			});
 		});
 	});
@@ -207,9 +269,9 @@ describe('GitClient', () => {
 					name: 'origin',
 					refs: {
 						fetch: expectedUrl,
-						push: expectedUrl
-					}
-				}
+						push: expectedUrl,
+					},
+				},
 			];
 
 			mockGit.getRemotes.mockResolvedValue(mockRemotes);
@@ -226,14 +288,16 @@ describe('GitClient', () => {
 					name: 'upstream',
 					refs: {
 						fetch: 'https://github.com/upstream/repo.git',
-						push: 'https://github.com/upstream/repo.git'
-					}
-				}
+						push: 'https://github.com/upstream/repo.git',
+					},
+				},
 			];
 
 			mockGit.getRemotes.mockResolvedValue(mockRemotes);
 
-			await expect(gitClient.getRemoteOriginUrl()).rejects.toThrow('Remote origin URL not found or has no fetch URL');
+			await expect(gitClient.getRemoteOriginUrl()).rejects.toThrow(
+				'Remote origin URL not found or has no fetch URL',
+			);
 		});
 
 		it('should throw error if origin has no fetch URL', async () => {
@@ -242,14 +306,16 @@ describe('GitClient', () => {
 					name: 'origin',
 					refs: {
 						fetch: '',
-						push: 'https://github.com/user/repo.git'
-					}
-				}
+						push: 'https://github.com/user/repo.git',
+					},
+				},
 			];
 
 			mockGit.getRemotes.mockResolvedValue(mockRemotes);
 
-			await expect(gitClient.getRemoteOriginUrl()).rejects.toThrow('Remote origin URL not found or has no fetch URL');
+			await expect(gitClient.getRemoteOriginUrl()).rejects.toThrow(
+				'Remote origin URL not found or has no fetch URL',
+			);
 		});
 	});
 
@@ -275,7 +341,13 @@ describe('GitClient', () => {
 
 	describe('isGitAvailable', () => {
 		it('should return true if git is available', async () => {
-			mockGit.version.mockResolvedValue({ major: 2, minor: 30, patch: 0, agent: 'git/2.30.0', installed: true });
+			mockGit.version.mockResolvedValue({
+				major: 2,
+				minor: 30,
+				patch: 0,
+				agent: 'git/2.30.0',
+				installed: true,
+			});
 
 			const result = await gitClient.isGitAvailable();
 
@@ -311,7 +383,9 @@ describe('GitClient', () => {
 		});
 
 		it('should return false if checkIsRepo throws an error', async () => {
-			mockGit.checkIsRepo.mockRejectedValue(new Error('Error checking repository'));
+			mockGit.checkIsRepo.mockRejectedValue(
+				new Error('Error checking repository'),
+			);
 
 			const result = await gitClient.isGitRepository();
 
@@ -326,7 +400,7 @@ describe('GitClient', () => {
 				all: expectedBranches,
 				branches: {},
 				current: 'main',
-				detached: false
+				detached: false,
 			};
 
 			mockGit.branchLocal.mockResolvedValue(mockBranchSummary);
@@ -354,7 +428,7 @@ describe('GitClient', () => {
 			const mockStatusResult = createMockStatusResult({
 				files: [],
 				current: 'main',
-				isClean: () => true
+				isClean: () => true,
 			});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
@@ -364,7 +438,7 @@ describe('GitClient', () => {
 			expect(mockGit.status).toHaveBeenCalled();
 			expect(result).toEqual({
 				clean: true,
-				currentBranch: 'main'
+				currentBranch: 'main',
 			});
 		});
 
@@ -372,7 +446,7 @@ describe('GitClient', () => {
 			const mockStatusResult = createMockStatusResult({
 				files: [{ path: 'src/changed.ts' } as any],
 				current: 'feature/test',
-				isClean: () => false
+				isClean: () => false,
 			});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
@@ -381,7 +455,7 @@ describe('GitClient', () => {
 
 			expect(result).toEqual({
 				clean: false,
-				currentBranch: 'feature/test'
+				currentBranch: 'feature/test',
 			});
 		});
 
@@ -389,7 +463,7 @@ describe('GitClient', () => {
 			const mockStatusResult = createMockStatusResult({
 				files: [],
 				current: null,
-				isClean: () => true
+				isClean: () => true,
 			});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
@@ -398,7 +472,7 @@ describe('GitClient', () => {
 
 			expect(result).toEqual({
 				clean: true,
-				currentBranch: null
+				currentBranch: null,
 			});
 		});
 	});
@@ -407,19 +481,21 @@ describe('GitClient', () => {
 		it('should successfully pull changes', async () => {
 			const mockStatusResult = createMockStatusResult({
 				isClean: () => true,
-				conflicted: []
+				conflicted: [],
 			});
 
 			const mockPullResult: PullResult = {
 				summary: {
 					changes: 5,
 					insertions: 10,
-					deletions: 3
-				}
+					deletions: 3,
+				},
 			} as PullResult;
 
 			// Mock console.log to avoid output during tests
-			const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+			const consoleSpy = jest
+				.spyOn(console, 'log')
+				.mockImplementation(() => {});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
 			mockGit.pull.mockResolvedValue(mockPullResult);
@@ -430,7 +506,9 @@ describe('GitClient', () => {
 			expect(mockGit.pull).toHaveBeenCalled();
 			expect(result).toBe(true);
 			expect(consoleSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Pull successful: 5 files changed, 10 insertions(+), 3 deletions(-)')
+				expect.stringContaining(
+					'Pull successful: 5 files changed, 10 insertions(+), 3 deletions(-)',
+				),
 			);
 
 			consoleSpy.mockRestore();
@@ -439,15 +517,15 @@ describe('GitClient', () => {
 		it('should handle pull with no changes (already up to date)', async () => {
 			const mockStatusResult = createMockStatusResult({
 				isClean: () => true,
-				conflicted: []
+				conflicted: [],
 			});
 
 			const mockPullResult: PullResult = {
 				summary: {
 					changes: 0,
 					insertions: 0,
-					deletions: 0
-				}
+					deletions: 0,
+				},
 			} as PullResult;
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
@@ -465,18 +543,24 @@ describe('GitClient', () => {
 				created: ['src/new.ts'],
 				deleted: ['src/deleted.ts'],
 				conflicted: [],
-				staged: []
+				staged: [],
 			});
 
 			// Mock console.error to avoid output during tests
-			const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = jest
+				.spyOn(console, 'error')
+				.mockImplementation(() => {});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
 
-			await expect(gitClient.pull()).rejects.toThrow(/Cannot pull with uncommitted changes/);
+			await expect(gitClient.pull()).rejects.toThrow(
+				/Cannot pull with uncommitted changes/,
+			);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Cannot pull: Working directory has uncommitted changes')
+				expect.stringContaining(
+					'Cannot pull: Working directory has uncommitted changes',
+				),
 			);
 
 			consoleErrorSpy.mockRestore();
@@ -489,17 +573,22 @@ describe('GitClient', () => {
 				created: [],
 				deleted: [],
 				conflicted: ['src/conflicted.ts'],
-				staged: []
+				staged: [],
 			});
 
-			const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = jest
+				.spyOn(console, 'error')
+				.mockImplementation(() => {});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
 
-			await expect(gitClient.pull()).rejects.toThrow(/Cannot pull with uncommitted changes/);
+			await expect(gitClient.pull()).rejects.toThrow(
+				/Cannot pull with uncommitted changes/,
+			);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				'   ⚠️  Conflicted files:', 'src/conflicted.ts'
+				'   ⚠️  Conflicted files:',
+				'src/conflicted.ts',
 			);
 
 			consoleErrorSpy.mockRestore();
@@ -508,23 +597,25 @@ describe('GitClient', () => {
 		it('should throw error if conflicts are detected after pull', async () => {
 			const cleanStatusResult = createMockStatusResult({
 				isClean: () => true,
-				conflicted: []
+				conflicted: [],
 			});
 
 			const conflictedStatusResult = createMockStatusResult({
 				isClean: () => false,
-				conflicted: ['src/conflict.ts']
+				conflicted: ['src/conflict.ts'],
 			});
 
 			const mockPullResult: PullResult = {
 				summary: {
 					changes: 0,
 					insertions: 0,
-					deletions: 0
-				}
+					deletions: 0,
+				},
 			} as PullResult;
 
-			const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = jest
+				.spyOn(console, 'error')
+				.mockImplementation(() => {});
 
 			mockGit.status
 				.mockResolvedValueOnce(cleanStatusResult) // Initial status check
@@ -533,10 +624,12 @@ describe('GitClient', () => {
 
 			mockGit.pull.mockResolvedValue(mockPullResult);
 
-			await expect(gitClient.pull()).rejects.toThrow(/Pull resulted in merge conflicts/);
+			await expect(gitClient.pull()).rejects.toThrow(
+				/Pull resulted in merge conflicts/,
+			);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Pull failed: Merge conflicts detected')
+				expect.stringContaining('Pull failed: Merge conflicts detected'),
 			);
 
 			consoleErrorSpy.mockRestore();
@@ -545,18 +638,24 @@ describe('GitClient', () => {
 		it('should handle generic git errors gracefully', async () => {
 			const mockStatusResult = createMockStatusResult({
 				isClean: () => true,
-				conflicted: []
+				conflicted: [],
 			});
 
-			const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = jest
+				.spyOn(console, 'error')
+				.mockImplementation(() => {});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
-			mockGit.pull.mockRejectedValue(new Error('Could not resolve host github.com'));
+			mockGit.pull.mockRejectedValue(
+				new Error('Could not resolve host github.com'),
+			);
 
-			await expect(gitClient.pull()).rejects.toThrow(/Git pull operation failed/);
+			await expect(gitClient.pull()).rejects.toThrow(
+				/Git pull operation failed/,
+			);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Pull failed: Network error')
+				expect.stringContaining('Pull failed: Network error'),
 			);
 
 			consoleErrorSpy.mockRestore();
@@ -565,18 +664,22 @@ describe('GitClient', () => {
 		it('should handle authentication errors', async () => {
 			const mockStatusResult = createMockStatusResult({
 				isClean: () => true,
-				conflicted: []
+				conflicted: [],
 			});
 
-			const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+			const consoleErrorSpy = jest
+				.spyOn(console, 'error')
+				.mockImplementation(() => {});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
 			mockGit.pull.mockRejectedValue(new Error('Authentication failed'));
 
-			await expect(gitClient.pull()).rejects.toThrow(/Git pull operation failed/);
+			await expect(gitClient.pull()).rejects.toThrow(
+				/Git pull operation failed/,
+			);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Pull failed: Authentication error')
+				expect.stringContaining('Pull failed: Authentication error'),
 			);
 
 			consoleErrorSpy.mockRestore();
@@ -585,14 +688,14 @@ describe('GitClient', () => {
 		it('should handle non-Error objects thrown during pull', async () => {
 			const mockStatusResult = createMockStatusResult({
 				isClean: () => true,
-				conflicted: []
+				conflicted: [],
 			});
 
 			mockGit.status.mockResolvedValue(mockStatusResult);
 			mockGit.pull.mockRejectedValue('String error message');
 
 			await expect(gitClient.pull()).rejects.toThrow(
-				'Git pull operation failed: String error message'
+				'Git pull operation failed: String error message',
 			);
 		});
 	});

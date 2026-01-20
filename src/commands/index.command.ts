@@ -11,6 +11,7 @@ import { SerializedAST } from '../types/api';
 import { ASTCompressor } from '../utils/ast-compressor';
 import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
 import { PromisePool } from '../utils/promise-pool';
+import { normalizeGraphPath } from '../utils/path.utils';
 import {
 	BLUE_INFO,
 	GREEN_CHECK,
@@ -594,10 +595,10 @@ export default class IndexCommand extends BaseCommand {
 	/**
 	 * Normalizes a file path to canonical format: project-root-relative without leading ./
 	 * Ensures consistency across the system for path matching.
+	 * Uses normalizeGraphPath to handle cross-platform path separators.
 	 * Example: "./libs/indexer/src/index.ts" -> "libs/indexer/src/index.ts"
 	 */
-	private normalizePathToCanonical(path: string): string {
-		// Remove any leading ./ or /
-		return path.replace(/^\.?\//, '');
+	private normalizePathToCanonical(filePath: string): string {
+		return normalizeGraphPath(filePath);
 	}
 }

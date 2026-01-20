@@ -61,7 +61,7 @@
 		"npm": ">=11.0.0"
 	},
 	"files": [
-		"./dist"
+		"dist"
 	],
 	"homepage": "https://constellationdev.io",
 	"bugs": "https://github.com/ShiftinBits/constellation-cli/issues",

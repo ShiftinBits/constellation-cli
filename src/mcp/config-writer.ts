@@ -232,6 +232,7 @@ export class ConfigWriter {
 
 	/**
 	 * Write config to file.
+	 * Ensures consistent LF line endings and trailing newline for cross-platform compatibility.
 	 */
 	private async writeConfig(
 		filePath: string,
@@ -245,6 +246,12 @@ export class ConfigWriter {
 		} else {
 			const toml = await loadTomlModule();
 			content = toml!.stringify(config);
+		}
+
+		// Normalize line endings to LF and ensure trailing newline
+		content = content.replace(/\r\n/g, '\n');
+		if (!content.endsWith('\n')) {
+			content += '\n';
 		}
 
 		await FileUtils.writeFile(filePath, content);

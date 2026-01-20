@@ -356,6 +356,37 @@ describe('ConfigWriter', () => {
 			expect(written).toMatch(/^\{\n {2}/); // 2-space indentation
 		});
 
+		it('should normalize CRLF line endings to LF', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const cursor = AI_TOOLS.find((t) => t.id === 'cursor')!;
+			await writer.configureTool(cursor);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+
+			// Should not contain CRLF
+			expect(written).not.toContain('\r\n');
+			// Should contain LF
+			expect(written).toContain('\n');
+		});
+
+		it('should ensure trailing newline in output', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const cursor = AI_TOOLS.find((t) => t.id === 'cursor')!;
+			await writer.configureTool(cursor);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+
+			expect(written.endsWith('\n')).toBe(true);
+		});
+
 		it('should handle invalid JSON in existing config', async () => {
 			mockFileUtils.fileIsReadable.mockResolvedValue(true);
 			mockFileUtils.readFile.mockResolvedValue('invalid json');

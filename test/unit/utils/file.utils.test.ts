@@ -1,8 +1,19 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import {
+	describe,
+	it,
+	expect,
+	jest,
+	beforeEach,
+	afterEach,
+} from '@jest/globals';
 import * as fs from 'node:fs/promises';
 import { Stats } from 'node:fs';
 import { FileUtils } from '../../../src/utils/file.utils';
-import { createTempDir, cleanupTempDir, createTestFile } from '../../helpers/test-utils';
+import {
+	createTempDir,
+	cleanupTempDir,
+	createTestFile,
+} from '../../helpers/test-utils';
 
 jest.mock('node:fs/promises');
 
@@ -68,7 +79,10 @@ describe('FileUtils', () => {
 			const result = await FileUtils.fileIsReadable('/test/file.txt');
 
 			expect(result).toBe(true);
-			expect(mockFs.access).toHaveBeenCalledWith('/test/file.txt', fs.constants.R_OK);
+			expect(mockFs.access).toHaveBeenCalledWith(
+				'/test/file.txt',
+				fs.constants.R_OK,
+			);
 		});
 
 		it('should return false for non-readable file', async () => {
@@ -77,7 +91,10 @@ describe('FileUtils', () => {
 			const result = await FileUtils.fileIsReadable('/test/protected.txt');
 
 			expect(result).toBe(false);
-			expect(mockFs.access).toHaveBeenCalledWith('/test/protected.txt', fs.constants.R_OK);
+			expect(mockFs.access).toHaveBeenCalledWith(
+				'/test/protected.txt',
+				fs.constants.R_OK,
+			);
 		});
 
 		it('should return false for non-existent file', async () => {
@@ -86,7 +103,10 @@ describe('FileUtils', () => {
 			const result = await FileUtils.fileIsReadable('/non/existent.txt');
 
 			expect(result).toBe(false);
-			expect(mockFs.access).toHaveBeenCalledWith('/non/existent.txt', fs.constants.R_OK);
+			expect(mockFs.access).toHaveBeenCalledWith(
+				'/non/existent.txt',
+				fs.constants.R_OK,
+			);
 		});
 	});
 
@@ -121,7 +141,29 @@ describe('FileUtils', () => {
 			const error = new Error('ENOENT: no such file or directory');
 			mockFs.readFile.mockRejectedValue(error);
 
-			await expect(FileUtils.readFile('/non/existent.txt')).rejects.toThrow('ENOENT');
+			await expect(FileUtils.readFile('/non/existent.txt')).rejects.toThrow(
+				'ENOENT',
+			);
+		});
+
+		it('should strip UTF-8 BOM from file content', async () => {
+			// UTF-8 BOM is the character U+FEFF (zero-width no-break space)
+			const contentWithBOM = '\uFEFFHello, World!';
+			mockFs.readFile.mockResolvedValue(contentWithBOM);
+
+			const result = await FileUtils.readFile('/test/file-with-bom.txt');
+
+			expect(result).toBe('Hello, World!');
+			expect(result.charCodeAt(0)).not.toBe(0xfeff);
+		});
+
+		it('should leave content without BOM unchanged', async () => {
+			const contentWithoutBOM = 'Hello, World!';
+			mockFs.readFile.mockResolvedValue(contentWithoutBOM);
+
+			const result = await FileUtils.readFile('/test/file-without-bom.txt');
+
+			expect(result).toBe('Hello, World!');
 		});
 
 		it('should handle large files', async () => {
@@ -148,7 +190,7 @@ describe('FileUtils', () => {
 				{
 					encoding: 'utf-8',
 					flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
-				}
+				},
 			);
 		});
 
@@ -164,7 +206,7 @@ describe('FileUtils', () => {
 				{
 					encoding: 'ascii',
 					flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
-				}
+				},
 			);
 		});
 
@@ -179,7 +221,7 @@ describe('FileUtils', () => {
 				{
 					encoding: 'utf-8',
 					flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
-				}
+				},
 			);
 		});
 
@@ -187,9 +229,9 @@ describe('FileUtils', () => {
 			const error = new Error('EACCES: permission denied');
 			mockFs.writeFile.mockRejectedValue(error);
 
-			await expect(FileUtils.writeFile('/protected/file.txt', 'content')).rejects.toThrow(
-				'EACCES'
-			);
+			await expect(
+				FileUtils.writeFile('/protected/file.txt', 'content'),
+			).rejects.toThrow('EACCES');
 		});
 
 		it('should handle special characters', async () => {
@@ -204,7 +246,7 @@ describe('FileUtils', () => {
 				{
 					encoding: 'utf-8',
 					flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
-				}
+				},
 			);
 		});
 	});
@@ -231,7 +273,9 @@ describe('FileUtils', () => {
 			const error = new Error('ENOENT: no such file or directory');
 			mockFs.stat.mockRejectedValue(error);
 
-			await expect(FileUtils.getFileStats('/non/existent.txt')).rejects.toThrow('ENOENT');
+			await expect(FileUtils.getFileStats('/non/existent.txt')).rejects.toThrow(
+				'ENOENT',
+			);
 		});
 
 		it('should work for directories', async () => {
@@ -265,7 +309,11 @@ describe('FileUtils', () => {
 			const result = await FileUtils.getFileHandle('/test/file.txt', 'r');
 
 			expect(result).toBe(mockHandle);
-			expect(mockFs.open).toHaveBeenCalledWith('/test/file.txt', 'r', undefined);
+			expect(mockFs.open).toHaveBeenCalledWith(
+				'/test/file.txt',
+				'r',
+				undefined,
+			);
 		});
 
 		it('should open file with flags and mode', async () => {
@@ -278,14 +326,14 @@ describe('FileUtils', () => {
 			const result = await FileUtils.getFileHandle(
 				'/test/file.txt',
 				fs.constants.O_RDWR | fs.constants.O_CREAT,
-				0o644
+				0o644,
 			);
 
 			expect(result).toBe(mockHandle);
 			expect(mockFs.open).toHaveBeenCalledWith(
 				'/test/file.txt',
 				fs.constants.O_RDWR | fs.constants.O_CREAT,
-				0o644
+				0o644,
 			);
 		});
 
@@ -293,9 +341,9 @@ describe('FileUtils', () => {
 			const error = new Error('EACCES: permission denied');
 			mockFs.open.mockRejectedValue(error);
 
-			await expect(FileUtils.getFileHandle('/protected/file.txt', 'r')).rejects.toThrow(
-				'EACCES'
-			);
+			await expect(
+				FileUtils.getFileHandle('/protected/file.txt', 'r'),
+			).rejects.toThrow('EACCES');
 		});
 	});
 });

@@ -1,6 +1,7 @@
 import { SyntaxNode, Tree } from 'tree-sitter';
 import { ImportResolutionMetadata } from '../types/api';
 import type { ImportResolver } from '../languages/plugins/base-plugin';
+import { normalizeGraphPath } from './path.utils';
 
 /**
  * Extracts import resolution metadata from AST without modifying it.
@@ -95,7 +96,7 @@ export class ImportExtractor {
 		// Normalize resolved path to canonical format (project-root-relative without leading ./)
 		const normalizedPath = isExternal
 			? undefined
-			: this.normalizeToCanonical(resolvedPath);
+			: normalizeGraphPath(resolvedPath);
 
 		resolutions[line.toString()] = {
 			source: importSpecifier,
@@ -136,7 +137,7 @@ export class ImportExtractor {
 		// Normalize resolved path to canonical format (project-root-relative without leading ./)
 		const normalizedPath = isExternal
 			? undefined
-			: this.normalizeToCanonical(resolvedPath);
+			: normalizeGraphPath(resolvedPath);
 
 		resolutions[line.toString()] = {
 			source: importSpecifier,
@@ -144,15 +145,6 @@ export class ImportExtractor {
 			isExternal,
 			importType,
 		};
-	}
-
-	/**
-	 * Normalizes a path to canonical format: project-root-relative without leading ./
-	 * Example: "./libs/indexer/src/index.ts" -> "libs/indexer/src/index.ts"
-	 */
-	private normalizeToCanonical(path: string): string {
-		// Remove any leading ./ or /
-		return path.replace(/^\.?\//, '');
 	}
 
 	/**

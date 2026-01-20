@@ -34,12 +34,24 @@ export const FileUtils = {
 	},
 
 	/**
-	 * Read file contents from path
+	 * Read file contents from path.
+	 * Automatically strips UTF-8 BOM (Byte Order Mark) if present.
+	 * Windows editors sometimes add BOMs which can cause parsing issues.
 	 * @param path Path from which to read file contents
-	 * @returns File contents as string
+	 * @returns File contents as string (BOM stripped if present)
 	 */
-	async readFile(path: string, encoding: BufferEncoding = 'utf-8'): Promise<string> {
-		const fileContents: string = await fs.readFile(path, { encoding, flag: fs.constants.O_RDONLY });
+	async readFile(
+		path: string,
+		encoding: BufferEncoding = 'utf-8',
+	): Promise<string> {
+		let fileContents: string = await fs.readFile(path, {
+			encoding,
+			flag: fs.constants.O_RDONLY,
+		});
+		// Strip UTF-8 BOM if present (common in files created by Windows editors)
+		if (fileContents.charCodeAt(0) === 0xfeff) {
+			fileContents = fileContents.slice(1);
+		}
 		return fileContents;
 	},
 
@@ -48,9 +60,16 @@ export const FileUtils = {
 	 * @param path File path which to write data
 	 * @param contents File contents which to write to file path
 	 */
-	async writeFile(path: string, contents: string, encoding: BufferEncoding = 'utf-8'): Promise<void> {
+	async writeFile(
+		path: string,
+		contents: string,
+		encoding: BufferEncoding = 'utf-8',
+	): Promise<void> {
 		const fileContents: Buffer = Buffer.from(contents, encoding);
-		await fs.writeFile(path, fileContents, { encoding, flag: fs.constants.O_WRONLY | fs.constants.O_CREAT });
+		await fs.writeFile(path, fileContents, {
+			encoding,
+			flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
+		});
 	},
 
 	/**
@@ -69,7 +88,11 @@ export const FileUtils = {
 	 * @param mode Optional file mode permissions (defaults to 0o666)
 	 * @returns FileHandle for performing advanced file operations
 	 */
-	async getFileHandle(path: string, flags: string | number, mode?: number): Promise<fs.FileHandle> {
+	async getFileHandle(
+		path: string,
+		flags: string | number,
+		mode?: number,
+	): Promise<fs.FileHandle> {
 		return await fs.open(path, flags, mode);
-	}
+	},
 };

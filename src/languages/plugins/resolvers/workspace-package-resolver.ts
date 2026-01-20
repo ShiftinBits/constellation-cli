@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { TSConfckParseResult } from 'tsconfck';
+import { relativePosix } from '../../../utils/path.utils';
 
 /**
  * Mapping of package names to their entry points.
@@ -29,7 +30,7 @@ export class WorkspacePackageResolver {
 
 	constructor(
 		private readonly projectRoot: string,
-		private readonly tsconfigResult: TSConfckParseResult | null
+		private readonly tsconfigResult: TSConfckParseResult | null,
 	) {}
 
 	/**
@@ -80,7 +81,9 @@ export class WorkspacePackageResolver {
 		}
 
 		// Try sub-path match (e.g., '@myorg/database/entities')
-		for (const [packageName, entryPoint] of Object.entries(this.workspacePackages)) {
+		for (const [packageName, entryPoint] of Object.entries(
+			this.workspacePackages,
+		)) {
 			if (importPath.startsWith(packageName + '/')) {
 				const subPath = importPath.substring(packageName.length + 1);
 				const resolved = await this.resolveSubPath(entryPoint, subPath);
@@ -195,7 +198,8 @@ export class WorkspacePackageResolver {
 			for (const pattern of workspacePatterns) {
 				const workspaceDirs = await this.findWorkspaceDirs(pattern);
 				for (const workspaceDir of workspaceDirs) {
-					const workspacePackage = await this.loadWorkspacePackage(workspaceDir);
+					const workspacePackage =
+						await this.loadWorkspacePackage(workspaceDir);
 					if (workspacePackage) {
 						Object.assign(packages, workspacePackage);
 					}
@@ -250,7 +254,9 @@ export class WorkspacePackageResolver {
 	 * Loads a workspace package by reading its package.json.
 	 * Returns a map of package name to entry point.
 	 */
-	private async loadWorkspacePackage(workspaceDir: string): Promise<WorkspacePackageMap | null> {
+	private async loadWorkspacePackage(
+		workspaceDir: string,
+	): Promise<WorkspacePackageMap | null> {
 		try {
 			const packageJsonPath = path.join(workspaceDir, 'package.json');
 			const content = await fs.readFile(packageJsonPath, 'utf-8');
@@ -262,7 +268,10 @@ export class WorkspacePackageResolver {
 			}
 
 			// Find the entry point
-			const entryPoint = await this.findPackageEntryPoint(workspaceDir, packageJson);
+			const entryPoint = await this.findPackageEntryPoint(
+				workspaceDir,
+				packageJson,
+			);
 			if (!entryPoint) {
 				return null;
 			}
@@ -280,7 +289,10 @@ export class WorkspacePackageResolver {
 	 * 2. package.json "main" field
 	 * 3. Common convention directories (src/index.ts, index.ts)
 	 */
-	private async findPackageEntryPoint(workspaceDir: string, packageJson: any): Promise<string | null> {
+	private async findPackageEntryPoint(
+		workspaceDir: string,
+		packageJson: any,
+	): Promise<string | null> {
 		// Check "exports" field (modern Node.js packages)
 		if (packageJson.exports) {
 			const exports = packageJson.exports;
@@ -298,7 +310,8 @@ export class WorkspacePackageResolver {
 				}
 				// Handle conditional exports
 				if (typeof mainExport === 'object') {
-					const importPath = mainExport.import || mainExport.default || mainExport.require;
+					const importPath =
+						mainExport.import || mainExport.default || mainExport.require;
 					if (importPath) {
 						return path.join(workspaceDir, importPath);
 					}
@@ -320,7 +333,7 @@ export class WorkspacePackageResolver {
 			'index.ts',
 			'index.tsx',
 			'index.js',
-			'index.jsx'
+			'index.jsx',
 		];
 
 		for (const conventionPath of conventionPaths) {
@@ -349,7 +362,7 @@ export class WorkspacePackageResolver {
 			'index.tsx',
 			'index.js',
 			'index.jsx',
-			'index.d.ts'
+			'index.d.ts',
 		];
 
 		for (const entry of entryPoints) {
@@ -389,14 +402,18 @@ export class WorkspacePackageResolver {
 	 * // => 'libs/database/src/entities.ts' (if exists)
 	 * // => 'libs/database/src/entities/index.ts' (if directory)
 	 */
-	private async resolveSubPath(entryPoint: string, subPath: string): Promise<string | null> {
+	private async resolveSubPath(
+		entryPoint: string,
+		subPath: string,
+	): Promise<string | null> {
 		// Get the package directory (remove /index.ts or similar)
-		const packageDir = entryPoint.endsWith('index.ts') ||
-		                  entryPoint.endsWith('index.tsx') ||
-		                  entryPoint.endsWith('index.js') ||
-		                  entryPoint.endsWith('index.jsx')
-			? path.dirname(entryPoint)
-			: path.dirname(entryPoint);
+		const packageDir =
+			entryPoint.endsWith('index.ts') ||
+			entryPoint.endsWith('index.tsx') ||
+			entryPoint.endsWith('index.js') ||
+			entryPoint.endsWith('index.jsx')
+				? path.dirname(entryPoint)
+				: path.dirname(entryPoint);
 
 		// Try different resolutions
 		const candidates = [
@@ -408,7 +425,7 @@ export class WorkspacePackageResolver {
 			path.join(packageDir, subPath, 'index.ts'),
 			path.join(packageDir, subPath, 'index.tsx'),
 			path.join(packageDir, subPath, 'index.js'),
-			path.join(packageDir, subPath, 'index.jsx')
+			path.join(packageDir, subPath, 'index.jsx'),
 		];
 
 		for (const candidate of candidates) {
@@ -428,9 +445,10 @@ export class WorkspacePackageResolver {
 	/**
 	 * Converts an absolute file path to a project-relative path.
 	 * All returned paths will start with './' to indicate they are project-root relative.
+	 * Uses POSIX separators for cross-platform compatibility.
 	 */
 	private toProjectRelative(absolutePath: string): string {
-		const relativePath = path.relative(this.projectRoot, absolutePath);
+		const relativePath = relativePosix(this.projectRoot, absolutePath);
 		return relativePath.startsWith('./') ? relativePath : `./${relativePath}`;
 	}
 }

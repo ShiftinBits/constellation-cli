@@ -4,6 +4,7 @@ import path from 'node:path';
 import { ConstellationConfig } from '../config/config';
 import { ParserLanguage } from '../languages/language.registry';
 import { FileUtils } from '../utils/file.utils';
+import { relativePosix } from '../utils/path.utils';
 import { RED_X, YELLOW_WARN } from '../utils/unicode-chars';
 
 /**
@@ -61,7 +62,7 @@ export class FileScanner {
 		const filteredFiles = allFiles.filter(
 			(file) =>
 				!ig.ignores(file.relativePath) &&
-				this.matchesLanguageExtension(file, config.languages)
+				this.matchesLanguageExtension(file, config.languages),
 		);
 
 		return filteredFiles;
@@ -75,7 +76,10 @@ export class FileScanner {
 	 * @param config Constellation configuration containing language settings
 	 * @returns Array of file information for existing files that match language filters
 	 */
-	async scanSpecificFiles(filePaths: string[], config: ConstellationConfig): Promise<FileInfo[]> {
+	async scanSpecificFiles(
+		filePaths: string[],
+		config: ConstellationConfig,
+	): Promise<FileInfo[]> {
 		const fileInfos: FileInfo[] = [];
 
 		// Create an ignore instance for exclude patterns
@@ -102,8 +106,13 @@ export class FileScanner {
 					const realPath = await fs.realpath(absolutePath);
 
 					// Verify the real path is within project boundaries
-					if (!realPath.startsWith(projectRealPath + path.sep) && realPath !== projectRealPath) {
-						console.warn(`${YELLOW_WARN} Skipping symlink pointing outside project: ${filePath} -> ${realPath}`);
+					if (
+						!realPath.startsWith(projectRealPath + path.sep) &&
+						realPath !== projectRealPath
+					) {
+						console.warn(
+							`${YELLOW_WARN} Skipping symlink pointing outside project: ${filePath} -> ${realPath}`,
+						);
 						continue;
 					}
 
@@ -114,7 +123,7 @@ export class FileScanner {
 					}
 
 					// Use the real path for further processing
-					const relativePath = path.relative(this.rootPath, absolutePath);
+					const relativePath = relativePosix(this.rootPath, absolutePath);
 
 					// Check if file is excluded by exclude patterns
 					if (ig && ig.ignores(relativePath)) {
@@ -131,11 +140,11 @@ export class FileScanner {
 						path: absolutePath,
 						relativePath,
 						language,
-						size: stats.size
+						size: stats.size,
 					});
 				} else if (lStats.isFile()) {
 					// Regular file - process normally
-					const relativePath = path.relative(this.rootPath, absolutePath);
+					const relativePath = relativePosix(this.rootPath, absolutePath);
 
 					// Check if file is excluded by exclude patterns
 					if (ig && ig.ignores(relativePath)) {
@@ -152,7 +161,7 @@ export class FileScanner {
 						path: absolutePath,
 						relativePath,
 						language,
-						size: lStats.size
+						size: lStats.size,
 					});
 				}
 				// Skip directories and other file types
@@ -171,7 +180,10 @@ export class FileScanner {
 	 * @param ig The ignore instance to add rules to
 	 * @param startPath The path to start searching from
 	 */
-	private async loadGitignoreRules(ig: Ignore, startPath: string): Promise<void> {
+	private async loadGitignoreRules(
+		ig: Ignore,
+		startPath: string,
+	): Promise<void> {
 		const gitignorePaths: string[] = [];
 		let currentPath = startPath;
 
@@ -193,7 +205,10 @@ export class FileScanner {
 			if (await FileUtils.directoryExists(gitPath)) {
 				// Check for .gitignore at git root too
 				const rootGitignore = path.join(currentPath, '.gitignore');
-				if (await FileUtils.fileIsReadable(rootGitignore) && !gitignorePaths.includes(rootGitignore)) {
+				if (
+					(await FileUtils.fileIsReadable(rootGitignore)) &&
+					!gitignorePaths.includes(rootGitignore)
+				) {
 					gitignorePaths.unshift(rootGitignore);
 				}
 				break;
@@ -206,7 +221,9 @@ export class FileScanner {
 				const content = await FileUtils.readFile(gitignorePath);
 				ig.add(content);
 			} catch (error) {
-				console.warn(`${YELLOW_WARN} Failed to load .gitignore: ${gitignorePath}`);
+				console.warn(
+					`${YELLOW_WARN} Failed to load .gitignore: ${gitignorePath}`,
+				);
 			}
 		}
 
@@ -223,19 +240,23 @@ export class FileScanner {
 	 * @param projectRealPath Canonical project root path for security validation (optional, computed on first call)
 	 * @returns Array of file information with placeholder language values
 	 */
-	private async walkDirectory(dirPath: string, baseDir?: string, projectRealPath?: string): Promise<FileInfo[]> {
+	private async walkDirectory(
+		dirPath: string,
+		baseDir?: string,
+		projectRealPath?: string,
+	): Promise<FileInfo[]> {
 		const files: FileInfo[] = [];
 		const base = baseDir || dirPath;
 
 		// Get canonical project root path on first call for security validation
-		const projectRoot = projectRealPath || await fs.realpath(this.rootPath);
+		const projectRoot = projectRealPath || (await fs.realpath(this.rootPath));
 
 		try {
 			const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
 			for (const entry of entries) {
 				const fullPath = path.join(dirPath, entry.name);
-				const relativePath = path.relative(base, fullPath);
+				const relativePath = relativePosix(base, fullPath);
 
 				if (entry.isDirectory()) {
 					// Skip hidden directories (starting with .)
@@ -244,7 +265,11 @@ export class FileScanner {
 					}
 
 					// Recursively walk subdirectories, passing down projectRoot
-					const subFiles = await this.walkDirectory(fullPath, base, projectRoot);
+					const subFiles = await this.walkDirectory(
+						fullPath,
+						base,
+						projectRoot,
+					);
 					files.push(...subFiles);
 				} else if (entry.isFile()) {
 					// Get file stats
@@ -256,7 +281,7 @@ export class FileScanner {
 						path: fullPath,
 						relativePath,
 						language: '' as ParserLanguage, // Will be set during filtering
-						size: stats.size
+						size: stats.size,
 					});
 				} else if (entry.isSymbolicLink()) {
 					// Security check: Validate symlink target stays within project
@@ -264,8 +289,13 @@ export class FileScanner {
 						const realPath = await fs.realpath(fullPath);
 
 						// Verify the real path is within project boundaries
-						if (!realPath.startsWith(projectRoot + path.sep) && realPath !== projectRoot) {
-							console.warn(`${YELLOW_WARN} Skipping symlink pointing outside project: ${fullPath} -> ${realPath}`);
+						if (
+							!realPath.startsWith(projectRoot + path.sep) &&
+							realPath !== projectRoot
+						) {
+							console.warn(
+								`${YELLOW_WARN} Skipping symlink pointing outside project: ${fullPath} -> ${realPath}`,
+							);
 							continue;
 						}
 
@@ -279,7 +309,11 @@ export class FileScanner {
 							}
 
 							// Recursively walk symlinked directories
-							const subFiles = await this.walkDirectory(fullPath, base, projectRoot);
+							const subFiles = await this.walkDirectory(
+								fullPath,
+								base,
+								projectRoot,
+							);
 							files.push(...subFiles);
 						} else if (stats.isFile()) {
 							// Add symlinked file
@@ -287,12 +321,14 @@ export class FileScanner {
 								path: fullPath,
 								relativePath,
 								language: '' as ParserLanguage,
-								size: stats.size
+								size: stats.size,
 							});
 						}
 					} catch (symlinkError) {
 						// Broken symlink or permission error
-						console.warn(`${YELLOW_WARN} Skipping invalid symlink: ${fullPath}`);
+						console.warn(
+							`${YELLOW_WARN} Skipping invalid symlink: ${fullPath}`,
+						);
 					}
 				}
 				// Skip other special files (pipes, sockets, etc.)
@@ -313,7 +349,7 @@ export class FileScanner {
 	 */
 	private matchesLanguageExtension(
 		file: FileInfo,
-		languages: ConstellationConfig['languages']
+		languages: ConstellationConfig['languages'],
 	): boolean {
 		const ext = path.extname(file.path).toLowerCase();
 
@@ -337,7 +373,7 @@ export class FileScanner {
 	 */
 	private detectLanguage(
 		filePath: string,
-		languages: ConstellationConfig['languages']
+		languages: ConstellationConfig['languages'],
 	): ParserLanguage | null {
 		const ext = path.extname(filePath).toLowerCase();
 

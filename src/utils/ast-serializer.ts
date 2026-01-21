@@ -29,7 +29,7 @@ export interface SerializedNode {
  */
 export function* serializeASTStream(
 	node: SyntaxNode,
-	parentFieldName?: string
+	parentFieldName?: string,
 ): Generator<string> {
 	yield* serializeNodeToJSON(node, parentFieldName);
 }
@@ -38,29 +38,77 @@ export function* serializeASTStream(
  * Recursively yields JSON chunks for a node and its children.
  * Uses generators to stream output without accumulating memory.
  */
-function* serializeNodeToJSON(node: SyntaxNode, parentFieldName?: string): Generator<string> {
+function* serializeNodeToJSON(
+	node: SyntaxNode,
+	parentFieldName?: string,
+): Generator<string> {
 	yield '{';
 
 	// Serialize node properties
 	yield `"type":${JSON.stringify(node.type)}`;
-	yield `,"startPosition":${JSON.stringify({row: node.startPosition.row, column: node.startPosition.column})}`;
-	yield `,"endPosition":${JSON.stringify({row: node.endPosition.row, column: node.endPosition.column})}`;
+	yield `,"startPosition":${JSON.stringify({ row: node.startPosition.row, column: node.startPosition.column })}`;
+	yield `,"endPosition":${JSON.stringify({ row: node.endPosition.row, column: node.endPosition.column })}`;
 
 	if (parentFieldName) {
 		yield `,"fieldName":${JSON.stringify(parentFieldName)}`;
 	}
 
 	// Include text for specific node types
+	// IMPORTANT: Type annotation nodes need text preserved for type dependency extraction
 	const textIncludedTypes = [
-		'identifier', 'property_identifier', 'type_identifier', 'shorthand_property_identifier',
-		'string', 'string_literal', 'template_string', 'number', 'true', 'false', 'null', 'undefined',
-		'import_specifier', 'export_specifier', 'predefined_type', 'type_predicate', 'type_alias',
-		'accessibility_modifier', 'readonly', 'static', 'async', 'await', 'const', 'let', 'var',
+		'identifier',
+		'property_identifier',
+		'type_identifier',
+		'shorthand_property_identifier',
+		'string',
+		'string_literal',
+		'template_string',
+		'number',
+		'true',
+		'false',
+		'null',
+		'undefined',
+		'import_specifier',
+		'export_specifier',
+		'predefined_type',
+		'type_predicate',
+		'type_alias',
+		'accessibility_modifier',
+		'readonly',
+		'static',
+		'async',
+		'await',
+		'const',
+		'let',
+		'var',
 		'decorator', // Decorator nodes (e.g., @Injectable())
-		'=', '=>', '...', '?', '!',
+		'=',
+		'=>',
+		'...',
+		'?',
+		'!',
+		// Type annotations - needed for extractTypeDependencies to parse type references
+		'type_annotation',
+		'return_type',
+		'type_arguments',
+		'type_parameters',
+		'array_type',
+		'union_type',
+		'intersection_type',
+		'generic_type',
+		'tuple_type',
+		'function_type',
+		'object_type',
+		'mapped_type',
+		'conditional_type',
+		'infer_type',
 	];
 
-	if (textIncludedTypes.includes(node.type) || node.type.endsWith('_keyword') || node.type.endsWith('_operator')) {
+	if (
+		textIncludedTypes.includes(node.type) ||
+		node.type.endsWith('_keyword') ||
+		node.type.endsWith('_operator')
+	) {
 		yield `,"text":${JSON.stringify(node.text)}`;
 	}
 
@@ -109,7 +157,7 @@ function* serializeNodeToJSON(node: SyntaxNode, parentFieldName?: string): Gener
  */
 export async function serializeAST(
 	node: SyntaxNode,
-	parentFieldName?: string
+	parentFieldName?: string,
 ): Promise<SerializedNode> {
 	// Use iterative approach with explicit stack to prevent recursion-based memory buildup
 	// This dramatically reduces memory usage compared to recursive approach
@@ -123,13 +171,15 @@ export async function serializeAST(
 	}
 
 	const root = createSerializedNode(node, parentFieldName);
-	const stack: StackFrame[] = [{
-		treeNode: node,
-		serializedNode: root,
-		fieldName: parentFieldName,
-		childIndex: 0,
-		fieldChildren: new Set()
-	}];
+	const stack: StackFrame[] = [
+		{
+			treeNode: node,
+			serializedNode: root,
+			fieldName: parentFieldName,
+			childIndex: 0,
+			fieldChildren: new Set(),
+		},
+	];
 
 	while (stack.length > 0) {
 		const frame = stack[stack.length - 1];
@@ -153,7 +203,7 @@ export async function serializeAST(
 						serializedNode: childSerialized,
 						fieldName,
 						childIndex: 0,
-						fieldChildren: new Set()
+						fieldChildren: new Set(),
 					});
 				}
 			}
@@ -176,7 +226,7 @@ export async function serializeAST(
 					treeNode: child,
 					serializedNode: childSerialized,
 					childIndex: 0,
-					fieldChildren: new Set()
+					fieldChildren: new Set(),
 				});
 			}
 		} else {
@@ -192,21 +242,25 @@ export async function serializeAST(
  * Creates a serialized node from a Tree-sitter node without children.
  * Helper function to reduce code duplication.
  */
-function createSerializedNode(node: SyntaxNode, parentFieldName?: string): SerializedNode {
+function createSerializedNode(
+	node: SyntaxNode,
+	parentFieldName?: string,
+): SerializedNode {
 	const serialized: SerializedNode = {
 		type: node.type,
 		startPosition: {
 			row: node.startPosition.row,
-			column: node.startPosition.column
+			column: node.startPosition.column,
 		},
 		endPosition: {
 			row: node.endPosition.row,
-			column: node.endPosition.column
+			column: node.endPosition.column,
 		},
-		...(parentFieldName && { fieldName: parentFieldName })
+		...(parentFieldName && { fieldName: parentFieldName }),
 	};
 
 	// Include text for node types that extractors need for intelligence extraction
+	// IMPORTANT: Type annotation nodes need text preserved for type dependency extraction
 	const textIncludedTypes = [
 		// Identifiers
 		'identifier',
@@ -228,10 +282,26 @@ function createSerializedNode(node: SyntaxNode, parentFieldName?: string): Seria
 		'import_specifier',
 		'export_specifier',
 
-		// Type-related nodes
+		// Type-related nodes (basic)
 		'predefined_type',
 		'type_predicate',
 		'type_alias',
+
+		// Type annotations - needed for extractTypeDependencies to parse type references
+		'type_annotation',
+		'return_type',
+		'type_arguments',
+		'type_parameters',
+		'array_type',
+		'union_type',
+		'intersection_type',
+		'generic_type',
+		'tuple_type',
+		'function_type',
+		'object_type',
+		'mapped_type',
+		'conditional_type',
+		'infer_type',
 
 		// Small structural elements
 		'accessibility_modifier',
@@ -254,9 +324,11 @@ function createSerializedNode(node: SyntaxNode, parentFieldName?: string): Seria
 		'!',
 	];
 
-	if (textIncludedTypes.includes(node.type) ||
-	    node.type.endsWith('_keyword') ||
-	    node.type.endsWith('_operator')) {
+	if (
+		textIncludedTypes.includes(node.type) ||
+		node.type.endsWith('_keyword') ||
+		node.type.endsWith('_operator')
+	) {
 		serialized.text = node.text;
 	}
 
@@ -266,28 +338,96 @@ function createSerializedNode(node: SyntaxNode, parentFieldName?: string): Seria
 /**
  * Get common field names for a node type
  * This is a workaround for tree-sitter versions that don't expose field names directly
+ *
+ * IMPORTANT: Field names must be listed here for the Core extractor to access them
+ * via childForFieldName() on serialized AST nodes. Missing entries cause silent failures
+ * in type extraction, inheritance detection, etc.
  */
 function getCommonFieldNames(nodeType: string): string[] {
 	// Common field names used in many grammars
 	const commonFields: { [key: string]: string[] } = {
-		'function_declaration': ['name', 'parameters', 'body', 'return_type', 'type_parameters'],
-		'method_definition': ['name', 'parameters', 'body', 'return_type', 'type_parameters'],
-		'class_declaration': ['name', 'body', 'type_parameters', 'heritage'],
-		'interface_declaration': ['name', 'body', 'type_parameters'],
-		'variable_declarator': ['name', 'type', 'value'],
-		'call_expression': ['function', 'arguments', 'type_arguments'],
-		'member_expression': ['object', 'property'],
-		'import_statement': ['source', 'import'],
-		'import_specifier': ['name', 'alias'],
-		'export_specifier': ['name', 'alias'],
-		'export_statement': ['source', 'declaration', 'value'],
-		'if_statement': ['condition', 'consequence', 'alternative'],
-		'for_statement': ['init', 'condition', 'update', 'body'],
-		'while_statement': ['condition', 'body'],
-		'return_statement': ['value'],
-		'assignment_expression': ['left', 'right'],
-		'binary_expression': ['left', 'right', 'operator'],
-		// Add more as needed for different languages
+		// Functions and methods
+		function_declaration: [
+			'name',
+			'parameters',
+			'body',
+			'return_type',
+			'type_parameters',
+		],
+		function_expression: [
+			'name',
+			'parameters',
+			'body',
+			'return_type',
+			'type_parameters',
+		],
+		arrow_function: ['parameters', 'body', 'return_type', 'type_parameters'],
+		method_definition: [
+			'name',
+			'parameters',
+			'body',
+			'return_type',
+			'type_parameters',
+		],
+		method_signature: ['name', 'parameters', 'return_type', 'type_parameters'],
+		function_signature: [
+			'name',
+			'parameters',
+			'return_type',
+			'type_parameters',
+		],
+
+		// Classes and interfaces
+		class_declaration: ['name', 'body', 'type_parameters', 'heritage'],
+		interface_declaration: ['name', 'body', 'type_parameters'],
+		type_alias_declaration: ['name', 'type_parameters', 'value'],
+
+		// Properties and fields
+		property_signature: ['name', 'type'],
+		field_definition: ['name', 'type', 'value'],
+		public_field_definition: ['name', 'type', 'value'],
+		private_field_definition: ['name', 'type', 'value'],
+
+		// Parameters
+		required_parameter: ['pattern', 'type', 'value'],
+		optional_parameter: ['pattern', 'type', 'value'],
+		rest_parameter: ['pattern', 'type'],
+
+		// Variables
+		variable_declarator: ['name', 'type', 'value'],
+		lexical_declaration: ['kind'],
+
+		// Expressions
+		call_expression: ['function', 'arguments', 'type_arguments'],
+		new_expression: ['constructor', 'arguments', 'type_arguments'],
+		member_expression: ['object', 'property'],
+		assignment_expression: ['left', 'right'],
+		binary_expression: ['left', 'right', 'operator'],
+		unary_expression: ['operator', 'argument'],
+		ternary_expression: ['condition', 'consequence', 'alternative'],
+
+		// Imports/Exports
+		import_statement: ['source', 'import'],
+		import_specifier: ['name', 'alias'],
+		export_specifier: ['name', 'alias'],
+		export_statement: ['source', 'declaration', 'value'],
+
+		// Control flow
+		if_statement: ['condition', 'consequence', 'alternative'],
+		for_statement: ['init', 'condition', 'update', 'body'],
+		for_in_statement: ['left', 'right', 'body'],
+		while_statement: ['condition', 'body'],
+		do_statement: ['body', 'condition'],
+		switch_statement: ['value', 'body'],
+		try_statement: ['body', 'handler', 'finalizer'],
+		catch_clause: ['parameter', 'body'],
+		return_statement: ['value'],
+		throw_statement: ['value'],
+
+		// Type annotations (TypeScript)
+		type_annotation: ['type'],
+		type_parameter: ['name', 'constraint', 'default'],
+		generic_type: ['name', 'type_arguments'],
 	};
 
 	return commonFields[nodeType] || [];

@@ -1,243 +1,164 @@
 # constellation-cli
 
-**Role**: Local code parsing, AST generation, upload to Core. NO source transmission.
-**See**: `../CLAUDE.md` for workspace architecture, `../ADR.md` for privacy rationale.
+Local code parsing → AST generation → upload to Core. **NO source transmission.**
 
-## Purpose
+**Parent**: `../CLAUDE.md` | **ADR**: `../ADR.md`
 
-Parse source code locally with Tree-sitter → Generate compressed AST → Upload to constellation-core → Never transmit source code.
-
-## Architecture
-
-```
-Local Code → Tree-sitter Parser → AST → Compress (gzip) → Base64 → Upload to Core:3000
-              ↑
-         source.parser.ts
-         language.registry.ts
-```
-
-**Security**: Source code NEVER leaves local machine. Only compressed AST metadata uploaded.
-
-## Commands
+## Quick Reference
 
 | Task       | Command                                         |
 | ---------- | ----------------------------------------------- |
-| Run CLI    | `npm start`                                     |
+| Run        | `npm start`                                     |
 | Index      | `npm start -- index [--full\|--dirty\|--watch]` |
-| Init       | `npm start -- init`                             |
-| Auth       | `npm start -- auth login`                       |
+| Init       | `npm start -- init [--skip-mcp]`                |
+| Auth       | `npm start -- auth`                             |
 | Build      | `npm run build`                                 |
 | Test       | `npm test` / `npm run test:coverage`            |
 | Lint       | `npm run lint` / `npm run lint:fix`             |
 | Type-check | `npm run type-check`                            |
 
-## Parser Pattern
+**Requirements**: Node `>=24.0.0`, npm `>=11.0.0`
 
-**SourceParser** parses files with Tree-sitter, handling large files with streaming:
+## Architecture
 
-```typescript
-// src/parsers/source.parser.ts
-export class SourceParser {
-	constructor(private languageRegistry: LanguageRegistry) {}
-
-	async parseFile(filePath: string, language: ParserLanguage): Promise<Tree> {
-		const parser = this.languageRegistry.getParser(language);
-		const stats = await FileUtils.getFileStats(filePath);
-
-		// Small files: async read + sync parse
-		if (stats.size <= LARGE_FILE_THRESHOLD) {
-			const content = await FileUtils.readFile(filePath);
-			return parser.parse(content);
-		}
-		// Large files (>10MB): streaming with 64KB chunks
-		return this.parseWithStream(parser, filePath, stats.size);
-	}
-}
+```
+src/
+├── index.ts              # CLI entry (Commander.js)
+├── api/                  # ConstellationClient (NDJSON streaming, retry logic)
+├── commands/             # init, auth, index (BaseCommand + manual DI)
+├── config/               # constellation.json loader/validator
+├── env/                  # CrossPlatformEnvironment (Windows: setx, Unix: shell rc)
+├── languages/            # LanguageRegistry, LanguageDetector
+│   └── plugins/          # typescript.plugin.ts, javascript.plugin.ts
+│       ├── build-config/ # ts-js-config-manager.ts (tsconfig/jsconfig parsing)
+│       └── resolvers/    # ts-js-import-resolver.ts, workspace-package-resolver.ts
+├── mcp/                  # MCP tool registry + config writer
+├── parsers/              # SourceParser (Tree-sitter, size-adaptive)
+├── scanners/             # FileScanner (.gitignore aware, symlink validation)
+├── schemas/              # Zod AST validation
+├── types/                # api.ts (must sync with Core DTOs)
+├── update/               # Version check, update prompts, cache
+└── utils/                # PromisePool, GitClient, AST serializer/compressor
 ```
 
-**Language Registry** manages Tree-sitter parsers and plugins:
-
-```typescript
-// src/languages/language.registry.ts
-export class LanguageRegistry {
-  private parsers: Map<ParserLanguage, Parser>;
-  private plugins: Map<ParserLanguage, LanguagePlugin>;
-
-  getParser(language: ParserLanguage): Parser { ... }
-  getPlugin(language: ParserLanguage): LanguagePlugin | undefined { ... }
-}
-```
-
-## AST Serialization (CRITICAL)
-
-**Must strip all source code**:
-
-```typescript
-interface SerializedAST {
-	symbols: Symbol[]; // ✓ Names, types, locations
-	dependencies: Dependency[]; // ✓ Relationships
-	structure: FileStructure; // ✓ Hierarchy
-	// ✗ NO source code text
-	// ✗ NO string literals
-	// ✗ NO identifiable content
-}
-```
-
-**Compression before upload**:
-
-```typescript
-const ast = parser.parse(code, 'typescript');
-const json = JSON.stringify(ast);
-const compressed = gzipSync(json);
-const encoded = compressed.toString('base64');
-// Upload encoded to Core
-```
-
-## Authentication
-
-Set `CONSTELLATION_ACCESS_KEY` env var or run `npm start -- auth login`.
-
-See `/cli-auth-setup` skill for complete authentication guide.
-
-## Project Identification
-
-**Automatic via git remote**:
-
-```bash
-# CLI automatically detects:
-git remote get-url origin
-# Normalizes to: github.com/org/repo
-# Used as projectId
-```
-
-**Branch isolation**: Each git branch gets separate Neo4j namespace.
-
-## Index Workflow
-
-**Pipeline**: Scan → Parse → Serialize → Compress → Upload → Store
-
-**Flags**: `--full` (re-index all), `--dirty` (skip git check), `--watch` (continuous), `--concurrency N`
-
-See `/cli-indexing-workflow` skill for complete indexing guide.
-
-## Type Sync
-
-CLI types (`src/types/api.ts`) must match Core DTOs. See `../CLAUDE.md` Section 3 and `/syncing-constellation-types` skill.
-
-## Error Handling
-
-**Codes**: `PARSE_ERROR` | `AUTH_ERROR` | `NETWORK_ERROR` | `VALIDATION_ERROR`
-
-**Debug**: `DEBUG=* npm start -- index` or `--dry-run` flag
-
-See `/cli-debugging` skill for troubleshooting guide.
+**Flow**: `Scan → Parse (Tree-sitter) → Serialize (no source) → Compress (gzip) → Base64 → Upload`
 
 ## Language Support
 
-**Current**: JavaScript (.js), TypeScript (.ts, .tsx), JSX (.jsx)
+| Language   | Status | Extensions |
+| ---------- | ------ | ---------- |
+| TypeScript | ✓      | .ts, .tsx  |
+| JavaScript | ✓      | .js, .jsx  |
 
-**Future**: Python, Go, Rust, Java, C# (via Tree-sitter grammars)
+Plugins: `src/languages/plugins/{typescript,javascript}.plugin.ts`
 
-See `/implementing-language-support` skill for adding new languages.
+## Critical Patterns
 
-## Performance
+### Privacy-Preserving AST
 
-**Optimization**:
+`src/utils/ast-serializer.ts:210-255` - Only these node types include text:
 
-- Concurrent parsing via `promise-pool.ts`
-- Incremental indexing (only changed files)
-- NDJSON streaming for large uploads
-- Compression reduces payload 70-90%
+- Identifiers: `identifier`, `property_identifier`, `type_identifier`, `shorthand_property_identifier`
+- Literals: `string`, `number`, `true`, `false`, `null`, `undefined`
+- Keywords: `*_keyword`, `*_operator`
+- Modifiers: `accessibility_modifier`, `readonly`, `static`, `async`, `const`, `let`, `var`
+- Decorators: `decorator`
 
-**Configuration**:
+**Never transmitted**: function bodies, comments, source code
 
-- Concurrency: CPU cores (configurable via `--concurrency N`)
-- Large file threshold: 10MB (uses streaming parser)
-- Retry: Exponential backoff + jitter for 5xx errors
+### Command DI (`src/commands/command.deps.ts:11-22`)
 
-## File Conventions
+Manual DI without framework. Commands extend `BaseCommand`, receive only needed deps. Config loaded lazily (only `index` needs it).
 
-**Naming**:
-
-```
-{name}.command.ts          CLI commands
-{name}.parser.ts           Parsers
-{name}.plugin.ts           Language plugins
-{name}.spec.ts             Tests (co-located)
-```
-
-**Imports**:
+### Adaptive Concurrency (`src/commands/index.command.ts:456`)
 
 ```typescript
-✓ import { X } from './utils/x';  // Relative paths OK (no @aliases)
-✓ import Parser from 'tree-sitter';
-✗ import { X } from 'src/utils/x';  // No absolute from src/
+const concurrency = totalFiles > 10000 ? 5 : totalFiles > 5000 ? 7 : 10;
 ```
 
-## Key Patterns
+Prevents OOM on large projects by reducing parallel file processing.
 
-**Command Structure** (Commander.js with DI):
+### Size-Adaptive Parsing (`src/parsers/source.parser.ts:41-58`)
 
-```typescript
-// Base command with dependency injection
-export abstract class BaseCommand {
-	protected readonly git?: GitClient;
-	protected readonly config?: ConstellationConfig;
-	protected readonly langRegistry?: LanguageRegistry;
+| File Size | Strategy                                                    |
+| --------- | ----------------------------------------------------------- |
+| `<10MB`   | Async read → sync parse                                     |
+| `>10MB`   | 64KB chunk streaming (Tree-sitter sync callback limitation) |
+| `>50MB`   | + progress reporting every 10%                              |
 
-	constructor(deps: CommandDeps) {
-		this.git = deps.GitClient;
-		this.config = deps.Config;
-		this.langRegistry = deps.LanguageRegistry;
-	}
+## Error Handling (`src/api/constellation-client.ts:321-347`)
 
-	abstract run(options: unknown): Promise<void>;
-}
+| Error                 | Trigger | Behavior                                      |
+| --------------------- | ------- | --------------------------------------------- |
+| `AuthenticationError` | 401     | Never retry, propagate immediately            |
+| `RetryableError`      | 5xx     | Exponential backoff: 1s→2s→4s + ±250ms jitter |
+| `NotFoundError`       | 404     | Project not indexed yet                       |
 
-// CLI entry (src/index.ts)
-program
-	.command('index')
-	.option('--full', 'Full re-index')
-	.option('--dirty', 'Skip git status check')
-	.action(async (options) => {
-		const cmd = new IndexCommand(deps);
-		await cmd.run(options);
-	});
-```
-
-**Error Codes**: Same as Core (see workspace CLAUDE.md)
-
-**Logging**: console.log/console.error (no winston in CLI)
+**Debug**: `DEBUG=* npm start -- index` | See `/cli-debugging` skill
 
 ## Import Resolution
 
-CLI resolves import paths using plugin-based resolvers:
+CLI resolves path aliases locally (Core cannot access build configs):
 
-- tsconfig.json/jsconfig.json path aliases
-- Monorepo workspace package resolution
-- Relative and node_modules imports
+| File                                                            | Purpose                                 |
+| --------------------------------------------------------------- | --------------------------------------- |
+| `src/languages/plugins/resolvers/ts-js-import-resolver.ts`      | tsconfig/jsconfig path alias resolution |
+| `src/languages/plugins/resolvers/workspace-package-resolver.ts` | Monorepo workspace package resolution   |
+| `src/languages/plugins/build-config/ts-js-config-manager.ts`    | Config discovery and parsing            |
 
-**Plugins**:
+## Type Sync
 
-- `src/languages/plugins/resolvers/ts-js-import-resolver.ts` - Path alias resolution
-- `src/languages/plugins/resolvers/workspace-package-resolver.ts` - Monorepo support
-- `src/languages/plugins/build-config/ts-js-config-manager.ts` - Config parsing
+`src/types/api.ts` must match Core DTOs. See `../CLAUDE.md` Section 3 and `/syncing-constellation-types` skill.
 
-## API Client
+## Testing
 
-**Features**:
+```
+test/
+├── unit/           # Mirrors src/ structure
+├── fixtures/       # Sample code for tests
+├── helpers/        # test-utils.ts
+└── setup.ts        # Jest config, ESM mocks
+```
 
-- NDJSON streaming for large AST uploads
-- Automatic retry with exponential backoff + jitter (5xx errors)
-- Configurable timeouts with AbortController
-- Detailed network error diagnostics (errno, syscall, address, port)
+**Coverage target**: 50%+
 
-**Custom Errors**:
+## File Conventions
 
-- `AuthenticationError`: Invalid or missing API key
-- `RetryableError`: Temporary failures (auto-retry)
-- `NotFoundError`: Resource not found
+| Pattern             | Purpose               |
+| ------------------- | --------------------- |
+| `{name}.command.ts` | CLI commands          |
+| `{name}.parser.ts`  | Parsers               |
+| `{name}.plugin.ts`  | Language plugins      |
+| `{name}.test.ts`    | Tests (in test/unit/) |
+
+**Imports**: Relative paths only (no `@` aliases)
+
+## Index Flags
+
+| Flag              | Effect                                      |
+| ----------------- | ------------------------------------------- |
+| `--full`          | Re-index entire project                     |
+| `--dirty`         | Skip git validation (branch + working tree) |
+| `--watch`         | Continuous indexing (not yet implemented)   |
+| `--concurrency N` | Override concurrency limit                  |
+
+See `/cli-indexing-workflow` skill for complete guide.
+
+## Security
+
+- **Symlink validation**: `src/scanners/file-scanner.ts:287-300` - `fs.realpath()` validates symlinks stay within project
+- **Shell escaping**: `src/env/env-manager.ts:97-140` - Uses `spawn()` without shell, escapes special chars
+- **CI auth blocked**: `auth` command rejects in CI environments—use `CONSTELLATION_ACCESS_KEY` env var
+
+## Gotchas
+
+- **CI auth rejection**: `auth` exits with instructions for CI secrets
+- **Missing config fallback**: If `constellation.json` missing extensions, defaults used silently
+- **Incremental requires API**: Falls back to full index if API unreachable (except `AuthenticationError`)
+- **Tree-sitter sync callback**: Large file parsing uses `fs.readSync` inside async callback
+- **Path normalization**: All paths stored without leading `./` via `normalizeGraphPath()`
+- **POSIX paths only**: Use `toPosixPath()` for cross-platform compatibility
 
 ## Extended Docs
 
-See `../CLAUDE.md` Section 9 for complete documentation reference (workspace architecture, ADRs, troubleshooting).
+See `../CLAUDE.md` Section 9 for workspace architecture, ADRs, and troubleshooting.

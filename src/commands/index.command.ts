@@ -7,7 +7,7 @@ import { BuildConfigManager } from '../languages/plugins/base-plugin';
 import { SourceParser } from '../parsers/source.parser';
 import { FileInfo, FileScanner } from '../scanners/file-scanner';
 import { SerializedASTSchema } from '../schemas/ast.schema';
-import { SerializedAST } from '../types/api';
+import type { SerializedAST } from '@constellationdev/types';
 import { ASTCompressor } from '../utils/ast-compressor';
 import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
 import { PromisePool } from '../utils/promise-pool';

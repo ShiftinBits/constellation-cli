@@ -13,7 +13,7 @@ import {
 	RetryableError,
 } from '../../../src/api/constellation-client';
 import { ConstellationConfig } from '../../../src/config/config';
-import { ProjectState, SerializedAST } from '../../../src/types/api';
+import type { ProjectState, SerializedAST } from '@constellationdev/types';
 import { generateAstId } from '../../../src/utils/id.utils';
 import { NdJsonStreamWriter } from '../../../src/utils/ndjson-streamwriter';
 
@@ -106,6 +106,7 @@ describe('ConstellationClient', () => {
 		it('should return project state when found', async () => {
 			const mockProjectState: ProjectState = {
 				projectId: 'test-project',
+				projectName: 'test-project',
 				branch: 'main',
 				latestCommit: 'abc123',
 				fileCount: 10,

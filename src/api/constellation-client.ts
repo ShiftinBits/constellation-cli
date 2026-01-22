@@ -1,5 +1,5 @@
 import { ConstellationConfig } from '../config/config';
-import { ProjectState, SerializedAST } from '../types/api';
+import type { ProjectState, SerializedAST } from '@constellationdev/types';
 import { generateAstId } from '../utils/id.utils';
 import { NdJsonStreamWriter } from '../utils/ndjson-streamwriter';
 import { RED_X } from '../utils/unicode-chars';

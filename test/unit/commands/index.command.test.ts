@@ -1,10 +1,20 @@
-import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import {
+	describe,
+	it,
+	expect,
+	jest,
+	beforeEach,
+	afterEach,
+} from '@jest/globals';
 import IndexCommand from '../../../src/commands/index.command';
 import { ConstellationConfig } from '../../../src/config/config';
 import { LanguageRegistry } from '../../../src/languages/language.registry';
 import { CrossPlatformEnvironment } from '../../../src/env/env-manager';
 import { GitClient } from '../../../src/utils/git-client';
-import { ConstellationClient, NotFoundError } from '../../../src/api/constellation-client';
+import {
+	ConstellationClient,
+	NotFoundError,
+} from '../../../src/api/constellation-client';
 import { FileScanner } from '../../../src/scanners/file-scanner';
 import { SourceParser } from '../../../src/parsers/source.parser';
 import { ACCESS_KEY_ENV_VAR } from '../../../src/utils/constants';
@@ -12,9 +22,11 @@ import { ACCESS_KEY_ENV_VAR } from '../../../src/utils/constants';
 // Mock @scure/base to avoid ESM issues
 jest.mock('@scure/base', () => ({
 	base32: {
-		encode: jest.fn((buffer: Buffer) => buffer.toString('base64').replace(/=/g, '')),
-		decode: jest.fn((str: string) => Buffer.from(str, 'base64'))
-	}
+		encode: jest.fn((buffer: Buffer) =>
+			buffer.toString('base64').replace(/=/g, ''),
+		),
+		decode: jest.fn((str: string) => Buffer.from(str, 'base64')),
+	},
 }));
 
 // Mock tsconfck to avoid ESM issues
@@ -25,9 +37,9 @@ jest.mock('tsconfck', () => ({
 		tsconfig: {
 			compilerOptions: {
 				baseUrl: './',
-				paths: {}
-			}
-		}
+				paths: {},
+			},
+		},
 	})),
 }));
 
@@ -40,7 +52,7 @@ jest.mock('../../../src/parsers/source.parser');
 jest.mock('../../../src/api/constellation-client');
 jest.mock('../../../src/utils/ast-compressor');
 jest.mock('../../../src/utils/ast-serializer', () => ({
-	serializeAST: jest.fn(async () => ({ type: 'program', children: [] }))
+	serializeAST: jest.fn(async () => ({ type: 'program', children: [] })),
 }));
 
 describe('IndexCommand', () => {
@@ -57,7 +69,9 @@ describe('IndexCommand', () => {
 		// Spy on console methods
 		consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 		consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-		processExitSpy = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+		processExitSpy = jest
+			.spyOn(process, 'exit')
+			.mockImplementation(() => undefined as never);
 
 		// Create mock config
 		mockConfig = {
@@ -66,10 +80,10 @@ describe('IndexCommand', () => {
 			branch: 'main',
 			languages: {
 				javascript: { fileExtensions: ['.js'] },
-				typescript: { fileExtensions: ['.ts'] }
+				typescript: { fileExtensions: ['.ts'] },
 			},
 			validate: jest.fn(),
-			validateBranch: jest.fn()
+			validateBranch: jest.fn(),
 		} as any;
 
 		// Create mock git client
@@ -77,7 +91,7 @@ describe('IndexCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			status: jest.fn().mockResolvedValue({
 				currentBranch: 'main',
-				clean: true
+				clean: true,
 			}),
 			// @ts-expect-error - Jest mock typing
 			pull: jest.fn().mockResolvedValue(true),
@@ -88,15 +102,15 @@ describe('IndexCommand', () => {
 				added: [],
 				modified: [],
 				deleted: [],
-				renamed: []
-			})
+				renamed: [],
+			}),
 		} as any;
 
 		// Create mock environment
 		mockEnv = {
 			// @ts-expect-error - Jest mock typing
 			getKey: jest.fn().mockResolvedValue('test-access-key'),
-			setKey: jest.fn()
+			setKey: jest.fn(),
 		} as any;
 
 		// Create mock language registry
@@ -109,29 +123,47 @@ describe('IndexCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			deleteFiles: jest.fn().mockResolvedValue(undefined),
 			// @ts-expect-error - Jest mock typing
-			streamToApi: jest.fn().mockResolvedValue(true)
+			streamToApi: jest.fn().mockResolvedValue(true),
 		} as any;
 
 		// Mock ConstellationClient constructor
-		(ConstellationClient as jest.MockedClass<typeof ConstellationClient>).mockImplementation(() => mockApiClient);
+		(
+			ConstellationClient as jest.MockedClass<typeof ConstellationClient>
+		).mockImplementation(() => mockApiClient);
 
 		// Mock FileScanner
-		(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(() => ({
-			// @ts-expect-error - Jest mock typing
-			scanFiles: jest.fn().mockResolvedValue([
-				{ path: '/test/file1.ts', relativePath: 'file1.ts', language: 'typescript' }
-			]),
-			// @ts-expect-error - Jest mock typing
-			scanSpecificFiles: jest.fn().mockResolvedValue([])
-		} as any));
+		(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(
+			() =>
+				({
+					scanFiles: jest
+						.fn<
+							() => Promise<
+								{ path: string; relativePath: string; language: string }[]
+							>
+						>()
+						.mockResolvedValue([
+							{
+								path: '/test/file1.ts',
+								relativePath: 'file1.ts',
+								language: 'typescript',
+							},
+						]),
+					scanSpecificFiles: jest
+						.fn<() => Promise<never[]>>()
+						.mockResolvedValue([]),
+				}) as any,
+		);
 
 		// Mock SourceParser
-		(SourceParser as jest.MockedClass<typeof SourceParser>).mockImplementation(() => ({
-			// @ts-expect-error - Jest mock typing
-			parseFile: jest.fn().mockResolvedValue({
-				rootNode: { type: 'program' }
-			})
-		} as any));
+		(SourceParser as jest.MockedClass<typeof SourceParser>).mockImplementation(
+			() =>
+				({
+					// @ts-expect-error - Jest mock typing
+					parseFile: jest.fn().mockResolvedValue({
+						rootNode: { type: 'program' },
+					}),
+				}) as any,
+		);
 	});
 
 	afterEach(() => {
@@ -147,28 +179,34 @@ describe('IndexCommand', () => {
 				Config: mockConfig,
 				GitClient: mockGit,
 				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
+				LanguageRegistry: mockLangRegistry,
 			});
 
 			expect(command).toBeInstanceOf(IndexCommand);
 		});
 
 		it('should throw error when config is missing', () => {
-			expect(() => new IndexCommand({
-				Config: undefined as any,
-				GitClient: mockGit,
-				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
-			})).toThrow('index command requires a valid configuration');
+			expect(
+				() =>
+					new IndexCommand({
+						Config: undefined as any,
+						GitClient: mockGit,
+						Environment: mockEnv,
+						LanguageRegistry: mockLangRegistry,
+					}),
+			).toThrow('index command requires a valid configuration');
 		});
 
 		it('should throw error when language registry is missing', () => {
-			expect(() => new IndexCommand({
-				Config: mockConfig,
-				GitClient: mockGit,
-				Environment: mockEnv,
-				LanguageRegistry: undefined as any
-			})).toThrow('index command requires a valid configuration');
+			expect(
+				() =>
+					new IndexCommand({
+						Config: mockConfig,
+						GitClient: mockGit,
+						Environment: mockEnv,
+						LanguageRegistry: undefined as any,
+					}),
+			).toThrow('index command requires a valid configuration');
 		});
 	});
 
@@ -180,7 +218,7 @@ describe('IndexCommand', () => {
 				Config: mockConfig,
 				GitClient: mockGit,
 				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
+				LanguageRegistry: mockLangRegistry,
 			});
 		});
 
@@ -190,15 +228,21 @@ describe('IndexCommand', () => {
 			expect(mockEnv.getKey).toHaveBeenCalledWith(ACCESS_KEY_ENV_VAR);
 			expect(mockGit.status).toHaveBeenCalled();
 			expect(mockGit.pull).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Starting indexing procedure'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Starting indexing procedure'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should complete forced full indexing', async () => {
 			await command.run(true);
 
 			expect(mockApiClient.streamToApi).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should handle missing access key', async () => {
@@ -206,7 +250,9 @@ describe('IndexCommand', () => {
 
 			await expect(command.run()).rejects.toThrow();
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Access key not found'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Access key not found'),
+			);
 		});
 
 		it('should handle git branch validation error', async () => {
@@ -216,36 +262,50 @@ describe('IndexCommand', () => {
 
 			await expect(command.run()).rejects.toThrow('Branch not configured');
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Branch not configured'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Branch not configured'),
+			);
 		});
 
 		it('should skip git branch validation when gitDirty flag is true', async () => {
 			await command.run(false, true);
 
 			expect(mockConfig.validateBranch).not.toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping git branch validation'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Skipping git branch validation'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should skip git status validation when gitDirty flag is true', async () => {
 			// Set up dirty working tree
 			mockGit.status.mockResolvedValue({
 				currentBranch: 'main',
-				clean: false
+				clean: false,
 			});
 
 			await command.run(false, true);
 
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping git status validation'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Skipping git status validation'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should skip git pull when gitDirty flag is true', async () => {
 			await command.run(false, true);
 
 			expect(mockGit.pull).not.toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping repository synchronization'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Skipping repository synchronization'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should perform normal validation when gitDirty flag is false', async () => {
@@ -254,13 +314,15 @@ describe('IndexCommand', () => {
 			expect(mockConfig.validateBranch).toHaveBeenCalled();
 			expect(mockGit.status).toHaveBeenCalled();
 			expect(mockGit.pull).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should allow indexing on unconfigured branch with gitDirty flag', async () => {
 			mockGit.status.mockResolvedValue({
 				currentBranch: 'feature/unconfigured',
-				clean: true
+				clean: true,
 			});
 			mockConfig.validateBranch = jest.fn().mockImplementation(() => {
 				throw new Error('Branch not configured');
@@ -269,62 +331,91 @@ describe('IndexCommand', () => {
 			await command.run(false, true);
 
 			expect(mockConfig.validateBranch).not.toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping git branch validation'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Skipping git branch validation'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should allow indexing with dirty working tree when gitDirty flag is true', async () => {
 			mockGit.status.mockResolvedValue({
 				currentBranch: 'main',
-				clean: false
+				clean: false,
 			});
 
 			await command.run(false, true);
 
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping git status validation'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Skipping git status validation'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should handle git pull failure with uncommitted changes', async () => {
-			mockGit.pull.mockRejectedValue(new Error('Pull failed: uncommitted changes detected'));
+			mockGit.pull.mockRejectedValue(
+				new Error('Pull failed: uncommitted changes detected'),
+			);
 
 			await expect(command.run()).rejects.toThrow();
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to synchronize'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Failed to synchronize'),
+			);
 		});
 
 		it('should handle git pull failure with merge conflicts', async () => {
-			mockGit.pull.mockRejectedValue(new Error('Pull failed: merge conflicts detected'));
+			mockGit.pull.mockRejectedValue(
+				new Error('Pull failed: merge conflicts detected'),
+			);
 
 			await expect(command.run()).rejects.toThrow();
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Fix the conflicted files'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Fix the conflicted files'),
+			);
 		});
 
 		it('should handle git pull failure with network error', async () => {
-			mockGit.pull.mockRejectedValue(new Error('Network error: connection timeout'));
+			mockGit.pull.mockRejectedValue(
+				new Error('Network error: connection timeout'),
+			);
 
 			await expect(command.run()).rejects.toThrow();
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('check your internet connection'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('check your internet connection'),
+			);
 		});
 
 		it('should handle git pull failure with authentication error', async () => {
-			mockGit.pull.mockRejectedValue(new Error('Authentication failed: invalid credentials'));
+			mockGit.pull.mockRejectedValue(
+				new Error('Authentication failed: invalid credentials'),
+			);
 
 			await expect(command.run()).rejects.toThrow();
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('check your git credentials'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('check your git credentials'),
+			);
 		});
 
 		it('should discover and scan files during indexing', async () => {
 			await command.run(false);
 
-			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
-			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (
+				FileScanner as jest.MockedClass<typeof FileScanner>
+			).mock.results[0]?.value;
 
 			expect(scannerInstance.scanFiles).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should handle generic error during indexing', async () => {
@@ -332,7 +423,9 @@ describe('IndexCommand', () => {
 
 			await expect(command.run()).rejects.toThrow('Unexpected error');
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing failed'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing failed'),
+			);
 		});
 
 		it('should handle error with no message', async () => {
@@ -342,7 +435,9 @@ describe('IndexCommand', () => {
 
 			await expect(command.run()).rejects.toThrow();
 
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing failed'));
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing failed'),
+			);
 		});
 	});
 
@@ -354,7 +449,7 @@ describe('IndexCommand', () => {
 				Config: mockConfig,
 				GitClient: mockGit,
 				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
+				LanguageRegistry: mockLangRegistry,
 			});
 		});
 
@@ -364,24 +459,32 @@ describe('IndexCommand', () => {
 
 			await command.run(false);
 
-			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
-			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (
+				FileScanner as jest.MockedClass<typeof FileScanner>
+			).mock.results[0]?.value;
 
 			// Should call scanFiles for full index
 			expect(scannerInstance.scanFiles).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No previous index found'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('No previous index found'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should perform incremental index when project state exists', async () => {
 			// Mock existing project state
 			mockApiClient.getProjectState.mockResolvedValue({
 				projectId: 'test-project',
+				projectName: 'test-project',
 				branch: 'main',
 				latestCommit: 'old-commit-123',
 				fileCount: 10,
 				lastIndexedAt: '2023-01-01T00:00:00.000Z',
-				languages: ['typescript']
+				languages: ['typescript'],
 			});
 
 			// Mock changed files
@@ -389,31 +492,46 @@ describe('IndexCommand', () => {
 				added: ['src/new-file.ts'],
 				modified: ['src/existing-file.ts'],
 				deleted: ['src/deleted-file.ts'],
-				renamed: [{ from: 'src/old-name.ts', to: 'src/new-name.ts' }]
+				renamed: [{ from: 'src/old-name.ts', to: 'src/new-name.ts' }],
 			});
 
 			// Mock current commit
 			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
 
-			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
 			const mockScannerInstance: any = {
 				// @ts-expect-error - Jest mock typing
 				scanFiles: jest.fn().mockResolvedValue([]),
 				// @ts-expect-error - Jest mock typing
 				scanSpecificFiles: jest.fn().mockResolvedValue([
-					{ path: '/test/src/new-file.ts', relativePath: 'src/new-file.ts', language: 'typescript' },
-					{ path: '/test/src/existing-file.ts', relativePath: 'src/existing-file.ts', language: 'typescript' },
-					{ path: '/test/src/new-name.ts', relativePath: 'src/new-name.ts', language: 'typescript' }
-				])
+					{
+						path: '/test/src/new-file.ts',
+						relativePath: 'src/new-file.ts',
+						language: 'typescript',
+					},
+					{
+						path: '/test/src/existing-file.ts',
+						relativePath: 'src/existing-file.ts',
+						language: 'typescript',
+					},
+					{
+						path: '/test/src/new-name.ts',
+						relativePath: 'src/new-name.ts',
+						language: 'typescript',
+					},
+				]),
 			};
 
-			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(() => mockScannerInstance as any);
+			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(
+				() => mockScannerInstance as any,
+			);
 
 			command = new IndexCommand({
 				Config: mockConfig,
 				GitClient: mockGit,
 				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
+				LanguageRegistry: mockLangRegistry,
 			});
 
 			await command.run(false);
@@ -421,16 +539,29 @@ describe('IndexCommand', () => {
 			// Should call scanSpecificFiles for incremental index
 			expect(mockScannerInstance.scanSpecificFiles).toHaveBeenCalledWith(
 				['src/new-file.ts', 'src/existing-file.ts', 'src/new-name.ts'],
-				mockConfig
+				mockConfig,
 			);
 
 			// Should delete removed files and old paths from renamed files
-			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith(['src/deleted-file.ts', 'src/old-name.ts']);
+			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith([
+				'src/deleted-file.ts',
+				'src/old-name.ts',
+			]);
 
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Performing incremental index'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 3 changed files'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Removing 1 deleted file(s) and 1 renamed file(s) from graph'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Performing incremental index'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Found 3 changed files'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining(
+					'Removing 1 deleted file(s) and 1 renamed file(s) from graph',
+				),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should skip indexing when already up to date', async () => {
@@ -438,32 +569,46 @@ describe('IndexCommand', () => {
 
 			mockApiClient.getProjectState.mockResolvedValue({
 				projectId: 'test-project',
+				projectName: 'test-project',
 				branch: 'main',
 				latestCommit: currentCommit,
 				fileCount: 10,
 				lastIndexedAt: '2023-01-01T00:00:00.000Z',
-				languages: ['typescript']
+				languages: ['typescript'],
 			});
 
 			mockGit.getLatestCommitHash.mockResolvedValue(currentCommit);
 
 			await command.run(false);
 
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Already up to date'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Index is already up-to-date'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Already up to date'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Index is already up-to-date'),
+			);
 		});
 
 		it('should perform full index when project not found (404)', async () => {
-			mockApiClient.getProjectState.mockRejectedValue(new NotFoundError('Project not found'));
+			mockApiClient.getProjectState.mockRejectedValue(
+				new NotFoundError('Project not found'),
+			);
 
 			await command.run(false);
 
-			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
-			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (
+				FileScanner as jest.MockedClass<typeof FileScanner>
+			).mock.results[0]?.value;
 
 			expect(scannerInstance.scanFiles).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Could not determine last index'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('performing full index'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Could not determine last index'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('performing full index'),
+			);
 		});
 
 		it('should fallback to full index when getProjectState fails', async () => {
@@ -471,144 +616,187 @@ describe('IndexCommand', () => {
 
 			await command.run(false);
 
-			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
-			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (
+				FileScanner as jest.MockedClass<typeof FileScanner>
+			).mock.results[0]?.value;
 
 			expect(scannerInstance.scanFiles).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Could not determine last index'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('performing full index'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Could not determine last index'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('performing full index'),
+			);
 		});
 
 		it('should fallback to full scan when projectState has empty commit in determineIndexScope', async () => {
 			// Mock project state with empty commit field
 			mockApiClient.getProjectState.mockResolvedValue({
 				projectId: 'test-project',
+				projectName: 'test-project',
 				branch: 'main',
 				latestCommit: '', // Empty commit triggers fallback in determineIndexScope
 				fileCount: 0,
 				lastIndexedAt: '2023-01-01T00:00:00.000Z',
-				languages: []
+				languages: [],
 			});
 
 			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
 
-			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
 			const mockScannerInstance: any = {
-				// @ts-expect-error - Jest mock typing
-				scanFiles: jest.fn().mockResolvedValue([
-					{ path: '/test/file1.ts', relativePath: 'file1.ts', language: 'typescript' }
-				]),
-				// @ts-expect-error - Jest mock typing
-				scanSpecificFiles: jest.fn().mockResolvedValue([])
+				scanFiles: jest
+					.fn<
+						() => Promise<
+							{ path: string; relativePath: string; language: string }[]
+						>
+					>()
+					.mockResolvedValue([
+						{
+							path: '/test/file1.ts',
+							relativePath: 'file1.ts',
+							language: 'typescript',
+						},
+					]),
+				scanSpecificFiles: jest
+					.fn<() => Promise<never[]>>()
+					.mockResolvedValue([]),
 			};
 
-			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(() => mockScannerInstance as any);
+			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(
+				() => mockScannerInstance as any,
+			);
 
 			command = new IndexCommand({
 				Config: mockConfig,
 				GitClient: mockGit,
 				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
+				LanguageRegistry: mockLangRegistry,
 			});
 
 			await command.run(false);
 
 			// Should fall back to full scan via determineIndexScope
 			expect(mockScannerInstance.scanFiles).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No previous index found'));
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('performing full index'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('No previous index found'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('performing full index'),
+			);
 		});
-
 
 		it('should force full index when forceFullIndex is true', async () => {
 			mockApiClient.getProjectState.mockResolvedValue({
 				projectId: 'test-project',
+				projectName: 'test-project',
 				branch: 'main',
 				latestCommit: 'old-commit-123',
 				fileCount: 10,
 				lastIndexedAt: '2023-01-01T00:00:00.000Z',
-				languages: ['typescript']
+				languages: ['typescript'],
 			});
 
 			await command.run(true);
 
-			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
-			const scannerInstance = (FileScanner as jest.MockedClass<typeof FileScanner>).mock.results[0]?.value;
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (
+				FileScanner as jest.MockedClass<typeof FileScanner>
+			).mock.results[0]?.value;
 
 			// Should call scanFiles even though project state exists
 			expect(scannerInstance.scanFiles).toHaveBeenCalled();
 			// Should not call getProjectState since we're forcing full index
 			// (Note: getProjectState might still be called, but we shouldn't use incremental logic)
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 
 		it('should handle incremental index with only added files', async () => {
 			mockApiClient.getProjectState.mockResolvedValue({
 				projectId: 'test-project',
+				projectName: 'test-project',
 				branch: 'main',
 				latestCommit: 'old-commit-123',
 				fileCount: 10,
 				lastIndexedAt: '2023-01-01T00:00:00.000Z',
-				languages: ['typescript']
+				languages: ['typescript'],
 			});
 
 			mockGit.getChangedFiles.mockResolvedValue({
 				added: ['src/new-file.ts'],
 				modified: [],
 				deleted: [],
-				renamed: []
+				renamed: [],
 			});
 
 			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
 
 			await command.run(false);
 
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 1 changed files'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Found 1 changed files'),
+			);
 			expect(mockApiClient.deleteFiles).not.toHaveBeenCalled();
 		});
 
 		it('should handle incremental index with only deleted files', async () => {
 			mockApiClient.getProjectState.mockResolvedValue({
 				projectId: 'test-project',
+				projectName: 'test-project',
 				branch: 'main',
 				latestCommit: 'old-commit-123',
 				fileCount: 10,
 				lastIndexedAt: '2023-01-01T00:00:00.000Z',
-				languages: ['typescript']
+				languages: ['typescript'],
 			});
 
 			mockGit.getChangedFiles.mockResolvedValue({
 				added: [],
 				modified: [],
 				deleted: ['src/deleted-file.ts'],
-				renamed: []
+				renamed: [],
 			});
 
 			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
 
-			const FileScanner = require('../../../src/scanners/file-scanner').FileScanner;
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
 			const mockScannerInstance: any = {
 				// @ts-expect-error - Jest mock typing
 				scanFiles: jest.fn().mockResolvedValue([]),
 				// @ts-expect-error - Jest mock typing
-				scanSpecificFiles: jest.fn().mockResolvedValue([])
+				scanSpecificFiles: jest.fn().mockResolvedValue([]),
 			};
 
-			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(() => mockScannerInstance as any);
+			(FileScanner as jest.MockedClass<typeof FileScanner>).mockImplementation(
+				() => mockScannerInstance as any,
+			);
 
 			command = new IndexCommand({
 				Config: mockConfig,
 				GitClient: mockGit,
 				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
+				LanguageRegistry: mockLangRegistry,
 			});
 
 			await command.run(false);
 
-			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith(['src/deleted-file.ts']);
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Removing 1 deleted file(s) from graph'));
+			expect(mockApiClient.deleteFiles).toHaveBeenCalledWith([
+				'src/deleted-file.ts',
+			]);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Removing 1 deleted file(s) from graph'),
+			);
 			// Found 0 changed files because only deleted files exist
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 0 changed files'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Found 0 changed files'),
+			);
 		});
 	});
 
@@ -620,12 +808,16 @@ describe('IndexCommand', () => {
 				Config: mockConfig,
 				GitClient: mockGit,
 				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
+				LanguageRegistry: mockLangRegistry,
 			});
 
 			// Upload failure now throws an error instead of silently continuing
-			await expect(testCommand.run(false)).rejects.toThrow('Failed to upload data to Constellation Service');
-			expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing failed'));
+			await expect(testCommand.run(false)).rejects.toThrow(
+				'Failed to upload data to Constellation Service',
+			);
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing failed'),
+			);
 		});
 
 		it('should complete successfully with valid configuration', async () => {
@@ -633,12 +825,14 @@ describe('IndexCommand', () => {
 				Config: mockConfig,
 				GitClient: mockGit,
 				Environment: mockEnv,
-				LanguageRegistry: mockLangRegistry
+				LanguageRegistry: mockLangRegistry,
 			});
 
 			await testCommand.run(false);
 
-			expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Indexing complete'));
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing complete'),
+			);
 		});
 	});
 });

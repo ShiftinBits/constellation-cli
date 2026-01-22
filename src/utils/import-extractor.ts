@@ -1,5 +1,5 @@
 import { SyntaxNode, Tree } from 'tree-sitter';
-import { ImportResolutionMetadata } from '../types/api';
+import type { ImportResolutionMetadata } from '@constellationdev/types';
 import type { ImportResolver } from '../languages/plugins/base-plugin';
 import { normalizeGraphPath } from './path.utils';
 

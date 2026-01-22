@@ -20,9 +20,11 @@
 		"test:coverage": "jest --coverage",
 		"test:ci": "jest --ci --coverage --maxWorkers=2",
 		"type-check": "tsc --noEmit -p tsconfig.build.json",
-		"prepare": "husky"
+		"prepare": "husky",
+		"postinstall": "node -e \"if(!process.env.CI) try { require('child_process').execFileSync('npm', ['link', '@constellationdev/types'], {stdio: 'inherit'}) } catch(e) { console.log('Note: @constellationdev/types not linked globally, using GitHub version') }\""
 	},
 	"dependencies": {
+		"@constellationdev/types": "^1.0.0",
 		"@iarna/toml": "^3.0.0",
 		"@scure/base": "^2.0.0",
 		"ansi-colors": "^4.1.3",

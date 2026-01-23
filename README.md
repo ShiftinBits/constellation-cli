@@ -1,6 +1,6 @@
 # Constellation CLI
 
-[![NPM Version](https://img.shields.io/npm/v/@constellationdev/cli?logo=npm&logoColor=white)](https://www.npmjs.com/package/@constellationdev/cli) [![MCP Server](https://img.shields.io/badge/mcp-@constellationdev/mcp-black.svg?logo=modelcontextprotocol)](https://github.com/ShiftinBits/constellation-mcp) ![TypeScript v5+](https://img.shields.io/badge/TypeScript-v5%2B-3178C6.svg?logo=typescript&logoColor=white) ![Node.js v24+](https://img.shields.io/badge/Node.js-v24%2B-5FA04E.svg?logo=node.js&logoColor=white) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE) [![Made with Claude Code](https://img.shields.io/badge/made%20with%20Claude%20Code-D97757.svg?logo=claude&logoColor=white)](https://www.anthropic.com/claude-code)
+[![NPM Version](https://img.shields.io/npm/v/@constellationdev/cli?logo=npm&logoColor=white)](https://www.npmjs.com/package/@constellationdev/cli) [![MCP Server](https://img.shields.io/badge/mcp-@constellationdev/mcp-black.svg?logo=modelcontextprotocol)](https://github.com/ShiftinBits/constellation-mcp) ![TypeScript v5.9+](https://img.shields.io/badge/TypeScript-v5.9%2B-3178C6.svg?logo=typescript&logoColor=white) ![Node.js v24+](https://img.shields.io/badge/Node.js-v24%2B-5FA04E.svg?logo=node.js&logoColor=white) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE) [![Made with Claude Code](https://img.shields.io/badge/made%20with%20Claude%20Code-D97757.svg?logo=claude&logoColor=white)](https://www.anthropic.com/claude-code)
 
 [Installation](#installation) •
 [Quick Start](#quick-start) •
@@ -55,7 +55,7 @@ npm install -g @constellationdev/cli@latest
 
 ### Requirements
 
-- Node.js 20.0.0 or higher
+- Node.js 24.0.0 or higher
 - Git installed and available in PATH
 - Git repository
 

@@ -1,6 +1,6 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
 
 import { Command } from 'commander';
 import { AuthenticationError } from './api/constellation-client';
@@ -12,11 +12,11 @@ import { ConstellationConfig } from './config/config';
 import { CrossPlatformEnvironment } from './env/env-manager';
 import { LanguageDetector } from './languages/language.detector';
 import { LanguageRegistry } from './languages/language.registry';
+import { checkForUpdates } from './update';
 import { printBanner } from './utils/constants';
 import { shouldShowBanner } from './utils/environment-detector';
 import { GitClient } from './utils/git-client';
 import { RED_X } from './utils/unicode-chars';
-import { checkForUpdates } from './update';
 
 // Read version from package.json
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,7 +55,7 @@ const program = new Command();
 
 program
 	.name('constellation')
-	.description('Connecting the stars in your code into intelligent patterns')
+	.description('Connecting stars in your code into intelligent patterns')
 	.version(VERSION);
 
 // Init command doesn't need config - it creates it

@@ -21,8 +21,8 @@ describe('tool-registry', () => {
 	});
 
 	describe('AI_TOOLS', () => {
-		it('should contain 10 tools', () => {
-			expect(AI_TOOLS).toHaveLength(10);
+		it('should contain 9 tools', () => {
+			expect(AI_TOOLS).toHaveLength(9);
 		});
 
 		it('should have all required properties for each tool', () => {
@@ -79,12 +79,6 @@ describe('tool-registry', () => {
 			expect(copilot).toBeDefined();
 			expect(copilot?.displayName).toBe('GitHub Copilot');
 			expect(copilot?.mcpServersKeyPath).toEqual(['servers']);
-		});
-
-		it('should have amazon-q tool', () => {
-			const amazonQ = AI_TOOLS.find((t) => t.id === 'amazon-q');
-			expect(amazonQ).toBeDefined();
-			expect(amazonQ?.displayName).toBe('Amazon Q');
 		});
 
 		it('should have jetbrains-ai tool', () => {

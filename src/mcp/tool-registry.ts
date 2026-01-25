@@ -44,6 +44,9 @@ export const AI_TOOLS: AITool[] = [
 		configPath: '.cursor/mcp.json',
 		format: 'json',
 		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: '${env:CONSTELLATION_ACCESS_KEY}',
+		},
 	},
 	{
 		id: 'claude-code',
@@ -80,13 +83,12 @@ export const AI_TOOLS: AITool[] = [
 		configPath: '.vscode/mcp.json',
 		format: 'json',
 		mcpServersKeyPath: ['servers'],
-	},
-	{
-		id: 'amazon-q',
-		displayName: 'Amazon Q',
-		configPath: '.amazonq/mcp.json',
-		format: 'json',
-		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
+		},
+		mcpServerExtras: {
+			tools: ['execute_code'],
+		},
 	},
 	{
 		id: 'jetbrains-ai',
@@ -122,6 +124,14 @@ export const AI_TOOLS: AITool[] = [
 		format: 'toml',
 		mcpServersKeyPath: ['mcp_servers'],
 		mcpEnvVars: ['CONSTELLATION_ACCESS_KEY'],
+		mcpServerExtras: {
+			enabled_tools: ['execute_code'],
+		},
+		envPolicyConfig: {
+			includeOnlyKeyPath: ['shell_environment_policy', 'include_only'],
+			envVarsToAllow: ['CONSTELLATION_ACCESS_KEY'],
+			globalConfigPath: '~/.codex/config.toml',
+		},
 	},
 	{
 		id: 'kilo-code',

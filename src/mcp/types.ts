@@ -47,6 +47,19 @@ export interface GlobalConfigPath {
 }
 
 /**
+ * Configuration for environment variable policy handling.
+ * Some tools (like Codex) have a whitelist of allowed env vars.
+ */
+export interface EnvPolicyConfig {
+	/** Key path to the include_only array (e.g., ['shell_environment_policy', 'include_only']) */
+	includeOnlyKeyPath: string[];
+	/** Environment variable names to add to the whitelist */
+	envVarsToAllow: string[];
+	/** Optional: also check/update this global config path */
+	globalConfigPath?: string;
+}
+
+/**
  * Represents an AI coding assistant tool that supports MCP.
  */
 export interface AITool {
@@ -74,6 +87,8 @@ export interface AITool {
 	mcpServerExtras?: Record<string, unknown>;
 	/** Environment variable names to pass through (for TOML env_vars format) */
 	mcpEnvVars?: string[];
+	/** Environment policy configuration (for tools that whitelist env vars) */
+	envPolicyConfig?: EnvPolicyConfig;
 }
 
 /**

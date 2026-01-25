@@ -3,6 +3,7 @@
  */
 
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { FileUtils } from '../utils/file.utils';
 import { CONSTELLATION_MCP_CONFIG } from './tool-registry';
@@ -63,6 +64,9 @@ export class ConfigWriter {
 
 			// Add Constellation MCP server
 			config = this.addConstellationServer(config, tool);
+
+			// Handle environment policy whitelist if configured
+			await this.configureEnvPolicy(config, tool);
 
 			// Write updated config
 			await this.writeConfig(configPath, config, tool.format);
@@ -377,5 +381,97 @@ export class ConfigWriter {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Update environment policy whitelist if it exists.
+	 * Checks both project-level config (already loaded) and optional global config.
+	 */
+	private async configureEnvPolicy(
+		config: Record<string, unknown>,
+		tool: AITool,
+	): Promise<void> {
+		if (!tool.envPolicyConfig) return;
+
+		const { includeOnlyKeyPath, envVarsToAllow, globalConfigPath } =
+			tool.envPolicyConfig;
+
+		// Update project-level config (in memory, will be written later)
+		this.addToEnvPolicyWhitelist(config, includeOnlyKeyPath, envVarsToAllow);
+
+		// Also update global config if specified and exists
+		if (globalConfigPath) {
+			await this.updateGlobalEnvPolicy(
+				globalConfigPath,
+				includeOnlyKeyPath,
+				envVarsToAllow,
+				tool.format,
+			);
+		}
+	}
+
+	/**
+	 * Add environment variables to an include_only whitelist if it exists.
+	 * Does not create the policy section if it doesn't exist.
+	 */
+	private addToEnvPolicyWhitelist(
+		config: Record<string, unknown>,
+		keyPath: string[],
+		envVars: string[],
+	): void {
+		// Navigate to the parent of include_only
+		let current = config;
+		for (let i = 0; i < keyPath.length - 1; i++) {
+			const key = keyPath[i];
+			if (!current[key] || typeof current[key] !== 'object') {
+				// Policy section doesn't exist - nothing to update
+				return;
+			}
+			current = current[key] as Record<string, unknown>;
+		}
+
+		// Check if include_only exists and is an array
+		const lastKey = keyPath[keyPath.length - 1];
+		if (!Array.isArray(current[lastKey])) {
+			// include_only doesn't exist - nothing to update
+			return;
+		}
+
+		const includeOnly = current[lastKey] as string[];
+
+		// Add each env var if not already present
+		for (const envVar of envVars) {
+			if (!includeOnly.includes(envVar)) {
+				includeOnly.push(envVar);
+			}
+		}
+	}
+
+	/**
+	 * Update global config's environment policy whitelist if it exists.
+	 * Only writes to the file if changes were made.
+	 */
+	private async updateGlobalEnvPolicy(
+		globalPath: string,
+		keyPath: string[],
+		envVars: string[],
+		format: 'json' | 'toml',
+	): Promise<void> {
+		// Expand ~ to home directory
+		const expandedPath = globalPath.replace(/^~/, os.homedir());
+
+		// Read global config if it exists
+		const config = await this.readConfig(expandedPath, format);
+		if (Object.keys(config).length === 0) return; // File doesn't exist
+
+		// Check if policy exists before modifying
+		const beforeJson = JSON.stringify(config);
+		this.addToEnvPolicyWhitelist(config, keyPath, envVars);
+		const afterJson = JSON.stringify(config);
+
+		// Only write if we made changes
+		if (beforeJson !== afterJson) {
+			await this.writeConfig(expandedPath, config, format);
+		}
 	}
 }

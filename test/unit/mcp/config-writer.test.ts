@@ -515,11 +515,26 @@ args = ["old-arg"]
 			expect(codex!.configPath).toBe('.codex/config.toml');
 			expect(codex!.mcpServersKeyPath).toEqual(['mcp_servers']);
 			expect(codex!.mcpEnvVars).toEqual(['CONSTELLATION_ACCESS_KEY']);
+			expect(codex!.mcpServerExtras).toEqual({
+				enabled_tools: ['execute_code'],
+			});
 			// Codex CLI is now project-local (not global)
 			expect(codex!.isGlobalConfig).toBeUndefined();
+			// Verify envPolicyConfig is set
+			expect(codex!.envPolicyConfig).toBeDefined();
+			expect(codex!.envPolicyConfig!.includeOnlyKeyPath).toEqual([
+				'shell_environment_policy',
+				'include_only',
+			]);
+			expect(codex!.envPolicyConfig!.envVarsToAllow).toEqual([
+				'CONSTELLATION_ACCESS_KEY',
+			]);
+			expect(codex!.envPolicyConfig!.globalConfigPath).toBe(
+				'~/.codex/config.toml',
+			);
 		});
 
-		it('should configure Codex CLI with env_vars array', async () => {
+		it('should configure Codex CLI with env_vars array and enabled_tools', async () => {
 			mockFileUtils.fileIsReadable.mockResolvedValue(false);
 			mockFileUtils.writeFile.mockResolvedValue(undefined);
 
@@ -530,7 +545,7 @@ args = ["old-arg"]
 			expect(result.success).toBe(true);
 			expect(result.configuredPath).toContain('.codex/config.toml');
 
-			// Verify TOML output includes env_vars
+			// Verify TOML output includes env_vars and enabled_tools
 			const writeCall = mockFileUtils.writeFile.mock.calls[0];
 			const written = writeCall[1] as string;
 			expect(written).toContain('[mcp_servers.constellation]');
@@ -538,6 +553,213 @@ args = ["old-arg"]
 			expect(written).toContain('npx');
 			expect(written).toContain('env_vars');
 			expect(written).toContain('CONSTELLATION_ACCESS_KEY');
+			expect(written).toContain('enabled_tools');
+			expect(written).toContain('execute_code');
+		});
+	});
+
+	describe('Environment policy configuration', () => {
+		it('should not create policy section if it does not exist', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
+			await writer.configureTool(codex);
+
+			// Only one write call (MCP config), no policy section created
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(1);
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+			expect(written).not.toContain('shell_environment_policy');
+		});
+
+		it('should add env var to project-level include_only if it exists', async () => {
+			const existingToml = `[shell_environment_policy]
+include_only = ["PATH", "HOME"]
+
+[mcp_servers.other]
+command = "other"
+`;
+			mockFileUtils.fileIsReadable.mockImplementation(async (path) => {
+				if (typeof path === 'string' && path.includes('.codex/config.toml')) {
+					return true;
+				}
+				return false;
+			});
+			mockFileUtils.readFile.mockImplementation(async (path) => {
+				if (typeof path === 'string' && path.includes('.codex/config.toml')) {
+					return existingToml;
+				}
+				return '';
+			});
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
+			await writer.configureTool(codex);
+
+			expect(mockFileUtils.writeFile).toHaveBeenCalled();
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+			expect(written).toContain('shell_environment_policy');
+			expect(written).toContain('include_only');
+			expect(written).toContain('PATH');
+			expect(written).toContain('HOME');
+			expect(written).toContain('CONSTELLATION_ACCESS_KEY');
+		});
+
+		it('should not duplicate env var if already in include_only', async () => {
+			const existingToml = `[shell_environment_policy]
+include_only = ["PATH", "CONSTELLATION_ACCESS_KEY"]
+
+[mcp_servers]
+`;
+			mockFileUtils.fileIsReadable.mockImplementation(async (path) => {
+				if (typeof path === 'string' && path.includes('.codex/config.toml')) {
+					return true;
+				}
+				return false;
+			});
+			mockFileUtils.readFile.mockImplementation(async (path) => {
+				if (typeof path === 'string' && path.includes('.codex/config.toml')) {
+					return existingToml;
+				}
+				return '';
+			});
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
+			await writer.configureTool(codex);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+
+			// Count occurrences of CONSTELLATION_ACCESS_KEY in include_only
+			// Should only appear once
+			const matches = written.match(/CONSTELLATION_ACCESS_KEY/g);
+			// It appears in both include_only and env_vars
+			expect(matches).toHaveLength(2);
+		});
+
+		it('should update global config include_only if it exists', async () => {
+			const projectToml = `[mcp_servers]
+`;
+			const globalToml = `[shell_environment_policy]
+include_only = ["PATH"]
+`;
+			mockFileUtils.fileIsReadable.mockImplementation(async (path) => {
+				if (typeof path === 'string') {
+					// Match project config
+					if (path.includes('/test/.codex/config.toml')) {
+						return true;
+					}
+					// Match global config (expanded from ~ to home directory)
+					if (
+						path.includes('/.codex/config.toml') &&
+						!path.includes('/test/')
+					) {
+						return true;
+					}
+				}
+				return false;
+			});
+			mockFileUtils.readFile.mockImplementation(async (path) => {
+				if (typeof path === 'string') {
+					if (path.includes('/test/.codex/config.toml')) {
+						return projectToml;
+					}
+					// Global config path (expanded from ~)
+					if (
+						path.includes('/.codex/config.toml') &&
+						!path.includes('/test/')
+					) {
+						return globalToml;
+					}
+				}
+				return '';
+			});
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
+			await writer.configureTool(codex);
+
+			// Should have 2 write calls: global config (during configureEnvPolicy) then project config
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(2);
+
+			// First call is global config (written during configureEnvPolicy)
+			const globalWriteCall = mockFileUtils.writeFile.mock.calls[0];
+			expect(globalWriteCall[0]).toContain('/.codex/config.toml');
+			expect(globalWriteCall[0]).not.toContain('/test/');
+			const globalWritten = globalWriteCall[1] as string;
+			expect(globalWritten).toContain('include_only');
+			expect(globalWritten).toContain('PATH');
+			expect(globalWritten).toContain('CONSTELLATION_ACCESS_KEY');
+
+			// Second call is project config
+			const projectWriteCall = mockFileUtils.writeFile.mock.calls[1];
+			expect(projectWriteCall[0]).toContain('/test/.codex/config.toml');
+		});
+
+		it('should not write global config if policy does not exist', async () => {
+			const projectToml = `[mcp_servers]
+`;
+			const globalToml = `[some_other_setting]
+value = true
+`;
+			mockFileUtils.fileIsReadable.mockImplementation(async (path) => {
+				if (typeof path === 'string') {
+					if (path.includes('.codex/config.toml')) {
+						return true;
+					}
+				}
+				return false;
+			});
+			mockFileUtils.readFile.mockImplementation(async (path) => {
+				if (typeof path === 'string') {
+					if (path.includes('/test/.codex/config.toml')) {
+						return projectToml;
+					}
+					if (
+						path.includes('/.codex/config.toml') &&
+						!path.includes('/test/')
+					) {
+						return globalToml;
+					}
+				}
+				return '';
+			});
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
+			await writer.configureTool(codex);
+
+			// Should only have 1 write call (project config)
+			// because global config doesn't have shell_environment_policy
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(1);
+		});
+
+		it('should not write global config if it does not exist', async () => {
+			mockFileUtils.fileIsReadable.mockImplementation(async (path) => {
+				if (typeof path === 'string' && path.includes('/test/.codex/')) {
+					return false; // Project config doesn't exist
+				}
+				return false; // Global config doesn't exist
+			});
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
+			await writer.configureTool(codex);
+
+			// Should only have 1 write call (project config)
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(1);
+			expect(mockFileUtils.writeFile.mock.calls[0][0]).toContain(
+				'/test/.codex/config.toml',
+			);
 		});
 	});
 });

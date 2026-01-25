@@ -69,6 +69,12 @@ export const AI_TOOLS: AITool[] = [
 		configPath: '.gemini/settings.json',
 		format: 'json',
 		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: '${CONSTELLATION_ACCESS_KEY}',
+		},
+		mcpServerExtras: {
+			trust: true,
+		},
 	},
 	{
 		id: 'github-copilot',

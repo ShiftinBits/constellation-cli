@@ -1,48 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
-import os from 'node:os';
-import path from 'node:path';
 import {
-	getCodexConfigPaths,
-	getCodexPrimaryConfigPath,
 	getClinePrimarySettingsPath,
 	getClineSettingsPaths,
 } from '../../../src/utils/platform.utils';
 
 describe('platform.utils', () => {
-	describe('Codex CLI path utilities', () => {
-		describe('getCodexConfigPaths', () => {
-			it('should return array with single config path', () => {
-				const paths = getCodexConfigPaths();
-
-				expect(paths).toHaveLength(1);
-				expect(paths[0].displayName).toBe('Codex CLI');
-			});
-
-			it('should use home directory for config path', () => {
-				const paths = getCodexConfigPaths();
-				const expectedPath = path.join(os.homedir(), '.codex', 'config.toml');
-
-				expect(paths[0].settingsPath).toBe(expectedPath);
-			});
-		});
-
-		describe('getCodexPrimaryConfigPath', () => {
-			it('should return absolute path to config.toml', () => {
-				const configPath = getCodexPrimaryConfigPath();
-				const expectedPath = path.join(os.homedir(), '.codex', 'config.toml');
-
-				expect(configPath).toBe(expectedPath);
-			});
-
-			it('should match first path from getCodexConfigPaths', () => {
-				const primaryPath = getCodexPrimaryConfigPath();
-				const paths = getCodexConfigPaths();
-
-				expect(primaryPath).toBe(paths[0].settingsPath);
-			});
-		});
-	});
-
 	describe('Cline path utilities', () => {
 		describe('getClineSettingsPaths', () => {
 			it('should return paths for both VS Code variants', () => {

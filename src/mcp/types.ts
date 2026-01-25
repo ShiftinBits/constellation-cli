@@ -72,6 +72,8 @@ export interface AITool {
 	getGlobalConfigPaths?: () => GlobalConfigPath[];
 	/** Additional server properties (like alwaysAllow, disabled) */
 	mcpServerExtras?: Record<string, unknown>;
+	/** Environment variable names to pass through (for TOML env_vars format) */
+	mcpEnvVars?: string[];
 }
 
 /**

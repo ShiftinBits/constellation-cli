@@ -333,6 +333,22 @@ export default class InitCommand extends BaseCommand {
 			}
 		}
 
+		// Stage Codex CLI config file if it was configured
+		const codexResult = results.find(
+			(r) => r.tool.id === 'codex-cli' && r.success,
+		);
+		if (codexResult) {
+			const codexPath = path.join(process.cwd(), '.codex/config.toml');
+			try {
+				await this.git!.stageFile(codexPath);
+				console.log(
+					`  ${GREEN_CHECK} Added .codex/config.toml to staged changes in git`,
+				);
+			} catch {
+				// Ignore staging errors (user might not want to commit)
+			}
+		}
+
 		// Summary
 		const successful = results.filter((r) => r.success).length;
 		const failed = results.filter((r) => !r.success).length;

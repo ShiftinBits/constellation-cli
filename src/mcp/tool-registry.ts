@@ -5,8 +5,6 @@
 import {
 	getClinePrimarySettingsPath,
 	getClineSettingsPaths,
-	getCodexConfigPaths,
-	getCodexPrimaryConfigPath,
 } from '../utils/platform.utils';
 import type { AITool, MCPServerConfig } from './types';
 
@@ -120,11 +118,10 @@ export const AI_TOOLS: AITool[] = [
 	{
 		id: 'codex-cli',
 		displayName: 'Codex CLI',
-		configPath: getCodexPrimaryConfigPath(),
-		isGlobalConfig: true,
-		getGlobalConfigPaths: getCodexConfigPaths,
+		configPath: '.codex/config.toml',
 		format: 'toml',
 		mcpServersKeyPath: ['mcp_servers'],
+		mcpEnvVars: ['CONSTELLATION_ACCESS_KEY'],
 	},
 	{
 		id: 'kilo-code',

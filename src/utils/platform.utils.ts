@@ -4,7 +4,6 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import type { GlobalConfigPath } from '../mcp/types';
 
 /**
  * VS Code installation variant.
@@ -104,31 +103,4 @@ export function getClinePrimarySettingsPath(): string {
 		'settings',
 		'cline_mcp_settings.json',
 	);
-}
-
-/**
- * Get the config path for Codex CLI.
- * Codex CLI uses ~/.codex/config.toml on all platforms (macOS, Linux, Windows).
- *
- * @returns Array with single path entry for consistency with other global tools
- */
-export function getCodexConfigPaths(): GlobalConfigPath[] {
-	const homeDir = os.homedir();
-	return [
-		{
-			displayName: 'Codex CLI',
-			settingsPath: path.join(homeDir, '.codex', 'config.toml'),
-		},
-	];
-}
-
-/**
- * Get the primary config path for Codex CLI.
- * Used as the canonical configPath for the tool registry.
- *
- * @returns Absolute path to Codex CLI's config file
- */
-export function getCodexPrimaryConfigPath(): string {
-	const homeDir = os.homedir();
-	return path.join(homeDir, '.codex', 'config.toml');
 }

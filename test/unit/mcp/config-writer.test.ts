@@ -511,33 +511,33 @@ args = ["old-arg"]
 			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli');
 
 			expect(codex).toBeDefined();
-			expect(codex!.isGlobalConfig).toBe(true);
 			expect(codex!.format).toBe('toml');
+			expect(codex!.configPath).toBe('.codex/config.toml');
 			expect(codex!.mcpServersKeyPath).toEqual(['mcp_servers']);
-			expect(codex!.getGlobalConfigPaths).toBeDefined();
+			expect(codex!.mcpEnvVars).toEqual(['CONSTELLATION_ACCESS_KEY']);
+			// Codex CLI is now project-local (not global)
+			expect(codex!.isGlobalConfig).toBeUndefined();
 		});
 
-		it('should return correct global config paths', () => {
-			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
-			const paths = codex.getGlobalConfigPaths!();
-
-			expect(paths).toHaveLength(1);
-			expect(paths[0].displayName).toBe('Codex CLI');
-			expect(paths[0].settingsPath).toContain('.codex');
-			expect(paths[0].settingsPath).toContain('config.toml');
-		});
-
-		it('should configure Codex CLI as global tool', async () => {
+		it('should configure Codex CLI with env_vars array', async () => {
 			mockFileUtils.fileIsReadable.mockResolvedValue(false);
 			mockFileUtils.writeFile.mockResolvedValue(undefined);
 
 			const writer = new ConfigWriter('/test');
 			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli')!;
-			const results = await writer.configureGlobalTool(codex);
+			const result = await writer.configureTool(codex);
 
-			// May return empty array if ~/.codex doesn't exist (ENOENT handling)
-			// or single result if it does
-			expect(Array.isArray(results)).toBe(true);
+			expect(result.success).toBe(true);
+			expect(result.configuredPath).toContain('.codex/config.toml');
+
+			// Verify TOML output includes env_vars
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+			expect(written).toContain('[mcp_servers.constellation]');
+			expect(written).toContain('command');
+			expect(written).toContain('npx');
+			expect(written).toContain('env_vars');
+			expect(written).toContain('CONSTELLATION_ACCESS_KEY');
 		});
 	});
 });

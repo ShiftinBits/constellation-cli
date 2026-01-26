@@ -21,8 +21,8 @@ describe('tool-registry', () => {
 	});
 
 	describe('AI_TOOLS', () => {
-		it('should contain 9 tools', () => {
-			expect(AI_TOOLS).toHaveLength(9);
+		it('should contain 10 tools', () => {
+			expect(AI_TOOLS).toHaveLength(10);
 		});
 
 		it('should have all required properties for each tool', () => {
@@ -77,8 +77,24 @@ describe('tool-registry', () => {
 		it('should have github-copilot tool with servers keyPath', () => {
 			const copilot = AI_TOOLS.find((t) => t.id === 'github-copilot');
 			expect(copilot).toBeDefined();
-			expect(copilot?.displayName).toBe('GitHub Copilot');
+			expect(copilot?.displayName).toBe('Copilot VSCode');
 			expect(copilot?.mcpServersKeyPath).toEqual(['servers']);
+		});
+
+		it('should have copilot-cli tool with absolute home path and getGlobalConfigPaths', () => {
+			const copilotCli = AI_TOOLS.find((t) => t.id === 'copilot-cli');
+			expect(copilotCli).toBeDefined();
+			expect(copilotCli?.displayName).toBe('Copilot CLI');
+			expect(copilotCli?.isGlobalConfig).toBe(true);
+			// Should be an absolute path, not a tilde path
+			expect(copilotCli?.configPath).not.toContain('~');
+			expect(copilotCli?.configPath).toMatch(/\.copilot.*mcp-config\.json$/);
+			// Should have getGlobalConfigPaths function for proper global config handling
+			expect(copilotCli?.getGlobalConfigPaths).toBeDefined();
+			const paths = copilotCli?.getGlobalConfigPaths?.();
+			expect(paths).toHaveLength(1);
+			expect(paths?.[0].displayName).toBe('Copilot CLI');
+			expect(paths?.[0].settingsPath).toMatch(/\.copilot.*mcp-config\.json$/);
 		});
 
 		it('should have jetbrains-ai tool', () => {

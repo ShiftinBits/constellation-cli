@@ -5,6 +5,8 @@
 import {
 	getClinePrimarySettingsPath,
 	getClineSettingsPaths,
+	getCopilotCliSettingsPath,
+	getCopilotCliSettingsPaths,
 } from '../utils/platform.utils';
 import type { AITool, MCPServerConfig } from './types';
 
@@ -79,7 +81,7 @@ export const AI_TOOLS: AITool[] = [
 	},
 	{
 		id: 'github-copilot',
-		displayName: 'GitHub Copilot',
+		displayName: 'Copilot VSCode',
 		configPath: '.vscode/mcp.json',
 		format: 'json',
 		mcpServersKeyPath: ['servers'],
@@ -88,6 +90,22 @@ export const AI_TOOLS: AITool[] = [
 		},
 		mcpServerExtras: {
 			tools: ['execute_code'],
+		},
+	},
+	{
+		id: 'copilot-cli',
+		displayName: 'Copilot CLI',
+		configPath: getCopilotCliSettingsPath(),
+		isGlobalConfig: true,
+		getGlobalConfigPaths: getCopilotCliSettingsPaths,
+		format: 'json',
+		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: '${CONSTELLATION_ACCESS_KEY}',
+		},
+		mcpServerExtras: {
+			tools: ['execute_code'],
+			type: 'local',
 		},
 	},
 	{

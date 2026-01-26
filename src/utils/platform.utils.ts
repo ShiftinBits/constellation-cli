@@ -104,3 +104,40 @@ export function getClinePrimarySettingsPath(): string {
 		'cline_mcp_settings.json',
 	);
 }
+
+/**
+ * Get the Copilot CLI MCP settings path.
+ * - macOS/Linux: ~/.copilot/mcp_settings.json
+ * - Windows: %USERPROFILE%\.copilot\mcp_settings.json
+ *
+ * @returns Absolute path to Copilot CLI's MCP settings file
+ */
+export function getCopilotCliSettingsPath(): string {
+	const homeDir = os.homedir();
+	return path.join(homeDir, '.copilot', 'mcp-config.json');
+}
+
+/**
+ * Global config path entry for tools that support multiple installations.
+ * Duplicated here to avoid circular dependency with mcp/types.ts.
+ */
+interface GlobalConfigPath {
+	displayName: string;
+	settingsPath: string;
+}
+
+/**
+ * Get the settings paths for Copilot CLI.
+ * Unlike Cline (which has VS Code stable/insiders variants), Copilot CLI
+ * has a single installation path in the user's home directory.
+ *
+ * @returns Array with single path entry for Copilot CLI
+ */
+export function getCopilotCliSettingsPaths(): GlobalConfigPath[] {
+	return [
+		{
+			displayName: 'Copilot CLI',
+			settingsPath: getCopilotCliSettingsPath(),
+		},
+	];
+}

@@ -252,7 +252,7 @@ describe('ConfigWriter', () => {
 			const settings = JSON.parse(permissionsCall[1] as string);
 			// Kilo Code uses mcpServers.constellation.alwaysAllow path
 			expect(settings.mcpServers.constellation.alwaysAllow).toContain(
-				'execute_code',
+				'query_code',
 			);
 		});
 
@@ -516,7 +516,7 @@ args = ["old-arg"]
 			expect(codex!.mcpServersKeyPath).toEqual(['mcp_servers']);
 			expect(codex!.mcpEnvVars).toEqual(['CONSTELLATION_ACCESS_KEY']);
 			expect(codex!.mcpServerExtras).toEqual({
-				enabled_tools: ['execute_code'],
+				enabled_tools: ['query_code'],
 			});
 			// Codex CLI is now project-local (not global)
 			expect(codex!.isGlobalConfig).toBeUndefined();
@@ -554,7 +554,7 @@ args = ["old-arg"]
 			expect(written).toContain('env_vars');
 			expect(written).toContain('CONSTELLATION_ACCESS_KEY');
 			expect(written).toContain('enabled_tools');
-			expect(written).toContain('execute_code');
+			expect(written).toContain('query_code');
 		});
 	});
 

@@ -138,7 +138,7 @@ describe('tool-registry', () => {
 				'constellation',
 				'alwaysAllow',
 			]);
-			expect(kilo?.permissionsConfig?.allowValue).toBe('query_code');
+			expect(kilo?.permissionsConfig?.allowValue).toBe('query_code_graph');
 		});
 	});
 

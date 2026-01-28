@@ -2,6 +2,9 @@
 # Claude Local Settings
 .claude/settings.local.json
 
+# TSConfig Composite Build Info
+tsconfig.build.tsbuildinfo
+
 # Temporary Folders
 tmp/
 temp/

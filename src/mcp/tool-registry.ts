@@ -110,10 +110,16 @@ export const AI_TOOLS: AITool[] = [
 	},
 	{
 		id: 'jetbrains-ai',
-		displayName: 'JetBrains AI',
-		configPath: '.idea/mcp.json',
+		displayName: 'JetBrains',
+		configPath: '.ai/mcp/mcp.json',
 		format: 'json',
-		mcpServersKeyPath: ['mcpServers'],
+		mcpServersKeyPath: ['servers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
+		},
+		mcpServerExtras: {
+			tools: ['query_code_graph'],
+		},
 	},
 	{
 		id: 'tabnine',

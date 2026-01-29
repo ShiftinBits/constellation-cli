@@ -97,10 +97,18 @@ describe('tool-registry', () => {
 			expect(paths?.[0].settingsPath).toMatch(/\.copilot.*mcp-config\.json$/);
 		});
 
-		it('should have jetbrains-ai tool', () => {
+		it('should have jetbrains-ai tool with servers keyPath', () => {
 			const jetbrains = AI_TOOLS.find((t) => t.id === 'jetbrains-ai');
 			expect(jetbrains).toBeDefined();
-			expect(jetbrains?.displayName).toBe('JetBrains AI');
+			expect(jetbrains?.displayName).toBe('JetBrains');
+			expect(jetbrains?.configPath).toBe('.ai/mcp/mcp.json');
+			expect(jetbrains?.mcpServersKeyPath).toEqual(['servers']);
+			expect(jetbrains?.mcpEnv).toEqual({
+				CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
+			});
+			expect(jetbrains?.mcpServerExtras).toEqual({
+				tools: ['query_code_graph'],
+			});
 		});
 
 		it('should have tabnine tool', () => {

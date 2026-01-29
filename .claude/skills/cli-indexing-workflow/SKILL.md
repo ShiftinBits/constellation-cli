@@ -19,9 +19,6 @@ npm start -- index --full
 # Index with dirty working directory (skip git check)
 npm start -- index --dirty
 
-# Watch mode (continuous re-indexing)
-npm start -- index --watch
-
 # Custom concurrency
 npm start -- index --concurrency 8
 ```
@@ -130,7 +127,6 @@ Content-Type: application/x-ndjson
 | ----------------- | --------------------------------------------- | ----------------------- |
 | `--full`          | Clear existing data + full re-index           | `index --full`          |
 | `--dirty`         | Skip git status check (for CI)                | `index --dirty`         |
-| `--watch`         | Continuous re-indexing on file changes        | `index --watch`         |
 | `--concurrency N` | Parallel file processing (default: CPU cores) | `index --concurrency 4` |
 | `--dry-run`       | Parse but don't upload                        | `index --dry-run`       |
 

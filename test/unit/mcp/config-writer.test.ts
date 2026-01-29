@@ -514,7 +514,9 @@ args = ["old-arg"]
 			expect(codex!.format).toBe('toml');
 			expect(codex!.configPath).toBe('.codex/config.toml');
 			expect(codex!.mcpServersKeyPath).toEqual(['mcp_servers']);
-			expect(codex!.mcpEnvVars).toEqual(['CONSTELLATION_ACCESS_KEY']);
+			expect(codex!.mcpEnv).toEqual({
+				CONSTELLATION_ACCESS_KEY: '$CONSTELLATION_ACCESS_KEY',
+			});
 			expect(codex!.mcpServerExtras).toEqual({
 				enabled_tools: ['query_code_graph'],
 			});
@@ -534,7 +536,7 @@ args = ["old-arg"]
 			);
 		});
 
-		it('should configure Codex CLI with env_vars array and enabled_tools', async () => {
+		it('should configure Codex CLI with env block and enabled_tools', async () => {
 			mockFileUtils.fileIsReadable.mockResolvedValue(false);
 			mockFileUtils.writeFile.mockResolvedValue(undefined);
 
@@ -545,13 +547,13 @@ args = ["old-arg"]
 			expect(result.success).toBe(true);
 			expect(result.configuredPath).toContain('.codex/config.toml');
 
-			// Verify TOML output includes env_vars and enabled_tools
+			// Verify TOML output includes env block and enabled_tools
 			const writeCall = mockFileUtils.writeFile.mock.calls[0];
 			const written = writeCall[1] as string;
 			expect(written).toContain('[mcp_servers.constellation]');
 			expect(written).toContain('command');
 			expect(written).toContain('npx');
-			expect(written).toContain('env_vars');
+			expect(written).toContain('[mcp_servers.constellation.env]');
 			expect(written).toContain('CONSTELLATION_ACCESS_KEY');
 			expect(written).toContain('enabled_tools');
 			expect(written).toContain('query_code_graph');
@@ -636,11 +638,11 @@ include_only = ["PATH", "CONSTELLATION_ACCESS_KEY"]
 			const writeCall = mockFileUtils.writeFile.mock.calls[0];
 			const written = writeCall[1] as string;
 
-			// Count occurrences of CONSTELLATION_ACCESS_KEY in include_only
-			// Should only appear once
+			// Count occurrences of CONSTELLATION_ACCESS_KEY
+			// Should only appear once in include_only (not duplicated)
 			const matches = written.match(/CONSTELLATION_ACCESS_KEY/g);
-			// It appears in both include_only and env_vars
-			expect(matches).toHaveLength(2);
+			// It appears in include_only (1), env key (1), and env value (1)
+			expect(matches).toHaveLength(3);
 		});
 
 		it('should update global config include_only if it exists', async () => {

@@ -141,7 +141,7 @@ export const AI_TOOLS: AITool[] = [
 		configPath: '.codex/config.toml',
 		format: 'toml',
 		mcpServersKeyPath: ['mcp_servers'],
-		mcpEnvVars: ['CONSTELLATION_ACCESS_KEY'],
+		mcpEnv: { CONSTELLATION_ACCESS_KEY: '$CONSTELLATION_ACCESS_KEY' },
 		mcpServerExtras: {
 			enabled_tools: ['query_code_graph'],
 		},

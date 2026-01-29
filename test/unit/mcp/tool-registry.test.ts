@@ -115,14 +115,16 @@ describe('tool-registry', () => {
 			expect(cline?.displayName).toBe('Cline');
 		});
 
-		it('should have codex-cli tool with TOML format and env_vars', () => {
+		it('should have codex-cli tool with TOML format and env', () => {
 			const codex = AI_TOOLS.find((t) => t.id === 'codex-cli');
 			expect(codex).toBeDefined();
 			expect(codex?.displayName).toBe('Codex CLI');
 			expect(codex?.format).toBe('toml');
 			expect(codex?.configPath).toBe('.codex/config.toml');
 			expect(codex?.mcpServersKeyPath).toEqual(['mcp_servers']);
-			expect(codex?.mcpEnvVars).toEqual(['CONSTELLATION_ACCESS_KEY']);
+			expect(codex?.mcpEnv).toEqual({
+				CONSTELLATION_ACCESS_KEY: '$CONSTELLATION_ACCESS_KEY',
+			});
 			// Codex CLI is now project-local (not global)
 			expect(codex?.isGlobalConfig).toBeUndefined();
 		});

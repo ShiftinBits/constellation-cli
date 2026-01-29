@@ -228,11 +228,6 @@ export class ConfigWriter {
 				serverConfig.env = { ...CONSTELLATION_MCP_CONFIG.env, ...tool.mcpEnv };
 			}
 
-			// Handle env_vars array format (Codex TOML)
-			if (tool.mcpEnvVars) {
-				serverConfig.env_vars = tool.mcpEnvVars;
-			}
-
 			mcpServers.constellation = serverConfig;
 		}
 

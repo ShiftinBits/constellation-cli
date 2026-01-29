@@ -74,10 +74,10 @@ describe('tool-registry', () => {
 			expect(gemini?.displayName).toBe('Gemini CLI');
 		});
 
-		it('should have github-copilot tool with servers keyPath', () => {
-			const copilot = AI_TOOLS.find((t) => t.id === 'github-copilot');
+		it('should have vscode-copilot tool with servers keyPath', () => {
+			const copilot = AI_TOOLS.find((t) => t.id === 'vscode-copilot');
 			expect(copilot).toBeDefined();
-			expect(copilot?.displayName).toBe('Copilot VSCode');
+			expect(copilot?.displayName).toBe('VSCode');
 			expect(copilot?.mcpServersKeyPath).toEqual(['servers']);
 		});
 
@@ -102,7 +102,7 @@ describe('tool-registry', () => {
 			expect(jetbrains).toBeDefined();
 			expect(jetbrains?.displayName).toBe('JetBrains');
 			expect(jetbrains?.configPath).toBe('.ai/mcp/mcp.json');
-			expect(jetbrains?.mcpServersKeyPath).toEqual(['servers']);
+			expect(jetbrains?.mcpServersKeyPath).toEqual(['mcpServers']);
 			expect(jetbrains?.mcpEnv).toEqual({
 				CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
 			});

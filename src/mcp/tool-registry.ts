@@ -41,16 +41,6 @@ export const CLAUDE_CODE_MARKETPLACE_CONFIG = {
  */
 export const AI_TOOLS: AITool[] = [
 	{
-		id: 'cursor',
-		displayName: 'Cursor',
-		configPath: '.cursor/mcp.json',
-		format: 'json',
-		mcpServersKeyPath: ['mcpServers'],
-		mcpEnv: {
-			CONSTELLATION_ACCESS_KEY: '${env:CONSTELLATION_ACCESS_KEY}',
-		},
-	},
-	{
 		id: 'claude-code',
 		displayName: 'Claude Code',
 		configPath: '.mcp.json',
@@ -64,68 +54,6 @@ export const AI_TOOLS: AITool[] = [
 			filePath: '.claude/settings.json',
 			config: CLAUDE_CODE_MARKETPLACE_CONFIG,
 		},
-		mcpServersKeyPath: ['mcpServers'],
-	},
-	{
-		id: 'gemini-cli',
-		displayName: 'Gemini CLI',
-		configPath: '.gemini/settings.json',
-		format: 'json',
-		mcpServersKeyPath: ['mcpServers'],
-		mcpEnv: {
-			CONSTELLATION_ACCESS_KEY: '${CONSTELLATION_ACCESS_KEY}',
-		},
-		mcpServerExtras: {
-			trust: true,
-		},
-	},
-	{
-		id: 'github-copilot',
-		displayName: 'Copilot VSCode',
-		configPath: '.vscode/mcp.json',
-		format: 'json',
-		mcpServersKeyPath: ['servers'],
-		mcpEnv: {
-			CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
-		},
-		mcpServerExtras: {
-			tools: ['query_code_graph'],
-		},
-	},
-	{
-		id: 'copilot-cli',
-		displayName: 'Copilot CLI',
-		configPath: getCopilotCliSettingsPath(),
-		isGlobalConfig: true,
-		getGlobalConfigPaths: getCopilotCliSettingsPaths,
-		format: 'json',
-		mcpServersKeyPath: ['mcpServers'],
-		mcpEnv: {
-			CONSTELLATION_ACCESS_KEY: '${CONSTELLATION_ACCESS_KEY}',
-		},
-		mcpServerExtras: {
-			tools: ['query_code_graph'],
-			type: 'local',
-		},
-	},
-	{
-		id: 'jetbrains-ai',
-		displayName: 'JetBrains',
-		configPath: '.ai/mcp/mcp.json',
-		format: 'json',
-		mcpServersKeyPath: ['servers'],
-		mcpEnv: {
-			CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
-		},
-		mcpServerExtras: {
-			tools: ['query_code_graph'],
-		},
-	},
-	{
-		id: 'tabnine',
-		displayName: 'Tabnine',
-		configPath: '.tabnine/mcp_servers.json',
-		format: 'json',
 		mcpServersKeyPath: ['mcpServers'],
 	},
 	{
@@ -158,6 +86,58 @@ export const AI_TOOLS: AITool[] = [
 		},
 	},
 	{
+		id: 'copilot-cli',
+		displayName: 'Copilot CLI',
+		configPath: getCopilotCliSettingsPath(),
+		isGlobalConfig: true,
+		getGlobalConfigPaths: getCopilotCliSettingsPaths,
+		format: 'json',
+		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: '${CONSTELLATION_ACCESS_KEY}',
+		},
+		mcpServerExtras: {
+			tools: ['query_code_graph'],
+			type: 'local',
+		},
+	},
+	{
+		id: 'cursor',
+		displayName: 'Cursor',
+		configPath: '.cursor/mcp.json',
+		format: 'json',
+		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: '${env:CONSTELLATION_ACCESS_KEY}',
+		},
+	},
+	{
+		id: 'gemini-cli',
+		displayName: 'Gemini CLI',
+		configPath: '.gemini/settings.json',
+		format: 'json',
+		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: '${CONSTELLATION_ACCESS_KEY}',
+		},
+		mcpServerExtras: {
+			trust: true,
+		},
+	},
+	{
+		id: 'jetbrains-ai',
+		displayName: 'JetBrains',
+		configPath: '.ai/mcp/mcp.json',
+		format: 'json',
+		mcpServersKeyPath: ['mcpServers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
+		},
+		mcpServerExtras: {
+			tools: ['query_code_graph'],
+		},
+	},
+	{
 		id: 'kilo-code',
 		displayName: 'Kilo Code',
 		configPath: '.kilocode/mcp.json',
@@ -170,6 +150,26 @@ export const AI_TOOLS: AITool[] = [
 		mcpServersKeyPath: ['mcpServers'],
 		mcpEnv: {
 			CONSTELLATION_ACCESS_KEY: '${env:CONSTELLATION_ACCESS_KEY}',
+		},
+	},
+	{
+		id: 'tabnine',
+		displayName: 'Tabnine',
+		configPath: '.tabnine/mcp_servers.json',
+		format: 'json',
+		mcpServersKeyPath: ['mcpServers'],
+	},
+	{
+		id: 'vscode-copilot',
+		displayName: 'VSCode',
+		configPath: '.vscode/mcp.json',
+		format: 'json',
+		mcpServersKeyPath: ['servers'],
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
+		},
+		mcpServerExtras: {
+			tools: ['query_code_graph'],
 		},
 	},
 ];

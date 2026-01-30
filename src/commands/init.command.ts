@@ -349,6 +349,22 @@ export default class InitCommand extends BaseCommand {
 			}
 		}
 
+		// Stage OpenCode config file if it was configured
+		const opencodeResult = results.find(
+			(r) => r.tool.id === 'opencode' && r.success,
+		);
+		if (opencodeResult) {
+			const opencodePath = path.join(process.cwd(), 'opencode.jsonc');
+			try {
+				await this.git!.stageFile(opencodePath);
+				console.log(
+					`  ${GREEN_CHECK} Added opencode.jsonc to staged changes in git`,
+				);
+			} catch {
+				// Ignore staging errors
+			}
+		}
+
 		// Summary
 		const successful = results.filter((r) => r.success).length;
 		const failed = results.filter((r) => !r.success).length;

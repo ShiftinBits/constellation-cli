@@ -70,7 +70,7 @@ export interface AITool {
 	/** Config file locations (project and/or global) */
 	configPath: string;
 	/** Config file format */
-	format: 'json' | 'toml';
+	format: 'json' | 'jsonc' | 'toml';
 	/** Permissions file locations (project only - never set global permissions) */
 	permissionsConfig?: PermissionsConfig;
 	/** Marketplace configuration (for tools that support plugin marketplaces) */
@@ -85,6 +85,12 @@ export interface AITool {
 	getGlobalConfigPaths?: () => GlobalConfigPath[];
 	/** Additional server properties (like alwaysAllow, disabled) */
 	mcpServerExtras?: Record<string, unknown>;
+	/** Override the default CONSTELLATION_MCP_CONFIG for tools with a different server config shape */
+	mcpServerConfigOverride?: Record<string, unknown>;
+	/** Key name for environment variables in server config (default: 'env') */
+	mcpEnvKey?: string;
+	/** Root-level defaults for new config files (e.g., $schema). Only applied to missing keys. */
+	configDefaults?: Record<string, unknown>;
 	/** Environment policy configuration (for tools that whitelist env vars) */
 	envPolicyConfig?: EnvPolicyConfig;
 }

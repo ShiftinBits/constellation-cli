@@ -560,6 +560,284 @@ args = ["old-arg"]
 		});
 	});
 
+	describe('JSONC format handling', () => {
+		it('should read JSONC with single-line comments', async () => {
+			const jsoncContent = `{
+  // This is a comment
+  "mcp": {
+    "existingServer": {
+      "command": "existing"
+    }
+  }
+}`;
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(jsoncContent);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-jsonc',
+				displayName: 'Mock JSONC',
+				configPath: 'test.jsonc',
+				format: 'jsonc' as const,
+				mcpServersKeyPath: ['mcp'],
+			};
+
+			const result = await writer.configureTool(mockTool);
+
+			expect(result.success).toBe(true);
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+			expect(config.mcp.existingServer).toBeDefined();
+			expect(config.mcp.constellation).toBeDefined();
+		});
+
+		it('should read JSONC with multi-line comments and trailing commas', async () => {
+			const jsoncContent = `{
+  /* Multi-line
+     comment */
+  "mcp": {
+    "existingServer": {
+      "command": "existing",
+    },
+  },
+}`;
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(jsoncContent);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-jsonc',
+				displayName: 'Mock JSONC',
+				configPath: 'test.jsonc',
+				format: 'jsonc' as const,
+				mcpServersKeyPath: ['mcp'],
+			};
+
+			const result = await writer.configureTool(mockTool);
+
+			expect(result.success).toBe(true);
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+			expect(config.mcp.existingServer.command).toBe('existing');
+		});
+
+		it('should write JSONC format as standard JSON', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-jsonc',
+				displayName: 'Mock JSONC',
+				configPath: 'test.jsonc',
+				format: 'jsonc' as const,
+				mcpServersKeyPath: ['mcp'],
+			};
+
+			await writer.configureTool(mockTool);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const written = writeCall[1] as string;
+			// Should be valid JSON (no comments in output)
+			expect(() => JSON.parse(written)).not.toThrow();
+		});
+	});
+
+	describe('mcpServerConfigOverride', () => {
+		it('should use override config instead of default', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-override',
+				displayName: 'Mock Override',
+				configPath: 'test.json',
+				format: 'json' as const,
+				mcpServersKeyPath: ['mcpServers'],
+				mcpServerConfigOverride: {
+					command: ['npx', '-y', '@custom/mcp@latest'],
+				},
+			};
+
+			await writer.configureTool(mockTool);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+			expect(config.mcpServers.constellation.command).toEqual([
+				'npx',
+				'-y',
+				'@custom/mcp@latest',
+			]);
+			// Should NOT have the default command/args
+			expect(config.mcpServers.constellation.args).toBeUndefined();
+		});
+
+		it('should fall back to default config when no override', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-default',
+				displayName: 'Mock Default',
+				configPath: 'test.json',
+				format: 'json' as const,
+				mcpServersKeyPath: ['mcpServers'],
+			};
+
+			await writer.configureTool(mockTool);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+			expect(config.mcpServers.constellation.command).toBe('npx');
+			expect(config.mcpServers.constellation.args).toEqual([
+				'-y',
+				'@constellationdev/cli@latest',
+			]);
+		});
+	});
+
+	describe('mcpEnvKey', () => {
+		it('should use custom env key when specified', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-envkey',
+				displayName: 'Mock EnvKey',
+				configPath: 'test.json',
+				format: 'json' as const,
+				mcpServersKeyPath: ['mcpServers'],
+				mcpEnvKey: 'environment',
+				mcpEnv: { MY_KEY: 'my_value' },
+			};
+
+			await writer.configureTool(mockTool);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+			expect(config.mcpServers.constellation.environment).toEqual({
+				MY_KEY: 'my_value',
+			});
+			expect(config.mcpServers.constellation.env).toBeUndefined();
+		});
+
+		it('should use default env key when not specified', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-default-env',
+				displayName: 'Mock Default Env',
+				configPath: 'test.json',
+				format: 'json' as const,
+				mcpServersKeyPath: ['mcpServers'],
+				mcpEnv: { MY_KEY: 'my_value' },
+			};
+
+			await writer.configureTool(mockTool);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+			expect(config.mcpServers.constellation.env).toBeDefined();
+			expect(config.mcpServers.constellation.env.MY_KEY).toBe('my_value');
+		});
+	});
+
+	describe('configDefaults', () => {
+		it('should apply defaults to new config files', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-defaults',
+				displayName: 'Mock Defaults',
+				configPath: 'test.json',
+				format: 'json' as const,
+				mcpServersKeyPath: ['mcpServers'],
+				configDefaults: {
+					$schema: 'https://example.com/schema.json',
+				},
+			};
+
+			await writer.configureTool(mockTool);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+			expect(config.$schema).toBe('https://example.com/schema.json');
+		});
+
+		it('should not overwrite existing values with defaults', async () => {
+			const existingConfig = {
+				$schema: 'https://existing.com/schema.json',
+				mcpServers: {},
+			};
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(JSON.stringify(existingConfig));
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const mockTool = {
+				id: 'mock-defaults',
+				displayName: 'Mock Defaults',
+				configPath: 'test.json',
+				format: 'json' as const,
+				mcpServersKeyPath: ['mcpServers'],
+				configDefaults: {
+					$schema: 'https://new.com/schema.json',
+				},
+			};
+
+			await writer.configureTool(mockTool);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+			expect(config.$schema).toBe('https://existing.com/schema.json');
+		});
+	});
+
+	describe('OpenCode integration', () => {
+		it('should produce correct OpenCode config output', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const opencode = AI_TOOLS.find((t) => t.id === 'opencode')!;
+			const result = await writer.configureTool(opencode);
+
+			expect(result.success).toBe(true);
+			expect(result.configuredPath).toContain('opencode.jsonc');
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+
+			// Verify root-level defaults
+			expect(config.$schema).toBe('https://opencode.ai/config.json');
+
+			// Verify MCP server structure
+			expect(config.mcp.constellation).toBeDefined();
+			expect(config.mcp.constellation.command).toEqual([
+				'npx',
+				'-y',
+				'@constellationdev/mcp@latest',
+			]);
+			expect(config.mcp.constellation.type).toBe('local');
+			expect(config.mcp.constellation.enabled).toBe(true);
+
+			// Verify environment key is 'environment' (not 'env')
+			expect(config.mcp.constellation.environment).toEqual({
+				CONSTELLATION_ACCESS_KEY: '{env:CONSTELLATION_ACCESS_KEY}',
+			});
+			expect(config.mcp.constellation.env).toBeUndefined();
+		});
+	});
+
 	describe('Environment policy configuration', () => {
 		it('should not create policy section if it does not exist', async () => {
 			mockFileUtils.fileIsReadable.mockResolvedValue(false);

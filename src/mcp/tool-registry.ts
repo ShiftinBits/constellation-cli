@@ -153,6 +153,27 @@ export const AI_TOOLS: AITool[] = [
 		},
 	},
 	{
+		id: 'opencode',
+		displayName: 'OpenCode',
+		configPath: 'opencode.jsonc',
+		format: 'jsonc',
+		mcpServersKeyPath: ['mcp'],
+		mcpServerConfigOverride: {
+			command: ['npx', '-y', '@constellationdev/mcp@latest'],
+		},
+		mcpEnvKey: 'environment',
+		mcpEnv: {
+			CONSTELLATION_ACCESS_KEY: '{env:CONSTELLATION_ACCESS_KEY}',
+		},
+		mcpServerExtras: {
+			type: 'local',
+			enabled: true,
+		},
+		configDefaults: {
+			$schema: 'https://opencode.ai/config.json',
+		},
+	},
+	{
 		id: 'tabnine',
 		displayName: 'Tabnine',
 		configPath: '.tabnine/mcp_servers.json',

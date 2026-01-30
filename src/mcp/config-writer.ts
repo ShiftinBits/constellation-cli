@@ -40,6 +40,52 @@ async function loadTomlModule(): Promise<typeof tomlModule> {
 }
 
 /**
+ * Strip single-line (//) and multi-line comments from JSONC content,
+ * remove trailing commas before } or ], preserving strings that contain
+ * comment-like patterns.
+ */
+function stripJsonComments(content: string): string {
+	let result = '';
+	let i = 0;
+	const len = content.length;
+
+	while (i < len) {
+		// String literal — copy verbatim
+		if (content[i] === '"') {
+			result += '"';
+			i++;
+			while (i < len && content[i] !== '"') {
+				if (content[i] === '\\') {
+					result += content[i++]; // backslash
+					if (i < len) result += content[i++]; // escaped char
+				} else {
+					result += content[i++];
+				}
+			}
+			if (i < len) result += content[i++]; // closing quote
+		} else if (content[i] === '/' && i + 1 < len && content[i + 1] === '/') {
+			// Single-line comment — skip to end of line
+			i += 2;
+			while (i < len && content[i] !== '\n') i++;
+		} else if (content[i] === '/' && i + 1 < len && content[i + 1] === '*') {
+			// Multi-line comment — skip to */
+			i += 2;
+			while (
+				i < len &&
+				!(content[i] === '*' && i + 1 < len && content[i + 1] === '/')
+			)
+				i++;
+			if (i < len) i += 2; // skip */
+		} else {
+			result += content[i++];
+		}
+	}
+
+	// Remove trailing commas before } or ]
+	return result.replace(/,(\s*[}\]])/g, '$1');
+}
+
+/**
  * Writes MCP configuration to tool config files.
  */
 export class ConfigWriter {
@@ -61,6 +107,15 @@ export class ConfigWriter {
 
 			// Read existing config or create new
 			let config = await this.readConfig(configPath, tool.format);
+
+			// Apply root-level config defaults (e.g., $schema) — only for missing keys
+			if (tool.configDefaults) {
+				for (const [key, value] of Object.entries(tool.configDefaults)) {
+					if (!(key in config)) {
+						config[key] = value;
+					}
+				}
+			}
 
 			// Add Constellation MCP server
 			config = this.addConstellationServer(config, tool);
@@ -169,7 +224,7 @@ export class ConfigWriter {
 	 */
 	private async readConfig(
 		filePath: string,
-		format: 'json' | 'toml',
+		format: 'json' | 'jsonc' | 'toml',
 	): Promise<Record<string, unknown>> {
 		try {
 			const exists = await FileUtils.fileIsReadable(filePath);
@@ -179,6 +234,11 @@ export class ConfigWriter {
 
 			if (format === 'json') {
 				return JSON.parse(content) as Record<string, unknown>;
+			} else if (format === 'jsonc') {
+				return JSON.parse(stripJsonComments(content)) as Record<
+					string,
+					unknown
+				>;
 			} else {
 				const toml = await loadTomlModule();
 				return toml!.parse(content);
@@ -214,8 +274,10 @@ export class ConfigWriter {
 
 		// Add constellation server (idempotent - won't overwrite if exists)
 		if (!mcpServers.constellation) {
+			const baseConfig =
+				tool.mcpServerConfigOverride ?? CONSTELLATION_MCP_CONFIG;
 			const serverConfig: Record<string, unknown> = {
-				...CONSTELLATION_MCP_CONFIG,
+				...baseConfig,
 			};
 
 			// Add tool-specific extras (alwaysAllow, disabled, etc.)
@@ -225,7 +287,11 @@ export class ConfigWriter {
 
 			// Merge tool-specific environment variables if defined (JSON env object format)
 			if (tool.mcpEnv) {
-				serverConfig.env = { ...CONSTELLATION_MCP_CONFIG.env, ...tool.mcpEnv };
+				const envKey = tool.mcpEnvKey ?? 'env';
+				const baseEnv = (baseConfig as Record<string, unknown>)[envKey] as
+					| Record<string, string>
+					| undefined;
+				serverConfig[envKey] = { ...baseEnv, ...tool.mcpEnv };
 			}
 
 			mcpServers.constellation = serverConfig;
@@ -241,11 +307,11 @@ export class ConfigWriter {
 	private async writeConfig(
 		filePath: string,
 		config: Record<string, unknown>,
-		format: 'json' | 'toml',
+		format: 'json' | 'jsonc' | 'toml',
 	): Promise<void> {
 		let content: string;
 
-		if (format === 'json') {
+		if (format === 'json' || format === 'jsonc') {
 			content = JSON.stringify(config, null, 2);
 		} else {
 			const toml = await loadTomlModule();
@@ -450,7 +516,7 @@ export class ConfigWriter {
 		globalPath: string,
 		keyPath: string[],
 		envVars: string[],
-		format: 'json' | 'toml',
+		format: 'json' | 'jsonc' | 'toml',
 	): Promise<void> {
 		// Expand ~ to home directory
 		const expandedPath = globalPath.replace(/^~/, os.homedir());

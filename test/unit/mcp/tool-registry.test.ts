@@ -21,8 +21,8 @@ describe('tool-registry', () => {
 	});
 
 	describe('AI_TOOLS', () => {
-		it('should contain 10 tools', () => {
-			expect(AI_TOOLS).toHaveLength(10);
+		it('should contain 11 tools', () => {
+			expect(AI_TOOLS).toHaveLength(11);
 		});
 
 		it('should have all required properties for each tool', () => {
@@ -36,7 +36,7 @@ describe('tool-registry', () => {
 		});
 
 		it('should not include unsupported global-only tools', () => {
-			const unsupportedGlobalIds = ['windsurf', 'opencode'];
+			const unsupportedGlobalIds = ['windsurf'];
 			for (const id of unsupportedGlobalIds) {
 				const tool = AI_TOOLS.find((t) => t.id === id);
 				expect(tool).toBeUndefined();
@@ -149,6 +149,29 @@ describe('tool-registry', () => {
 				'alwaysAllow',
 			]);
 			expect(kilo?.permissionsConfig?.allowValue).toBe('query_code_graph');
+		});
+
+		it('should have opencode tool with JSONC format and custom server config', () => {
+			const opencode = AI_TOOLS.find((t) => t.id === 'opencode');
+			expect(opencode).toBeDefined();
+			expect(opencode?.displayName).toBe('OpenCode');
+			expect(opencode?.format).toBe('jsonc');
+			expect(opencode?.configPath).toBe('opencode.jsonc');
+			expect(opencode?.mcpServersKeyPath).toEqual(['mcp']);
+			expect(opencode?.mcpServerConfigOverride).toEqual({
+				command: ['npx', '-y', '@constellationdev/mcp@latest'],
+			});
+			expect(opencode?.mcpEnvKey).toBe('environment');
+			expect(opencode?.mcpEnv).toEqual({
+				CONSTELLATION_ACCESS_KEY: '{env:CONSTELLATION_ACCESS_KEY}',
+			});
+			expect(opencode?.mcpServerExtras).toEqual({
+				type: 'local',
+				enabled: true,
+			});
+			expect(opencode?.configDefaults).toEqual({
+				$schema: 'https://opencode.ai/config.json',
+			});
 		});
 	});
 

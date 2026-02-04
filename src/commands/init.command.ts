@@ -6,10 +6,12 @@ import type {
 	IConstellationConfig,
 	IConstellationLanguageConfig,
 } from '../config/config';
+import { getConstellationHooks, HooksWriter } from '../hooks';
+import type { HooksConfigResult } from '../hooks/types';
 import { LANGUAGE_EXTENSIONS } from '../languages/language.registry';
 import { ConfigWriter } from '../mcp/config-writer';
 import { AI_TOOLS, getToolById } from '../mcp/tool-registry';
-import type { InitOptions, ToolConfigResult } from '../mcp/types';
+import type { AITool, InitOptions, ToolConfigResult } from '../mcp/types';
 import { FileUtils } from '../utils/file.utils';
 import {
 	BLUE_INFO,
@@ -376,10 +378,76 @@ export default class InitCommand extends BaseCommand {
 			console.log(`${YELLOW_WARN} ${failed} tool(s) could not be configured`);
 		}
 
+		// Configure hooks for tools that support them
+		await this.configureHooks(selectedTools, results);
+
 		// Reminder for tools that need restart
 		console.log(
 			`\n${BLUE_INFO} Some tools may require restart to pick up new configuration.`,
 		);
+	}
+
+	/**
+	 * Configure hooks for AI coding assistants that support them.
+	 * Only configures hooks for tools that were successfully MCP-configured.
+	 */
+	private async configureHooks(
+		selectedToolIds: string[],
+		mcpResults: ToolConfigResult[],
+	): Promise<void> {
+		const hooksWriter = new HooksWriter(process.cwd());
+		const hooks = getConstellationHooks();
+
+		// Only configure hooks for successfully MCP-configured tools that support hooks
+		const toolsToConfigureHooks = selectedToolIds
+			.map((id) => getToolById(id))
+			.filter(
+				(tool): tool is AITool =>
+					tool !== undefined &&
+					tool.hooksConfig !== undefined &&
+					mcpResults.some((r) => r.tool.id === tool.id && r.success),
+			);
+
+		if (toolsToConfigureHooks.length === 0) {
+			return;
+		}
+
+		console.log(`\n${BLUE_INFO} Configuring AI hooks...`);
+
+		const hooksResults: HooksConfigResult[] = [];
+
+		for (const tool of toolsToConfigureHooks) {
+			const result = await hooksWriter.configureHooks(tool, hooks);
+			hooksResults.push(result);
+
+			if (result.success) {
+				console.log(
+					`  ${GREEN_CHECK} ${tool.displayName} hooks configured at ${result.configuredPath}`,
+				);
+
+				// Stage hooks file in git
+				try {
+					await this.git!.stageFile(result.configuredPath!);
+					console.log(
+						`  ${GREEN_CHECK} Added ${tool.hooksConfig!.filePath} to staged changes in git`,
+					);
+				} catch {
+					console.log(
+						`  ${YELLOW_WARN} Could not stage ${tool.hooksConfig!.filePath} in git`,
+					);
+				}
+			} else {
+				console.log(`  ${YELLOW_WARN} ${tool.displayName}: ${result.error}`);
+			}
+		}
+
+		// Hooks summary
+		const hooksSuccessful = hooksResults.filter((r) => r.success).length;
+		if (hooksSuccessful > 0) {
+			console.log(
+				`${GREEN_CHECK} Hooks configuration complete: ${hooksSuccessful} configured`,
+			);
+		}
 	}
 
 	/**

@@ -2,6 +2,8 @@
  * MCP (Model Context Protocol) type definitions for AI coding assistant configuration.
  */
 
+import type { ToolHooksConfig } from '../hooks/types';
+
 /**
  * MCP server configuration that will be added to each tool's config.
  */
@@ -93,6 +95,8 @@ export interface AITool {
 	configDefaults?: Record<string, unknown>;
 	/** Environment policy configuration (for tools that whitelist env vars) */
 	envPolicyConfig?: EnvPolicyConfig;
+	/** Hook configuration for tools that support AI hooks */
+	hooksConfig?: ToolHooksConfig;
 }
 
 /**

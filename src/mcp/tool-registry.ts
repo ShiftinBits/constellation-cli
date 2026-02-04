@@ -110,6 +110,11 @@ export const AI_TOOLS: AITool[] = [
 		mcpEnv: {
 			CONSTELLATION_ACCESS_KEY: '${env:CONSTELLATION_ACCESS_KEY}',
 		},
+		hooksConfig: {
+			filePath: '.cursor/hooks.json',
+			schemaVersion: 1,
+			adapterId: 'cursor',
+		},
 	},
 	{
 		id: 'gemini-cli',

@@ -28,6 +28,8 @@ src/
 ├── commands/             # init, auth, index (BaseCommand + manual DI)
 ├── config/               # constellation.json loader/validator
 ├── env/                  # CrossPlatformEnvironment (Windows: setx, Unix: shell rc)
+├── hooks/                # AI tool hooks configuration (adapter pattern)
+│   └── adapters/         # Tool-specific hook format generators (cursor.adapter.ts)
 ├── languages/            # LanguageRegistry, LanguageDetector
 │   └── plugins/          # typescript.plugin.ts, javascript.plugin.ts
 │       ├── build-config/ # ts-js-config-manager.ts (tsconfig/jsconfig parsing)
@@ -134,13 +136,19 @@ Shared types via `@constellationdev/types` package (GitHub: `ShiftinBits/constel
 
 ```
 test/
-├── unit/           # Mirrors src/ structure
+├── unit/           # Mirrors src/ structure (includes hooks/, mcp/)
 ├── fixtures/       # Sample code + configs for tests
 ├── helpers/        # test-utils.ts (createTempDir, createTestFile, cleanupTempDir)
 └── setup.ts        # Jest config, ESM mocks
 ```
 
 **Coverage target**: 50%+ | **Test naming**: `{name}.test.ts` (in test/unit/)
+
+**Key test files**:
+
+- `test/unit/mcp/config-writer.test.ts` — MCP server configuration
+- `test/unit/hooks/hooks-writer.test.ts` — Hooks file I/O and merging
+- `test/unit/hooks/adapters/cursor.adapter.test.ts` — Cursor hook format generation
 
 ## File Conventions
 
@@ -163,6 +171,42 @@ test/
 `--incremental` is the default when previous index exists.
 
 See `/cli-indexing-workflow` skill for complete guide.
+
+## AI Tool Configuration
+
+The `init` command configures AI coding assistants in two phases:
+
+1. **MCP Server Configuration** — Adds Constellation MCP server to tool config files
+2. **Hooks Configuration** — Injects Constellation awareness prompts (tools that support hooks)
+
+### MCP Configuration (`src/mcp/`)
+
+| File               | Purpose                                                               |
+| ------------------ | --------------------------------------------------------------------- |
+| `tool-registry.ts` | `AI_TOOLS[]` array defining 11 supported tools and their config paths |
+| `config-writer.ts` | `ConfigWriter` class for reading/merging/writing tool configs         |
+| `types.ts`         | `AITool` interface with `hooksConfig` for hook-enabled tools          |
+
+### Hooks Configuration (`src/hooks/`)
+
+Hooks inject Constellation guidance into AI assistants at lifecycle events (session start, subagent spawn, context compaction). Only tools with `hooksConfig` in their `AITool` definition get hooks configured.
+
+| File                | Purpose                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `types.ts`          | `CanonicalHook`, `HookAdapter`, `ToolHooksConfig` interfaces                            |
+| `hooks-registry.ts` | `CONSTELLATION_HOOKS[]` — canonical hook definitions with `{MCP_TOOL_NAME}` placeholder |
+| `hooks-writer.ts`   | `HooksWriter` class for hook file I/O and config merging                                |
+| `adapters/*.ts`     | Tool-specific format generators (event name mapping, MCP tool name substitution)        |
+
+**Adapter pattern**: Canonical events (PascalCase: `SessionStart`) map to tool-specific events (Cursor uses camelCase: `sessionStart`). Each adapter also substitutes the `{MCP_TOOL_NAME}` placeholder with the tool's MCP naming convention.
+
+**Adding hook support for a new tool**:
+
+1. Create adapter in `src/hooks/adapters/{tool}.adapter.ts` implementing `HookAdapter`
+2. Register adapter in `src/hooks/adapters/index.ts`
+3. Add `hooksConfig` to tool's entry in `src/mcp/tool-registry.ts`
+
+**Currently supported**: Cursor (`.cursor/hooks.json`)
 
 ## Security
 

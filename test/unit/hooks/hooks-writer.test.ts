@@ -17,6 +17,7 @@ jest.mock('../../../src/utils/file.utils', () => ({
 // Mock fs/promises
 jest.mock('node:fs/promises', () => ({
 	mkdir: jest.fn(),
+	chmod: jest.fn(),
 }));
 
 const mockFileUtils = FileUtils as jest.Mocked<typeof FileUtils>;
@@ -279,6 +280,110 @@ describe('HooksWriter', () => {
 				success: true,
 				configuredPath: expect.stringContaining('.cursor/hooks.json'),
 			});
+		});
+	});
+
+	describe('auxiliary file generation', () => {
+		const geminiTool: AITool = {
+			id: 'gemini-cli',
+			displayName: 'Gemini CLI',
+			configPath: '.gemini/settings.json',
+			format: 'json',
+			mcpServersKeyPath: ['mcpServers'],
+			hooksConfig: {
+				filePath: '.gemini/settings.json',
+				schemaVersion: 1,
+				adapterId: 'gemini',
+			},
+		};
+
+		it('should write auxiliary files from adapter', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			const result = await writer.configureHooks(geminiTool, testHooks);
+
+			expect(result.success).toBe(true);
+
+			// Should have written config file AND auxiliary script
+			const writeCalls = mockFileUtils.writeFile.mock.calls;
+			expect(writeCalls.length).toBeGreaterThan(1);
+
+			// Find the script write call
+			const scriptWrite = writeCalls.find((call) =>
+				(call[0] as string).includes('.sh'),
+			);
+			expect(scriptWrite).toBeDefined();
+			expect(scriptWrite![0]).toContain('.gemini/hooks/constellation-');
+		});
+
+		it('should make shell scripts executable', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			await writer.configureHooks(geminiTool, testHooks);
+
+			// Should have called chmod with executable permissions
+			expect(mockFs.chmod).toHaveBeenCalled();
+			const chmodCall = mockFs.chmod.mock.calls[0];
+			expect(chmodCall[0]).toContain('.sh');
+			expect(chmodCall[1]).toBe(0o755);
+		});
+
+		it('should generate scripts with proper content', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			await writer.configureHooks(geminiTool, testHooks);
+
+			// Find the script write call
+			const writeCalls = mockFileUtils.writeFile.mock.calls;
+			const scriptWrite = writeCalls.find((call) =>
+				(call[0] as string).includes('.sh'),
+			);
+
+			const scriptContent = scriptWrite![1] as string;
+			expect(scriptContent).toContain('#!/bin/bash');
+			expect(scriptContent).toContain('hookSpecificOutput');
+			expect(scriptContent).toContain('additionalContext');
+		});
+
+		it('should not call generateAuxiliaryFiles for adapters that do not implement it', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			await writer.configureHooks(cursorTool, testHooks);
+
+			// Cursor adapter does not implement generateAuxiliaryFiles
+			// Should only have one write call (the config file)
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(1);
+			expect(mockFs.chmod).not.toHaveBeenCalled();
+		});
+
+		it('should not include version in config for Gemini (no version in schema)', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			await writer.configureHooks(geminiTool, testHooks);
+
+			// Find the config write call (not the .sh file)
+			const writeCalls = mockFileUtils.writeFile.mock.calls;
+			const configWrite = writeCalls.find(
+				(call) => !(call[0] as string).includes('.sh'),
+			);
+
+			const writtenConfig = JSON.parse(configWrite![1] as string);
+			expect(writtenConfig.version).toBeUndefined();
+			expect(writtenConfig.hooks).toBeDefined();
 		});
 	});
 });

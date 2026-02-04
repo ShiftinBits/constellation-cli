@@ -1,0 +1,203 @@
+/**
+ * Gemini CLI hook adapter for generating .gemini/settings.json hooks
+ * and corresponding shell scripts in .gemini/hooks/.
+ *
+ * Gemini CLI only supports type: "command" hooks that execute shell scripts.
+ * Context injection is achieved via hookSpecificOutput.additionalContext
+ * in the script's JSON output.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/cli/hooks
+ */
+
+import type { CanonicalHook, CanonicalHookEvent, HookAdapter } from '../types';
+
+/**
+ * Event name mapping from canonical to Gemini CLI.
+ * Gemini uses PascalCase event names.
+ */
+const GEMINI_EVENT_MAP: Record<CanonicalHookEvent, string | undefined> = {
+	SessionStart: 'SessionStart',
+	SubagentStart: 'BeforeAgent', // Maps to BeforeAgent (fires on all agent turns)
+	PreCompact: 'PreCompress', // Advisory only - cannot inject context
+	PreToolUse: 'BeforeTool',
+	PostToolUse: 'AfterTool',
+	SessionEnd: 'SessionEnd',
+};
+
+/**
+ * Gemini CLI matcher values for lifecycle events.
+ */
+const GEMINI_MATCHERS: Partial<Record<CanonicalHookEvent, string>> = {
+	SessionStart: 'startup',
+	SubagentStart: '', // Empty = match all
+	PreCompact: '', // Empty = match all
+};
+
+/**
+ * Gemini MCP tool name for Constellation.
+ * Gemini uses just the tool name without server prefix.
+ */
+const GEMINI_MCP_TOOL_NAME = 'query_code_graph';
+
+/**
+ * Generate a shell script filename from a hook event.
+ */
+function getScriptName(event: CanonicalHookEvent): string {
+	const eventNames: Record<CanonicalHookEvent, string> = {
+		SessionStart: 'session-start',
+		SubagentStart: 'before-agent',
+		PreCompact: 'pre-compress',
+		PreToolUse: 'before-tool',
+		PostToolUse: 'after-tool',
+		SessionEnd: 'session-end',
+	};
+	return `constellation-${eventNames[event]}.sh`;
+}
+
+/**
+ * Adapter for generating Gemini CLI hooks in settings.json format
+ * with accompanying shell scripts.
+ *
+ * Gemini hooks schema:
+ * ```json
+ * {
+ *   "hooks": {
+ *     "EventName": [{
+ *       "matcher": "pattern",
+ *       "hooks": [{
+ *         "name": "hook-name",
+ *         "type": "command",
+ *         "command": "$GEMINI_PROJECT_DIR/.gemini/hooks/script.sh",
+ *         "timeout": 5000,
+ *         "description": "Hook description"
+ *       }]
+ *     }]
+ *   }
+ * }
+ * ```
+ */
+export class GeminiHookAdapter implements HookAdapter {
+	readonly id = 'gemini';
+	readonly displayName = 'Gemini CLI';
+
+	mapEventName(event: CanonicalHookEvent): string | undefined {
+		return GEMINI_EVENT_MAP[event];
+	}
+
+	generateConfig(hooks: CanonicalHook[]): Record<string, unknown> {
+		const hooksConfig: Record<
+			string,
+			Array<{ matcher: string; hooks: Array<Record<string, unknown>> }>
+		> = {};
+
+		for (const hook of hooks) {
+			const eventName = this.mapEventName(hook.event);
+			if (!eventName) continue;
+
+			if (!hooksConfig[eventName]) {
+				hooksConfig[eventName] = [];
+			}
+
+			const matcher = GEMINI_MATCHERS[hook.event] ?? '';
+			const scriptName = getScriptName(hook.event);
+
+			// Find existing matcher group or create new one
+			let matcherGroup = hooksConfig[eventName].find(
+				(g) => g.matcher === matcher,
+			);
+			if (!matcherGroup) {
+				matcherGroup = { matcher, hooks: [] };
+				hooksConfig[eventName].push(matcherGroup);
+			}
+
+			matcherGroup.hooks.push({
+				name: `constellation-${hook.event.toLowerCase()}`,
+				type: 'command',
+				command: `$GEMINI_PROJECT_DIR/.gemini/hooks/${scriptName}`,
+				timeout: 5000,
+				description: `Constellation: ${this.getHookDescription(hook.event)}`,
+			});
+		}
+
+		return { hooks: hooksConfig };
+	}
+
+	customizePrompt(hook: CanonicalHook): string {
+		return hook.content.replace(/\{MCP_TOOL_NAME\}/g, GEMINI_MCP_TOOL_NAME);
+	}
+
+	generateAuxiliaryFiles(
+		hooks: CanonicalHook[],
+	): Map<string, string> | undefined {
+		const files = new Map<string, string>();
+
+		for (const hook of hooks) {
+			const eventName = this.mapEventName(hook.event);
+			if (!eventName) continue;
+
+			const scriptName = getScriptName(hook.event);
+			const scriptPath = `.gemini/hooks/${scriptName}`;
+			const scriptContent = this.generateScript(hook);
+
+			files.set(scriptPath, scriptContent);
+		}
+
+		return files.size > 0 ? files : undefined;
+	}
+
+	private generateScript(hook: CanonicalHook): string {
+		const customizedPrompt = this.customizePrompt(hook);
+		// Escape for JSON: backslashes, quotes, and convert newlines to \n
+		// SECURITY NOTE: Using single-quoted heredoc delimiter ('CONSTELLATION_EOF')
+		// prevents shell variable expansion in the output. Do not change to unquoted.
+		const escapedPrompt = customizedPrompt
+			.replace(/\\/g, '\\\\')
+			.replace(/"/g, '\\"')
+			.replace(/\n/g, '\\n');
+
+		// PreCompress is advisory-only in Gemini - cannot inject additionalContext
+		// Use systemMessage instead (displays but doesn't inject)
+		const isAdvisoryOnly = hook.event === 'PreCompact';
+
+		if (isAdvisoryOnly) {
+			return `#!/bin/bash
+# Constellation ${hook.event} Hook for Gemini CLI
+# Generated by constellation-cli - DO NOT EDIT
+#
+# Note: PreCompress is advisory-only in Gemini CLI and cannot inject context.
+# This hook outputs a systemMessage reminder instead.
+
+cat << 'CONSTELLATION_EOF'
+{
+  "systemMessage": "${escapedPrompt}"
+}
+CONSTELLATION_EOF
+`;
+		}
+
+		return `#!/bin/bash
+# Constellation ${hook.event} Hook for Gemini CLI
+# Generated by constellation-cli - DO NOT EDIT
+
+cat << 'CONSTELLATION_EOF'
+{
+  "hookSpecificOutput": {
+    "additionalContext": "${escapedPrompt}"
+  }
+}
+CONSTELLATION_EOF
+`;
+	}
+
+	private getHookDescription(event: CanonicalHookEvent): string {
+		const descriptions: Record<CanonicalHookEvent, string> = {
+			SessionStart: 'Inject code intelligence guidance at session start',
+			SubagentStart: 'Inject guidance for agent planning',
+			PreCompact: 'Context preservation reminder',
+			PreToolUse: 'Pre-tool execution hook',
+			PostToolUse: 'Post-tool execution hook',
+			SessionEnd: 'Session end hook',
+		};
+		return descriptions[event];
+	}
+}

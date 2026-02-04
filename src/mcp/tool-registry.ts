@@ -128,6 +128,11 @@ export const AI_TOOLS: AITool[] = [
 		mcpServerExtras: {
 			trust: true,
 		},
+		hooksConfig: {
+			filePath: '.gemini/settings.json',
+			schemaVersion: 1,
+			adapterId: 'gemini',
+		},
 	},
 	{
 		id: 'jetbrains-ai',

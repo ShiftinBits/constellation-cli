@@ -8,12 +8,14 @@
 
 import type { HookAdapter } from '../types';
 import { CursorHookAdapter } from './cursor.adapter';
+import { GeminiHookAdapter } from './gemini.adapter';
 
 /**
  * Registry of available hook adapters.
  */
-const ADAPTERS: Map<string, HookAdapter> = new Map([
+const ADAPTERS: Map<string, HookAdapter> = new Map<string, HookAdapter>([
 	['cursor', new CursorHookAdapter()],
+	['gemini', new GeminiHookAdapter()],
 ]);
 
 /**
@@ -35,3 +37,4 @@ export function getAdapterIds(): string[] {
 
 // Re-export adapters for direct use
 export { CursorHookAdapter } from './cursor.adapter';
+export { GeminiHookAdapter } from './gemini.adapter';

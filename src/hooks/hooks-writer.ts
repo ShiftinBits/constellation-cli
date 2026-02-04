@@ -72,6 +72,14 @@ export class HooksWriter {
 			// Write config
 			await this.writeConfig(hooksPath, mergedConfig);
 
+			// Generate and write auxiliary files (e.g., shell scripts for Gemini)
+			if (adapter.generateAuxiliaryFiles) {
+				const auxiliaryFiles = adapter.generateAuxiliaryFiles(hooks);
+				if (auxiliaryFiles) {
+					await this.writeAuxiliaryFiles(auxiliaryFiles);
+				}
+			}
+
 			return {
 				toolId: tool.id,
 				toolDisplayName: tool.displayName,
@@ -137,11 +145,17 @@ export class HooksWriter {
 			...newHooks,
 		};
 
-		return {
-			// Use version from new config (ensures correct schema version)
-			version: newConfig.version ?? existing.version,
+		// Build result - only include version if present in either config
+		const result: Record<string, unknown> = {
 			hooks: mergedHooks,
 		};
+
+		// Include version if present (Cursor has it, Gemini doesn't)
+		if (newConfig.version !== undefined || existing.version !== undefined) {
+			result.version = newConfig.version ?? existing.version;
+		}
+
+		return result;
 	}
 
 	/**
@@ -160,5 +174,31 @@ export class HooksWriter {
 		}
 
 		await FileUtils.writeFile(filePath, content);
+	}
+
+	/**
+	 * Write auxiliary files (e.g., shell scripts for Gemini adapter).
+	 * Makes shell scripts executable on Unix systems.
+	 */
+	private async writeAuxiliaryFiles(files: Map<string, string>): Promise<void> {
+		for (const [relativePath, content] of files) {
+			const fullPath = path.join(this.cwd, relativePath);
+
+			// Ensure directory exists
+			await this.ensureDirectoryExists(fullPath);
+
+			// Normalize line endings to LF
+			let normalizedContent = content.replace(/\r\n/g, '\n');
+			if (!normalizedContent.endsWith('\n')) {
+				normalizedContent += '\n';
+			}
+
+			await FileUtils.writeFile(fullPath, normalizedContent);
+
+			// Make shell scripts executable on Unix
+			if (relativePath.endsWith('.sh')) {
+				await fs.chmod(fullPath, 0o755);
+			}
+		}
 	}
 }

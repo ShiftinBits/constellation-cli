@@ -95,4 +95,14 @@ export interface HookAdapter {
 	 * @returns Customized prompt content
 	 */
 	customizePrompt(hook: CanonicalHook): string;
+
+	/**
+	 * Optional: Generate auxiliary files needed by this adapter.
+	 * Used by adapters that need shell scripts, executables, etc.
+	 * @param hooks Array of canonical hooks
+	 * @returns Map of relative file paths to content, or undefined if no auxiliary files needed
+	 */
+	generateAuxiliaryFiles?(
+		hooks: CanonicalHook[],
+	): Map<string, string> | undefined;
 }

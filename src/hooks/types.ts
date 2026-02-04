@@ -61,8 +61,10 @@ export interface HooksConfigResult {
 	toolDisplayName: string;
 	/** Whether configuration was successful */
 	success: boolean;
-	/** Path where hooks were written */
+	/** Path where hooks config file was written (if any) */
 	configuredPath?: string;
+	/** Paths to auxiliary files written (e.g., Cline scripts) */
+	auxiliaryPaths?: string[];
 	/** Error message if configuration failed */
 	error?: string;
 }

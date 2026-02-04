@@ -23,6 +23,22 @@ import {
 import { BaseCommand } from './base.command';
 
 /**
+ * Convert an absolute path to a display-friendly relative path.
+ * Returns relative path if within cwd, otherwise returns absolute path.
+ */
+function toDisplayPath(absolutePath: string, cwd: string): string {
+	const normalizedPath = path.normalize(absolutePath);
+	const normalizedCwd = path.normalize(cwd);
+
+	if (normalizedPath.startsWith(normalizedCwd + path.sep)) {
+		return path.relative(cwd, absolutePath);
+	}
+
+	// Return absolute path for files outside project (global configs)
+	return absolutePath;
+}
+
+/**
  * Results from user prompts during initialization.
  */
 interface PromptResults {
@@ -187,7 +203,7 @@ export default class InitCommand extends BaseCommand {
 			// Write file to disk
 			FileUtils.writeFile(configFilePath, constellationJson);
 			console.log(
-				`${GREEN_CHECK} ${configExists ? 'Updated' : 'Initialized'} configuration file at ${configFilePath}`,
+				`${GREEN_CHECK} ${configExists ? 'Updated' : 'Initialized'} configuration file at ${toDisplayPath(configFilePath, process.cwd())}`,
 			);
 
 			// Stage new file in git
@@ -274,7 +290,7 @@ export default class InitCommand extends BaseCommand {
 					if (result.success) {
 						anySuccess = true;
 						console.log(
-							`  ${GREEN_CHECK} ${result.tool.displayName} configured at ${result.configuredPath}`,
+							`  ${GREEN_CHECK} ${result.tool.displayName} configured at ${toDisplayPath(result.configuredPath!, process.cwd())}`,
 						);
 					} else if (result.error) {
 						console.log(
@@ -304,7 +320,7 @@ export default class InitCommand extends BaseCommand {
 
 				if (result.success) {
 					console.log(
-						`  ${GREEN_CHECK} ${tool.displayName} configured at ${result.configuredPath}`,
+						`  ${GREEN_CHECK} ${tool.displayName} configured at ${toDisplayPath(result.configuredPath!, process.cwd())}`,
 					);
 					if (tool.permissionsConfig) {
 						console.log(
@@ -421,20 +437,38 @@ export default class InitCommand extends BaseCommand {
 			hooksResults.push(result);
 
 			if (result.success) {
-				console.log(
-					`  ${GREEN_CHECK} ${tool.displayName} hooks configured at ${result.configuredPath}`,
-				);
+				// Determine what was configured (config file or auxiliary files)
+				const configuredPaths = result.configuredPath
+					? [result.configuredPath]
+					: (result.auxiliaryPaths ?? []);
 
-				// Stage hooks file in git
-				try {
-					await this.git!.stageFile(result.configuredPath!);
+				if (configuredPaths.length > 0) {
+					// Show the directory for auxiliary files, or the file path for config
+					const displayPath = result.configuredPath
+						? toDisplayPath(result.configuredPath, process.cwd())
+						: path.dirname(configuredPaths[0]); // auxiliaryPaths are already relative
 					console.log(
-						`  ${GREEN_CHECK} Added ${tool.hooksConfig!.filePath} to staged changes in git`,
+						`  ${GREEN_CHECK} ${tool.displayName} hooks configured at ${displayPath}`,
 					);
-				} catch {
-					console.log(
-						`  ${YELLOW_WARN} Could not stage ${tool.hooksConfig!.filePath} in git`,
-					);
+
+					// Stage all configured files in git
+					for (const filePath of configuredPaths) {
+						const displayFilePath = path.isAbsolute(filePath)
+							? toDisplayPath(filePath, process.cwd())
+							: filePath;
+						try {
+							await this.git!.stageFile(filePath);
+							console.log(
+								`  ${GREEN_CHECK} Added ${displayFilePath} to staged changes in git`,
+							);
+						} catch {
+							console.log(
+								`  ${YELLOW_WARN} Could not stage ${displayFilePath} in git`,
+							);
+						}
+					}
+				} else {
+					console.log(`  ${GREEN_CHECK} ${tool.displayName} hooks configured`);
 				}
 			} else {
 				console.log(`  ${YELLOW_WARN} ${tool.displayName}: ${result.error}`);

@@ -151,24 +151,26 @@ describe('tool-registry', () => {
 			expect(kilo?.permissionsConfig?.allowValue).toBe('query_code_graph');
 		});
 
-		it('should have opencode tool with JSONC format and custom server config', () => {
+		it('should have opencode tool with JSONC format and plugin config', () => {
 			const opencode = AI_TOOLS.find((t) => t.id === 'opencode');
 			expect(opencode).toBeDefined();
 			expect(opencode?.displayName).toBe('OpenCode');
 			expect(opencode?.format).toBe('jsonc');
 			expect(opencode?.configPath).toBe('opencode.jsonc');
+			// mcpServersKeyPath required by interface but unused when skipMcpServer=true
 			expect(opencode?.mcpServersKeyPath).toEqual(['mcp']);
-			expect(opencode?.mcpServerConfigOverride).toEqual({
-				command: ['npx', '-y', '@constellationdev/mcp@latest'],
+			// Plugin-only configuration (no MCP server config)
+			expect(opencode?.skipMcpServer).toBe(true);
+			expect(opencode?.pluginConfig).toEqual({
+				pluginKeyPath: ['plugin'],
+				pluginValue: '@constellationdev/opencode',
 			});
-			expect(opencode?.mcpEnvKey).toBe('environment');
-			expect(opencode?.mcpEnv).toEqual({
-				CONSTELLATION_ACCESS_KEY: '{env:CONSTELLATION_ACCESS_KEY}',
-			});
-			expect(opencode?.mcpServerExtras).toEqual({
-				type: 'local',
-				enabled: true,
-			});
+			// No MCP server properties (plugin handles this internally)
+			expect(opencode?.mcpServerConfigOverride).toBeUndefined();
+			expect(opencode?.mcpEnvKey).toBeUndefined();
+			expect(opencode?.mcpEnv).toBeUndefined();
+			expect(opencode?.mcpServerExtras).toBeUndefined();
+			// Root-level defaults still apply
 			expect(opencode?.configDefaults).toEqual({
 				$schema: 'https://opencode.ai/config.json',
 			});

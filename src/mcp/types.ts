@@ -39,6 +39,17 @@ export interface MarketplaceConfig {
 }
 
 /**
+ * Plugin configuration for tools that use array-based plugin systems.
+ * Appends to an existing array instead of replacing it.
+ */
+export interface PluginConfig {
+	/** Key path within config where plugin array lives (e.g., ['plugin']) */
+	pluginKeyPath: string[];
+	/** Plugin package name to add (e.g., '@constellationdev/opencode') */
+	pluginValue: string;
+}
+
+/**
  * Global config path entry for tools that support multiple installations.
  */
 export interface GlobalConfigPath {
@@ -97,6 +108,10 @@ export interface AITool {
 	envPolicyConfig?: EnvPolicyConfig;
 	/** Hook configuration for tools that support AI hooks */
 	hooksConfig?: ToolHooksConfig;
+	/** Plugin configuration (for tools that use plugin arrays) */
+	pluginConfig?: PluginConfig;
+	/** Skip MCP server configuration (plugin handles this internally) */
+	skipMcpServer?: boolean;
 }
 
 /**

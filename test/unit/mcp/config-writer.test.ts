@@ -803,7 +803,7 @@ args = ["old-arg"]
 	});
 
 	describe('OpenCode integration', () => {
-		it('should produce correct OpenCode config output', async () => {
+		it('should produce correct OpenCode plugin config output', async () => {
 			mockFileUtils.fileIsReadable.mockResolvedValue(false);
 			mockFileUtils.writeFile.mockResolvedValue(undefined);
 
@@ -820,21 +820,110 @@ args = ["old-arg"]
 			// Verify root-level defaults
 			expect(config.$schema).toBe('https://opencode.ai/config.json');
 
-			// Verify MCP server structure
-			expect(config.mcp.constellation).toBeDefined();
-			expect(config.mcp.constellation.command).toEqual([
-				'npx',
-				'-y',
-				'@constellationdev/mcp@latest',
-			]);
-			expect(config.mcp.constellation.type).toBe('local');
-			expect(config.mcp.constellation.enabled).toBe(true);
+			// Verify plugin configuration
+			expect(config.plugin).toBeDefined();
+			expect(Array.isArray(config.plugin)).toBe(true);
+			expect(config.plugin).toContain('@constellationdev/opencode');
 
-			// Verify environment key is 'environment' (not 'env')
-			expect(config.mcp.constellation.environment).toEqual({
-				CONSTELLATION_ACCESS_KEY: '{env:CONSTELLATION_ACCESS_KEY}',
-			});
-			expect(config.mcp.constellation.env).toBeUndefined();
+			// Verify NO MCP server config (plugin handles this)
+			expect(config.mcp).toBeUndefined();
+		});
+	});
+
+	describe('Plugin configuration', () => {
+		it('should preserve existing plugins when adding constellation', async () => {
+			const existingConfig = {
+				$schema: 'https://opencode.ai/config.json',
+				plugin: ['some-other-plugin', '@scope/another-plugin'],
+			};
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(JSON.stringify(existingConfig));
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const opencode = AI_TOOLS.find((t) => t.id === 'opencode')!;
+			const result = await writer.configureTool(opencode);
+
+			expect(result.success).toBe(true);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+
+			// Existing plugins preserved
+			expect(config.plugin).toContain('some-other-plugin');
+			expect(config.plugin).toContain('@scope/another-plugin');
+			// Constellation added
+			expect(config.plugin).toContain('@constellationdev/opencode');
+			// Order preserved (appended at end)
+			expect(config.plugin).toEqual([
+				'some-other-plugin',
+				'@scope/another-plugin',
+				'@constellationdev/opencode',
+			]);
+		});
+
+		it('should not duplicate plugin if already present', async () => {
+			const existingConfig = {
+				plugin: ['@constellationdev/opencode', 'other-plugin'],
+			};
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(JSON.stringify(existingConfig));
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const opencode = AI_TOOLS.find((t) => t.id === 'opencode')!;
+			const result = await writer.configureTool(opencode);
+
+			expect(result.success).toBe(true);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+
+			// Only one instance of our plugin
+			const constellationCount = config.plugin.filter(
+				(p: string) => p === '@constellationdev/opencode',
+			).length;
+			expect(constellationCount).toBe(1);
+		});
+
+		it('should create plugin array if it does not exist', async () => {
+			const existingConfig = {
+				$schema: 'https://opencode.ai/config.json',
+				// No plugin key
+			};
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(JSON.stringify(existingConfig));
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const opencode = AI_TOOLS.find((t) => t.id === 'opencode')!;
+			const result = await writer.configureTool(opencode);
+
+			expect(result.success).toBe(true);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+
+			expect(config.plugin).toBeDefined();
+			expect(Array.isArray(config.plugin)).toBe(true);
+			expect(config.plugin).toContain('@constellationdev/opencode');
+		});
+
+		it('should skip MCP server config for plugin-only tools', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new ConfigWriter('/test');
+			const opencode = AI_TOOLS.find((t) => t.id === 'opencode')!;
+			await writer.configureTool(opencode);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const config = JSON.parse(writeCall[1] as string);
+
+			// Plugin added
+			expect(config.plugin).toContain('@constellationdev/opencode');
+			// No MCP server config
+			expect(config.mcp).toBeUndefined();
 		});
 	});
 

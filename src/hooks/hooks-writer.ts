@@ -87,10 +87,12 @@ export class HooksWriter {
 			}
 
 			// Generate and write auxiliary files (e.g., shell scripts for Gemini/Cline)
+			let auxiliaryPaths: string[] | undefined;
 			if (adapter.generateAuxiliaryFiles) {
 				const auxiliaryFiles = adapter.generateAuxiliaryFiles(hooks);
 				if (auxiliaryFiles) {
 					await this.writeAuxiliaryFiles(auxiliaryFiles);
+					auxiliaryPaths = Array.from(auxiliaryFiles.keys());
 				}
 			}
 
@@ -99,6 +101,7 @@ export class HooksWriter {
 				toolDisplayName: tool.displayName,
 				success: true,
 				configuredPath: hasConfigContent ? hooksPath : undefined,
+				auxiliaryPaths,
 			};
 		} catch (error) {
 			return {

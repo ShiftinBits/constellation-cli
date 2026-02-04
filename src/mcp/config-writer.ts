@@ -12,6 +12,7 @@ import type {
 	GlobalConfigPath,
 	MarketplaceConfig,
 	PermissionsConfig,
+	PluginConfig,
 	ToolConfigResult,
 } from './types';
 
@@ -117,17 +118,24 @@ export class ConfigWriter {
 				}
 			}
 
-			// Add Constellation MCP server
-			config = this.addConstellationServer(config, tool);
+			// Handle plugin configuration (if configured)
+			if (tool.pluginConfig) {
+				config = this.addPluginToArray(config, tool.pluginConfig);
+			}
 
-			// Handle environment policy whitelist if configured
-			await this.configureEnvPolicy(config, tool);
+			// Add Constellation MCP server (unless skipped for plugin-only tools)
+			if (!tool.skipMcpServer) {
+				config = this.addConstellationServer(config, tool);
+
+				// Handle environment policy whitelist if configured
+				await this.configureEnvPolicy(config, tool);
+			}
 
 			// Write updated config
 			await this.writeConfig(configPath, config, tool.format);
 
-			// Handle permissions if configured
-			if (tool.permissionsConfig) {
+			// Handle permissions if configured (only for MCP-configured tools)
+			if (!tool.skipMcpServer && tool.permissionsConfig) {
 				await this.configurePermissions(tool.permissionsConfig);
 			}
 
@@ -442,6 +450,42 @@ export class ConfigWriter {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Add a plugin to an array-based plugin configuration.
+	 * Creates the array if it doesn't exist, appends if it does.
+	 * Does not duplicate if plugin already present.
+	 */
+	private addPluginToArray(
+		config: Record<string, unknown>,
+		pluginConfig: PluginConfig,
+	): Record<string, unknown> {
+		// Navigate to the parent of the plugin array
+		let current = config;
+		for (let i = 0; i < pluginConfig.pluginKeyPath.length - 1; i++) {
+			const key = pluginConfig.pluginKeyPath[i];
+			if (!current[key] || typeof current[key] !== 'object') {
+				current[key] = {};
+			}
+			current = current[key] as Record<string, unknown>;
+		}
+
+		// Get or create the plugin array at the final key
+		const lastKey =
+			pluginConfig.pluginKeyPath[pluginConfig.pluginKeyPath.length - 1];
+		if (!Array.isArray(current[lastKey])) {
+			current[lastKey] = [];
+		}
+
+		const pluginArray = current[lastKey] as string[];
+
+		// Add plugin if not already present
+		if (!pluginArray.includes(pluginConfig.pluginValue)) {
+			pluginArray.push(pluginConfig.pluginValue);
+		}
+
+		return config;
 	}
 
 	/**

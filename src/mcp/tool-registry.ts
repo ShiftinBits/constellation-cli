@@ -172,17 +172,11 @@ export const AI_TOOLS: AITool[] = [
 		displayName: 'OpenCode',
 		configPath: 'opencode.jsonc',
 		format: 'jsonc',
-		mcpServersKeyPath: ['mcp'],
-		mcpServerConfigOverride: {
-			command: ['npx', '-y', '@constellationdev/mcp@latest'],
-		},
-		mcpEnvKey: 'environment',
-		mcpEnv: {
-			CONSTELLATION_ACCESS_KEY: '{env:CONSTELLATION_ACCESS_KEY}',
-		},
-		mcpServerExtras: {
-			type: 'local',
-			enabled: true,
+		mcpServersKeyPath: ['mcp'], // Required by interface but unused when skipMcpServer=true
+		skipMcpServer: true,
+		pluginConfig: {
+			pluginKeyPath: ['plugin'],
+			pluginValue: '@constellationdev/opencode',
 		},
 		configDefaults: {
 			$schema: 'https://opencode.ai/config.json',

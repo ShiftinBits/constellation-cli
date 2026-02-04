@@ -385,6 +385,21 @@ describe('HooksWriter', () => {
 			expect(writtenConfig.version).toBeUndefined();
 			expect(writtenConfig.hooks).toBeDefined();
 		});
+
+		it('should return auxiliaryPaths for adapters with auxiliary files', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			const result = await writer.configureHooks(geminiTool, testHooks);
+
+			expect(result.success).toBe(true);
+			expect(result.configuredPath).toBeDefined();
+			expect(result.auxiliaryPaths).toBeDefined();
+			expect(result.auxiliaryPaths!.length).toBeGreaterThan(0);
+			expect(result.auxiliaryPaths![0]).toContain('.gemini/hooks/');
+		});
 	});
 
 	describe('Cline hooks (scripts only)', () => {
@@ -451,6 +466,21 @@ describe('HooksWriter', () => {
 			const writeCalls = mockFileUtils.writeFile.mock.calls;
 			expect(writeCalls.length).toBe(1);
 			expect(writeCalls[0][0]).toContain('TaskStart');
+		});
+
+		it('should return auxiliaryPaths for Cline hooks', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			const result = await writer.configureHooks(clineTool, testHooks);
+
+			expect(result.success).toBe(true);
+			expect(result.configuredPath).toBeUndefined();
+			expect(result.auxiliaryPaths).toBeDefined();
+			expect(result.auxiliaryPaths).toHaveLength(1);
+			expect(result.auxiliaryPaths![0]).toBe('.clinerules/hooks/TaskStart');
 		});
 
 		it('should use contextModification in Cline scripts', async () => {

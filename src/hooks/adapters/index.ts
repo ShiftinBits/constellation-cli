@@ -7,6 +7,7 @@
  */
 
 import type { HookAdapter } from '../types';
+import { ClineHookAdapter } from './cline.adapter';
 import { CursorHookAdapter } from './cursor.adapter';
 import { GeminiHookAdapter } from './gemini.adapter';
 
@@ -14,6 +15,7 @@ import { GeminiHookAdapter } from './gemini.adapter';
  * Registry of available hook adapters.
  */
 const ADAPTERS: Map<string, HookAdapter> = new Map<string, HookAdapter>([
+	['cline', new ClineHookAdapter()],
 	['cursor', new CursorHookAdapter()],
 	['gemini', new GeminiHookAdapter()],
 ]);
@@ -36,5 +38,6 @@ export function getAdapterIds(): string[] {
 }
 
 // Re-export adapters for direct use
+export { ClineHookAdapter } from './cline.adapter';
 export { CursorHookAdapter } from './cursor.adapter';
 export { GeminiHookAdapter } from './gemini.adapter';

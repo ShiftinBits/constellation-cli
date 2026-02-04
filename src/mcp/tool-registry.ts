@@ -68,6 +68,11 @@ export const AI_TOOLS: AITool[] = [
 			alwaysAllow: ['query_code_graph'],
 			disabled: false,
 		},
+		hooksConfig: {
+			filePath: '.clinerules/hooks/placeholder', // Not used - Cline uses scripts only
+			schemaVersion: 1,
+			adapterId: 'cline',
+		},
 	},
 	{
 		id: 'codex-cli',

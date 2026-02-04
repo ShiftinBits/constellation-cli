@@ -386,4 +386,129 @@ describe('HooksWriter', () => {
 			expect(writtenConfig.hooks).toBeDefined();
 		});
 	});
+
+	describe('Cline hooks (scripts only)', () => {
+		const clineTool: AITool = {
+			id: 'cline',
+			displayName: 'Cline',
+			configPath: 'cline_mcp_settings.json',
+			format: 'json',
+			mcpServersKeyPath: ['mcpServers'],
+			hooksConfig: {
+				filePath: '.clinerules/hooks/placeholder',
+				schemaVersion: 1,
+				adapterId: 'cline',
+			},
+		};
+
+		it('should generate TaskStart script for Cline', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			const result = await writer.configureHooks(clineTool, testHooks);
+
+			expect(result.success).toBe(true);
+
+			// Check that TaskStart script was written
+			const writeCalls = mockFileUtils.writeFile.mock.calls;
+			const scriptWrite = writeCalls.find((call) =>
+				(call[0] as string).includes('TaskStart'),
+			);
+			expect(scriptWrite).toBeDefined();
+			expect(scriptWrite![0]).toContain('.clinerules/hooks/TaskStart');
+		});
+
+		it('should make Cline hook scripts executable (no .sh extension)', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			await writer.configureHooks(clineTool, testHooks);
+
+			// Should have called chmod with executable permissions for TaskStart
+			expect(mockFs.chmod).toHaveBeenCalled();
+			const chmodCall = mockFs.chmod.mock.calls[0];
+			expect(chmodCall[0]).toContain('TaskStart');
+			expect(chmodCall[1]).toBe(0o755);
+		});
+
+		it('should not create config file for Cline (scripts only)', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			const result = await writer.configureHooks(clineTool, testHooks);
+
+			expect(result.success).toBe(true);
+			// configuredPath should be undefined since no config file was written
+			expect(result.configuredPath).toBeUndefined();
+
+			// Should only write the TaskStart script, not a config file
+			const writeCalls = mockFileUtils.writeFile.mock.calls;
+			expect(writeCalls.length).toBe(1);
+			expect(writeCalls[0][0]).toContain('TaskStart');
+		});
+
+		it('should use contextModification in Cline scripts', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			await writer.configureHooks(clineTool, testHooks);
+
+			const writeCalls = mockFileUtils.writeFile.mock.calls;
+			const scriptWrite = writeCalls.find((call) =>
+				(call[0] as string).includes('TaskStart'),
+			);
+
+			const scriptContent = scriptWrite![1] as string;
+			expect(scriptContent).toContain('#!/bin/bash');
+			expect(scriptContent).toContain('"cancel": false');
+			expect(scriptContent).toContain('"contextModification"');
+			// Should NOT contain Gemini's format
+			expect(scriptContent).not.toContain('hookSpecificOutput');
+			expect(scriptContent).not.toContain('additionalContext');
+		});
+
+		it('should only create TaskStart from Constellation hooks (skip unsupported)', async () => {
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+			mockFs.chmod.mockResolvedValue(undefined);
+
+			// Use multiple hooks including unsupported ones
+			const multipleHooks: CanonicalHook[] = [
+				{
+					event: 'SessionStart',
+					type: 'prompt',
+					content: 'Session start prompt',
+					matcher: '.*',
+				},
+				{
+					event: 'SubagentStart',
+					type: 'prompt',
+					content: 'Subagent prompt',
+					matcher: 'Explore|Plan',
+				},
+				{
+					event: 'PreCompact',
+					type: 'prompt',
+					content: 'Preserve context',
+					matcher: '.*',
+				},
+			];
+
+			const writer = new HooksWriter('/test');
+			await writer.configureHooks(clineTool, multipleHooks);
+
+			// Should only write TaskStart, not SubagentStart or PreCompact
+			const writeCalls = mockFileUtils.writeFile.mock.calls;
+			expect(writeCalls.length).toBe(1);
+			expect(writeCalls[0][0]).toContain('TaskStart');
+		});
+	});
 });

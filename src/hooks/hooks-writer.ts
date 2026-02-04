@@ -56,23 +56,37 @@ export class HooksWriter {
 		try {
 			const hooksPath = path.join(this.cwd, tool.hooksConfig.filePath);
 
-			// Ensure directory exists
-			await this.ensureDirectoryExists(hooksPath);
-
-			// Read existing config to merge (preserve user customizations)
-			const existingConfig = await this.readConfig(hooksPath);
-
 			// Generate new hooks config
 			const newConfig = adapter.generateConfig(hooks);
 
-			// Merge: new config takes precedence for Constellation hooks,
-			// but preserve any user-defined hooks
-			const mergedConfig = this.mergeHooksConfig(existingConfig, newConfig);
+			// Check if adapter produces actual config content
+			// (Cline uses scripts only, returns empty object)
+			const hasConfigContent = Object.keys(newConfig).some((key) => {
+				const value = newConfig[key];
+				return (
+					value !== undefined &&
+					value !== null &&
+					(typeof value !== 'object' || Object.keys(value as object).length > 0)
+				);
+			});
 
-			// Write config
-			await this.writeConfig(hooksPath, mergedConfig);
+			// Only write config file if adapter produces config content
+			if (hasConfigContent) {
+				// Ensure directory exists
+				await this.ensureDirectoryExists(hooksPath);
 
-			// Generate and write auxiliary files (e.g., shell scripts for Gemini)
+				// Read existing config to merge (preserve user customizations)
+				const existingConfig = await this.readConfig(hooksPath);
+
+				// Merge: new config takes precedence for Constellation hooks,
+				// but preserve any user-defined hooks
+				const mergedConfig = this.mergeHooksConfig(existingConfig, newConfig);
+
+				// Write config
+				await this.writeConfig(hooksPath, mergedConfig);
+			}
+
+			// Generate and write auxiliary files (e.g., shell scripts for Gemini/Cline)
 			if (adapter.generateAuxiliaryFiles) {
 				const auxiliaryFiles = adapter.generateAuxiliaryFiles(hooks);
 				if (auxiliaryFiles) {
@@ -84,7 +98,7 @@ export class HooksWriter {
 				toolId: tool.id,
 				toolDisplayName: tool.displayName,
 				success: true,
-				configuredPath: hooksPath,
+				configuredPath: hasConfigContent ? hooksPath : undefined,
 			};
 		} catch (error) {
 			return {
@@ -177,7 +191,7 @@ export class HooksWriter {
 	}
 
 	/**
-	 * Write auxiliary files (e.g., shell scripts for Gemini adapter).
+	 * Write auxiliary files (e.g., shell scripts for Gemini/Cline adapters).
 	 * Makes shell scripts executable on Unix systems.
 	 */
 	private async writeAuxiliaryFiles(files: Map<string, string>): Promise<void> {
@@ -195,8 +209,9 @@ export class HooksWriter {
 
 			await FileUtils.writeFile(fullPath, normalizedContent);
 
-			// Make shell scripts executable on Unix
-			if (relativePath.endsWith('.sh')) {
+			// Make scripts executable on Unix if they have .sh extension
+			// or start with a shebang (Cline hooks have no extension)
+			if (relativePath.endsWith('.sh') || normalizedContent.startsWith('#!')) {
 				await fs.chmod(fullPath, 0o755);
 			}
 		}

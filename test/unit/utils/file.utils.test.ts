@@ -189,7 +189,8 @@ describe('FileUtils', () => {
 				Buffer.from(content, 'utf-8'),
 				{
 					encoding: 'utf-8',
-					flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
+					flag:
+						fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
 				},
 			);
 		});
@@ -205,7 +206,8 @@ describe('FileUtils', () => {
 				Buffer.from(content, 'ascii'),
 				{
 					encoding: 'ascii',
-					flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
+					flag:
+						fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
 				},
 			);
 		});
@@ -220,7 +222,8 @@ describe('FileUtils', () => {
 				Buffer.from('', 'utf-8'),
 				{
 					encoding: 'utf-8',
-					flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
+					flag:
+						fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
 				},
 			);
 		});
@@ -245,7 +248,28 @@ describe('FileUtils', () => {
 				Buffer.from(content, 'utf-8'),
 				{
 					encoding: 'utf-8',
-					flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
+					flag:
+						fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
+				},
+			);
+		});
+
+		it('should truncate file when writing shorter content (regression test)', async () => {
+			// This test verifies O_TRUNC flag is set, preventing garbage bytes
+			// when overwriting a file with shorter content (Kilo Code bug fix)
+			mockFs.writeFile.mockResolvedValue(undefined);
+
+			// Simulate writing shorter content to existing file
+			await FileUtils.writeFile('/test/truncate.txt', 'Short');
+
+			// Verify O_TRUNC is included in flags
+			expect(mockFs.writeFile).toHaveBeenCalledWith(
+				'/test/truncate.txt',
+				Buffer.from('Short', 'utf-8'),
+				{
+					encoding: 'utf-8',
+					flag:
+						fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
 				},
 			);
 		});

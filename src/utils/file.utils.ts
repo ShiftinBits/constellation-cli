@@ -68,7 +68,7 @@ export const FileUtils = {
 		const fileContents: Buffer = Buffer.from(contents, encoding);
 		await fs.writeFile(path, fileContents, {
 			encoding,
-			flag: fs.constants.O_WRONLY | fs.constants.O_CREAT,
+			flag: fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
 		});
 	},
 

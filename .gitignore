@@ -1,6 +1,7 @@
 
 # Claude Local Settings
 .claude/settings.local.json
+docs/plans
 
 # TSConfig Composite Build Info
 tsconfig.build.tsbuildinfo

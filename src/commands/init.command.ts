@@ -201,7 +201,7 @@ export default class InitCommand extends BaseCommand {
 			);
 
 			// Write file to disk
-			FileUtils.writeFile(configFilePath, constellationJson);
+			await FileUtils.writeFile(configFilePath, constellationJson);
 			console.log(
 				`${GREEN_CHECK} ${configExists ? 'Updated' : 'Initialized'} configuration file at ${toDisplayPath(configFilePath, process.cwd())}`,
 			);

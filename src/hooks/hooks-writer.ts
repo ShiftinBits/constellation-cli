@@ -162,14 +162,15 @@ export class HooksWriter {
 			...newHooks,
 		};
 
-		// Build result - only include version if present in either config
+		// Build result - preserve all existing top-level keys, then override hooks/version
 		const result: Record<string, unknown> = {
+			...existing, // Preserve mcpServers and other existing keys
 			hooks: mergedHooks,
 		};
 
-		// Include version if present (Cursor has it, Gemini doesn't)
-		if (newConfig.version !== undefined || existing.version !== undefined) {
-			result.version = newConfig.version ?? existing.version;
+		// Include version if present in new config, otherwise keep existing
+		if (newConfig.version !== undefined) {
+			result.version = newConfig.version;
 		}
 
 		return result;

@@ -15,7 +15,7 @@ describe('tool-registry', () => {
 		it('should have correct args', () => {
 			expect(CONSTELLATION_MCP_CONFIG.args).toEqual([
 				'-y',
-				'@constellationdev/cli@latest',
+				'@constellationdev/mcp@latest',
 			]);
 		});
 	});
@@ -64,7 +64,7 @@ describe('tool-registry', () => {
 				'allow',
 			]);
 			expect(claudeCode?.permissionsConfig?.allowValue).toBe(
-				'mcp__constellation__*',
+				'mcp__plugin_constellation_*',
 			);
 		});
 

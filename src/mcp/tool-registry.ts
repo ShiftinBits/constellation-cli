@@ -15,7 +15,7 @@ import type { AITool, MCPServerConfig } from './types';
  */
 export const CONSTELLATION_MCP_CONFIG: MCPServerConfig = {
 	command: 'npx',
-	args: ['-y', '@constellationdev/cli@latest'],
+	args: ['-y', '@constellationdev/mcp@latest'],
 };
 
 /**
@@ -48,7 +48,7 @@ export const AI_TOOLS: AITool[] = [
 		permissionsConfig: {
 			filePath: '.claude/settings.json',
 			allowKeyPath: ['permissions', 'allow'],
-			allowValue: 'mcp__constellation__*',
+			allowValue: 'mcp__plugin_constellation_*',
 		},
 		marketplaceConfig: {
 			filePath: '.claude/settings.json',

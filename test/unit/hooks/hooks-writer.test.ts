@@ -183,6 +183,37 @@ describe('HooksWriter', () => {
 			expect(writtenConfig.hooks.sessionStart).toBeDefined();
 		});
 
+		it('should preserve non-hook top-level keys like mcpServers (Gemini bug fix)', async () => {
+			// Gemini uses the same file for MCP servers and hooks
+			// HooksWriter must preserve mcpServers when writing hooks
+			const existingConfig = {
+				mcpServers: {
+					constellation: { command: 'npx', args: ['mcp-constellation'] },
+				},
+				hooks: {
+					existingHook: [{ type: 'command', command: 'echo existing' }],
+				},
+				customSetting: 'should-be-preserved',
+			};
+			mockFileUtils.fileIsReadable.mockResolvedValue(true);
+			mockFileUtils.readFile.mockResolvedValue(JSON.stringify(existingConfig));
+			mockFileUtils.writeFile.mockResolvedValue(undefined);
+
+			const writer = new HooksWriter('/test');
+			await writer.configureHooks(cursorTool, testHooks);
+
+			const writeCall = mockFileUtils.writeFile.mock.calls[0];
+			const writtenConfig = JSON.parse(writeCall[1] as string);
+
+			// mcpServers must be preserved (this was the Gemini bug)
+			expect(writtenConfig.mcpServers).toEqual(existingConfig.mcpServers);
+			// Other custom keys must be preserved
+			expect(writtenConfig.customSetting).toBe('should-be-preserved');
+			// Hooks should still be merged correctly
+			expect(writtenConfig.hooks.sessionStart).toBeDefined();
+			expect(writtenConfig.hooks.existingHook).toBeDefined();
+		});
+
 		it('should replace existing Constellation hooks on re-run', async () => {
 			const existingConfig = {
 				version: 1,

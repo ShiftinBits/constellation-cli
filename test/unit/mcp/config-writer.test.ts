@@ -134,7 +134,9 @@ describe('ConfigWriter', () => {
 			// Check permissions file was written with correct structure
 			const permissionsCall = mockFileUtils.writeFile.mock.calls[1];
 			const settings = JSON.parse(permissionsCall[1] as string);
-			expect(settings.permissions.allow).toContain('mcp__constellation__*');
+			expect(settings.permissions.allow).toContain(
+				'mcp__plugin_constellation_*',
+			);
 		});
 
 		it('should configure Claude Code marketplace settings', async () => {
@@ -301,7 +303,9 @@ describe('ConfigWriter', () => {
 			);
 			const settings = JSON.parse(permissionsCall![1] as string);
 			expect(settings.permissions.allow).toContain('existing_permission');
-			expect(settings.permissions.allow).toContain('mcp__constellation__*');
+			expect(settings.permissions.allow).toContain(
+				'mcp__plugin_constellation_*',
+			);
 		});
 
 		it('should return error when configuration fails', async () => {
@@ -695,7 +699,7 @@ args = ["old-arg"]
 			expect(config.mcpServers.constellation.command).toBe('npx');
 			expect(config.mcpServers.constellation.args).toEqual([
 				'-y',
-				'@constellationdev/cli@latest',
+				'@constellationdev/mcp@latest',
 			]);
 		});
 	});

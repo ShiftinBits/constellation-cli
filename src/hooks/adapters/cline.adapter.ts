@@ -30,7 +30,7 @@ const CLINE_EVENT_MAP: Record<CanonicalHookEvent, string | undefined> = {
  * Cline MCP tool name for Constellation.
  * Cline uses just the tool name without server prefix.
  */
-const CLINE_MCP_TOOL_NAME = 'query_code_graph';
+const CLINE_MCP_TOOL_NAME = 'code_intel';
 
 /**
  * Get the script filename for a hook event.

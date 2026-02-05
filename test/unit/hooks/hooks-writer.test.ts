@@ -239,7 +239,7 @@ describe('HooksWriter', () => {
 
 			// Should have new prompt, not old one
 			expect(writtenConfig.hooks.sessionStart[0].prompt).toContain(
-				'constellation__query_code_graph',
+				'constellation__code_intel',
 			);
 			expect(writtenConfig.hooks.sessionStart[0].prompt).not.toContain(
 				'Old Constellation prompt',

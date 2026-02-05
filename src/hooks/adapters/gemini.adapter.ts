@@ -37,7 +37,7 @@ const GEMINI_MATCHERS: Partial<Record<CanonicalHookEvent, string>> = {
  * Gemini MCP tool name for Constellation.
  * Gemini uses just the tool name without server prefix.
  */
-const GEMINI_MCP_TOOL_NAME = 'query_code_graph';
+const GEMINI_MCP_TOOL_NAME = 'code_intel';
 
 /**
  * Generate a shell script filename from a hook event.

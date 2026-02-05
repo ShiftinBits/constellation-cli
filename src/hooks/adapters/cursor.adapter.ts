@@ -25,7 +25,7 @@ const CURSOR_EVENT_MAP: Record<CanonicalHookEvent, string | undefined> = {
  * Cursor MCP tool name for Constellation.
  * Cursor uses the format: serverName__toolName
  */
-const CURSOR_MCP_TOOL_NAME = 'constellation__query_code_graph';
+const CURSOR_MCP_TOOL_NAME = 'constellation__code_intel';
 
 /**
  * Adapter for generating Cursor hooks.json format.

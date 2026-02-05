@@ -107,7 +107,7 @@ describe('tool-registry', () => {
 				CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
 			});
 			expect(jetbrains?.mcpServerExtras).toEqual({
-				tools: ['query_code_graph'],
+				tools: ['code_intel'],
 			});
 		});
 
@@ -148,7 +148,7 @@ describe('tool-registry', () => {
 				'constellation',
 				'alwaysAllow',
 			]);
-			expect(kilo?.permissionsConfig?.allowValue).toBe('query_code_graph');
+			expect(kilo?.permissionsConfig?.allowValue).toBe('code_intel');
 		});
 
 		it('should have opencode tool with JSONC format and plugin config', () => {

@@ -51,9 +51,7 @@ describe('CursorHookAdapter', () => {
 
 			const result = adapter.customizePrompt(hook);
 
-			expect(result).toBe(
-				'Use constellation__query_code_graph for code analysis.',
-			);
+			expect(result).toBe('Use constellation__code_intel for code analysis.');
 		});
 
 		it('should replace multiple {MCP_TOOL_NAME} occurrences', () => {
@@ -67,7 +65,7 @@ describe('CursorHookAdapter', () => {
 			const result = adapter.customizePrompt(hook);
 
 			expect(result).toBe(
-				'constellation__query_code_graph is primary. Always use constellation__query_code_graph first.',
+				'constellation__code_intel is primary. Always use constellation__code_intel first.',
 			);
 		});
 
@@ -146,9 +144,7 @@ describe('CursorHookAdapter', () => {
 			const hookEntry = hooksConfig.sessionStart[0];
 
 			expect(hookEntry.type).toBe('prompt');
-			expect(hookEntry.prompt).toBe(
-				'Test constellation__query_code_graph prompt',
-			);
+			expect(hookEntry.prompt).toBe('Test constellation__code_intel prompt');
 			expect(hookEntry.matcher).toBe('.*');
 		});
 
@@ -228,14 +224,14 @@ describe('CursorHookAdapter', () => {
 					sessionStart: [
 						{
 							type: 'prompt',
-							prompt: 'Use constellation__query_code_graph as primary tool.',
+							prompt: 'Use constellation__code_intel as primary tool.',
 							matcher: '.*',
 						},
 					],
 					preCompact: [
 						{
 							type: 'prompt',
-							prompt: 'Preserve constellation__query_code_graph guidance.',
+							prompt: 'Preserve constellation__code_intel guidance.',
 							matcher: '.*',
 						},
 					],

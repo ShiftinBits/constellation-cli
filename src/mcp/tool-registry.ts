@@ -65,7 +65,7 @@ export const AI_TOOLS: AITool[] = [
 		format: 'json',
 		mcpServersKeyPath: ['mcpServers'],
 		mcpServerExtras: {
-			alwaysAllow: ['query_code_graph'],
+			alwaysAllow: ['code_intel'],
 			disabled: false,
 		},
 		hooksConfig: {
@@ -82,7 +82,7 @@ export const AI_TOOLS: AITool[] = [
 		mcpServersKeyPath: ['mcp_servers'],
 		mcpEnv: { CONSTELLATION_ACCESS_KEY: '$CONSTELLATION_ACCESS_KEY' },
 		mcpServerExtras: {
-			enabled_tools: ['query_code_graph'],
+			enabled_tools: ['code_intel'],
 		},
 		envPolicyConfig: {
 			includeOnlyKeyPath: ['shell_environment_policy', 'include_only'],
@@ -102,7 +102,7 @@ export const AI_TOOLS: AITool[] = [
 			CONSTELLATION_ACCESS_KEY: '${CONSTELLATION_ACCESS_KEY}',
 		},
 		mcpServerExtras: {
-			tools: ['query_code_graph'],
+			tools: ['code_intel'],
 			type: 'local',
 		},
 	},
@@ -149,7 +149,7 @@ export const AI_TOOLS: AITool[] = [
 			CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
 		},
 		mcpServerExtras: {
-			tools: ['query_code_graph'],
+			tools: ['code_intel'],
 		},
 	},
 	{
@@ -160,7 +160,7 @@ export const AI_TOOLS: AITool[] = [
 		permissionsConfig: {
 			filePath: '.kilocode/mcp.json',
 			allowKeyPath: ['mcpServers', 'constellation', 'alwaysAllow'],
-			allowValue: 'query_code_graph',
+			allowValue: 'code_intel',
 		},
 		mcpServersKeyPath: ['mcpServers'],
 		mcpEnv: {
@@ -199,7 +199,7 @@ export const AI_TOOLS: AITool[] = [
 			CONSTELLATION_ACCESS_KEY: 'CONSTELLATION_ACCESS_KEY',
 		},
 		mcpServerExtras: {
-			tools: ['query_code_graph'],
+			tools: ['code_intel'],
 		},
 	},
 ];

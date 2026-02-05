@@ -51,7 +51,7 @@ describe('ClineHookAdapter', () => {
 
 			const result = adapter.customizePrompt(hook);
 
-			expect(result).toBe('Use query_code_graph for code analysis.');
+			expect(result).toBe('Use code_intel for code analysis.');
 		});
 
 		it('should replace multiple {MCP_TOOL_NAME} occurrences', () => {
@@ -65,7 +65,7 @@ describe('ClineHookAdapter', () => {
 			const result = adapter.customizePrompt(hook);
 
 			expect(result).toBe(
-				'query_code_graph is primary. Always use query_code_graph first.',
+				'code_intel is primary. Always use code_intel first.',
 			);
 		});
 
@@ -160,7 +160,7 @@ describe('ClineHookAdapter', () => {
 			const files = adapter.generateAuxiliaryFiles(hooks);
 			const script = files!.get('.clinerules/hooks/TaskStart');
 
-			expect(script).toContain('query_code_graph');
+			expect(script).toContain('code_intel');
 			expect(script).not.toContain('{MCP_TOOL_NAME}');
 		});
 

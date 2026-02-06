@@ -171,7 +171,7 @@ describe('ConfigWriter', () => {
 			// Check enabled plugins
 			expect(settings.enabledPlugins).toBeDefined();
 			expect(
-				settings.enabledPlugins['constellation@constellation-marketplace'],
+				settings.enabledPlugins['constellation@constellation-plugins'],
 			).toBe(true);
 		});
 
@@ -234,7 +234,7 @@ describe('ConfigWriter', () => {
 
 			// Should add new enabled plugin
 			expect(
-				settings.enabledPlugins['constellation@constellation-marketplace'],
+				settings.enabledPlugins['constellation@constellation-plugins'],
 			).toBe(true);
 		});
 

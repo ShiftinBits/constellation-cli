@@ -31,7 +31,7 @@ export const CLAUDE_CODE_MARKETPLACE_CONFIG = {
 		},
 	},
 	enabledPlugins: {
-		'constellation@constellation-marketplace': true,
+		'constellation@constellation-plugins': true,
 	},
 };
 

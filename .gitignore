@@ -3,6 +3,9 @@
 .claude/settings.local.json
 docs/plans
 
+# Git worktrees
+.worktrees/
+
 # TSConfig Composite Build Info
 tsconfig.build.tsbuildinfo
 

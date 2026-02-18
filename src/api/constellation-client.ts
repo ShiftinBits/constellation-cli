@@ -1,3 +1,4 @@
+import { Agent } from 'undici';
 import { ConstellationConfig } from '../config/config';
 import type { ProjectState, SerializedAST } from '@constellationdev/types';
 import { generateAstId } from '../utils/id.utils';
@@ -113,6 +114,12 @@ export class ConstellationClient {
 			// Convert Node.js Readable to Web ReadableStream
 			const webStream = Readable.toWeb(stream) as ReadableStream;
 
+			// Disable undici's default 30s headersTimeout: the server processes the
+			// entire NDJSON stream synchronously before sending response headers, so
+			// large full-index uploads legitimately take > 30s and would otherwise
+			// trigger UND_ERR_HEADERS_TIMEOUT.
+			const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+
 			const response = await fetch(
 				`${this.config.apiUrl}/${this.apiVersion}/${path}`,
 				{
@@ -126,7 +133,11 @@ export class ConstellationClient {
 					},
 					body: webStream,
 					duplex: 'half', // Required for streaming requests in fetch
-				} as RequestInit & { duplex?: 'half' },
+					dispatcher,
+					// Double-cast: @types/node uses undici-types for RequestInit while the
+					// undici package ships its own structurally-incompatible type definitions.
+					// The runtime behavior is correct; the cast only resolves the TS conflict.
+				} as unknown as RequestInit,
 			);
 
 			// Handle authentication errors explicitly

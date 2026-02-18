@@ -215,18 +215,18 @@ describe('CrossPlatformEnvironment', () => {
 			expect(writeCall[1]).toContain('export TEST_KEY=');
 		});
 
-		it('should write to user config files ~/.zshrc and ~/.bashrc', async () => {
+		it('should write to user config files ~/.zshenv and ~/.profile', async () => {
 			setupFileMocks();
 
 			await env.setKey('test_key', 'test-value');
 
 			// Should write to both user config files for cross-shell compatibility
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/home/testuser/.zshrc',
+				'/home/testuser/.zshenv',
 				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/home/testuser/.bashrc',
+				'/home/testuser/.profile',
 				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 			expect(FileUtils.writeFile).toHaveBeenCalledTimes(2);
@@ -267,11 +267,11 @@ describe('CrossPlatformEnvironment', () => {
 			await env.setKey('test_key', 'test-value');
 
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/home/testuser/.zshrc',
+				'/home/testuser/.zshenv',
 				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 			expect(FileUtils.writeFile).toHaveBeenCalledWith(
-				'/home/testuser/.bashrc',
+				'/home/testuser/.profile',
 				expect.stringContaining('export TEST_KEY="test-value"'),
 			);
 		});

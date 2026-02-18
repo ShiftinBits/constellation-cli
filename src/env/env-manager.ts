@@ -192,10 +192,13 @@ class UnixEnvironmentManager extends EnvironmentManager {
 
 	constructor() {
 		super();
-		// Write to both zsh and bash user config files for broad shell compatibility
+		// Write to shell env files sourced for ALL invocations (not just interactive),
+		// so IDEs, agents, and non-interactive scripts pick up the value.
+		// .zshenv is sourced by every zsh process; .profile by POSIX login shells
+		// and most tools that don't launch a full interactive shell.
 		this.userConfigFiles = [
-			path.join(os.homedir(), '.zshrc'),
-			path.join(os.homedir(), '.bashrc'),
+			path.join(os.homedir(), '.zshenv'),
+			path.join(os.homedir(), '.profile'),
 		];
 	}
 

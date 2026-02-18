@@ -78,7 +78,7 @@ docker exec constellation-postgres pg_isready
 
 ```bash
 # API logs
-cd constellation-core && npm run start:client-api:dev
+cd constellation-core && npm run start:intel-api:dev
 
 # Docker container logs
 docker compose logs -f neo4j
@@ -192,7 +192,7 @@ port: 3000
 
 ```bash
 # Start API server
-cd constellation-core && npm run start:client-api:dev
+cd constellation-core && npm run start:intel-api:dev
 
 # Or start Docker infrastructure
 cd constellation-core && npm run docker:up

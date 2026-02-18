@@ -1,5 +1,5 @@
-import { SyntaxNode, Tree } from 'tree-sitter';
 import type { ImportResolutionMetadata } from '@constellationdev/types';
+import { SyntaxNode, Tree } from 'tree-sitter';
 import type { ImportResolver } from '../languages/plugins/base-plugin';
 import { normalizeGraphPath } from './path.utils';
 
@@ -163,7 +163,7 @@ export class ImportExtractor {
 		}
 
 		// ✅ FIX: Project-relative paths without leading ./ or ../ are canonical paths
-		// Examples: "libs/graph-engine/src/index.ts", "apps/client-api/src/main.ts"
+		// Examples: "libs/graph-engine/src/index.ts", "apps/intel-api/src/main.ts"
 		// These are internal workspace files, NOT external packages
 		if (!resolved.startsWith('.') && !resolved.startsWith('/')) {
 			// Canonical project-relative path = internal

@@ -325,6 +325,45 @@ describe('ConstellationClient', () => {
 			).rejects.toThrow(/Failed to upload data to Constellation Service/);
 		});
 
+		it('should use a no-timeout dispatcher to prevent UND_ERR_HEADERS_TIMEOUT on large full-index uploads', async () => {
+			// Root cause: undici's default headersTimeout is 30s. The server processes
+			// the entire stream synchronously before sending response headers. Large
+			// full-index uploads take > 30s, causing UND_ERR_HEADERS_TIMEOUT.
+			// Fix: pass a custom undici Agent with headersTimeout: 0 as the dispatcher.
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield createTestAST();
+				},
+			};
+
+			const mockNdJsonStream = {};
+			(
+				NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>
+			).mockImplementation(() => mockNdJsonStream as any);
+
+			const mockReadable = { toWeb: jest.fn().mockReturnValue({}) };
+			jest.doMock('stream', () => ({ Readable: mockReadable }), {
+				virtual: true,
+			});
+
+			mockFetch.mockResolvedValue(createMockResponse(200, true));
+
+			await client.streamToApi(
+				mockStream as any,
+				'upload',
+				'test-namespace',
+				'test-branch',
+				false,
+			);
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.objectContaining({
+					dispatcher: expect.any(Object),
+				}),
+			);
+		});
+
 		it('should throw AuthenticationError on 401', async () => {
 			const mockStream = {
 				async *[Symbol.asyncIterator]() {

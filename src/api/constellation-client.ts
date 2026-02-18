@@ -1,4 +1,4 @@
-import { Agent } from 'undici';
+import { fetch as undiciFetch, Agent } from 'undici';
 import { ConstellationConfig } from '../config/config';
 import type { ProjectState, SerializedAST } from '@constellationdev/types';
 import { generateAstId } from '../utils/id.utils';
@@ -114,13 +114,18 @@ export class ConstellationClient {
 			// Convert Node.js Readable to Web ReadableStream
 			const webStream = Readable.toWeb(stream) as ReadableStream;
 
-			// Disable undici's default 30s headersTimeout: the server processes the
-			// entire NDJSON stream synchronously before sending response headers, so
-			// large full-index uploads legitimately take > 30s and would otherwise
-			// trigger UND_ERR_HEADERS_TIMEOUT.
+			// Use undici's own fetch + Agent so both are from the same package instance.
+			// Passing an npm-undici Agent to Node.js's built-in fetch causes a version
+			// mismatch that silently returns non-ok responses. Using undiciFetch here
+			// ensures the dispatcher is accepted correctly.
+			//
+			// headersTimeout: 0 / bodyTimeout: 0 — the server processes the entire
+			// NDJSON stream synchronously before sending response headers, so large
+			// full-index uploads legitimately take > 30s and would trigger the default
+			// 30s UND_ERR_HEADERS_TIMEOUT without this override.
 			const dispatcher = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
 
-			const response = await fetch(
+			const response = await undiciFetch(
 				`${this.config.apiUrl}/${this.apiVersion}/${path}`,
 				{
 					method: 'POST',
@@ -134,10 +139,7 @@ export class ConstellationClient {
 					body: webStream,
 					duplex: 'half', // Required for streaming requests in fetch
 					dispatcher,
-					// Double-cast: @types/node uses undici-types for RequestInit while the
-					// undici package ships its own structurally-incompatible type definitions.
-					// The runtime behavior is correct; the cast only resolves the TS conflict.
-				} as unknown as RequestInit,
+				},
 			);
 
 			// Handle authentication errors explicitly

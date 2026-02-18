@@ -16,14 +16,23 @@ import { ConstellationConfig } from '../../../src/config/config';
 import type { ProjectState, SerializedAST } from '@constellationdev/types';
 import { generateAstId } from '../../../src/utils/id.utils';
 import { NdJsonStreamWriter } from '../../../src/utils/ndjson-streamwriter';
+import { fetch as undiciFetch } from 'undici';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockUndiciFetch = undiciFetch as any;
 
 // Mock dependencies
 jest.mock('../../../src/utils/id.utils', () => ({
 	generateAstId: jest.fn(),
 }));
 jest.mock('../../../src/utils/ndjson-streamwriter');
+// Mock undici module — streamToApi uses undici's own fetch to ensure the Agent
+// dispatcher and fetch are from the same package (avoids Node.js built-in version mismatch)
+jest.mock('undici', () => ({
+	fetch: jest.fn(),
+	Agent: jest.fn().mockReturnValue({}),
+}));
 
-// Mock global fetch
+// Mock global fetch (used by sendRequest for non-streaming calls)
 const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 global.fetch = mockFetch;
 
@@ -245,7 +254,7 @@ describe('ConstellationClient', () => {
 				{ virtual: true },
 			);
 
-			mockFetch.mockResolvedValue(createMockResponse(200, true));
+			mockUndiciFetch.mockResolvedValue(createMockResponse(200, true));
 
 			const result = await client.streamToApi(
 				mockStream as any,
@@ -256,7 +265,7 @@ describe('ConstellationClient', () => {
 			);
 
 			expect(result).toBe(true);
-			expect(mockFetch).toHaveBeenCalledWith(
+			expect(mockUndiciFetch).toHaveBeenCalledWith(
 				'https://api.constellation.test/v1/upload',
 				expect.objectContaining({
 					method: 'POST',
@@ -292,7 +301,7 @@ describe('ConstellationClient', () => {
 				virtual: true,
 			});
 
-			mockFetch.mockResolvedValue(createMockResponse(400, false));
+			mockUndiciFetch.mockResolvedValue(createMockResponse(400, false));
 
 			const result = await client.streamToApi(
 				mockStream as any,
@@ -312,7 +321,7 @@ describe('ConstellationClient', () => {
 				},
 			};
 
-			mockFetch.mockRejectedValue(new Error('Network timeout'));
+			mockUndiciFetch.mockRejectedValue(new Error('Network timeout'));
 
 			await expect(
 				client.streamToApi(
@@ -329,7 +338,8 @@ describe('ConstellationClient', () => {
 			// Root cause: undici's default headersTimeout is 30s. The server processes
 			// the entire stream synchronously before sending response headers. Large
 			// full-index uploads take > 30s, causing UND_ERR_HEADERS_TIMEOUT.
-			// Fix: pass a custom undici Agent with headersTimeout: 0 as the dispatcher.
+			// Fix: use undici's own fetch + Agent so both are from the same package,
+			// and pass headersTimeout: 0 as the dispatcher to disable the timeout.
 			const mockStream = {
 				async *[Symbol.asyncIterator]() {
 					yield createTestAST();
@@ -346,7 +356,7 @@ describe('ConstellationClient', () => {
 				virtual: true,
 			});
 
-			mockFetch.mockResolvedValue(createMockResponse(200, true));
+			mockUndiciFetch.mockResolvedValue(createMockResponse(200, true));
 
 			await client.streamToApi(
 				mockStream as any,
@@ -356,7 +366,7 @@ describe('ConstellationClient', () => {
 				false,
 			);
 
-			expect(mockFetch).toHaveBeenCalledWith(
+			expect(mockUndiciFetch).toHaveBeenCalledWith(
 				expect.any(String),
 				expect.objectContaining({
 					dispatcher: expect.any(Object),
@@ -384,7 +394,7 @@ describe('ConstellationClient', () => {
 				virtual: true,
 			});
 
-			mockFetch.mockResolvedValue(createMockResponse(401, false));
+			mockUndiciFetch.mockResolvedValue(createMockResponse(401, false));
 
 			await expect(
 				client.streamToApi(

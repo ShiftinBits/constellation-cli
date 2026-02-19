@@ -232,7 +232,7 @@ describe('IndexCommand', () => {
 				expect.stringContaining('Starting indexing procedure'),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -241,7 +241,7 @@ describe('IndexCommand', () => {
 
 			expect(mockApiClient.streamToApi).toHaveBeenCalled();
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -275,7 +275,7 @@ describe('IndexCommand', () => {
 				expect.stringContaining('Skipping git branch validation'),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -292,7 +292,7 @@ describe('IndexCommand', () => {
 				expect.stringContaining('Skipping git status validation'),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -304,7 +304,7 @@ describe('IndexCommand', () => {
 				expect.stringContaining('Skipping repository synchronization'),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -315,7 +315,7 @@ describe('IndexCommand', () => {
 			expect(mockGit.status).toHaveBeenCalled();
 			expect(mockGit.pull).toHaveBeenCalled();
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -335,7 +335,7 @@ describe('IndexCommand', () => {
 				expect.stringContaining('Skipping git branch validation'),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -351,7 +351,7 @@ describe('IndexCommand', () => {
 				expect.stringContaining('Skipping git status validation'),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -414,7 +414,7 @@ describe('IndexCommand', () => {
 
 			expect(scannerInstance.scanFiles).toHaveBeenCalled();
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -471,7 +471,7 @@ describe('IndexCommand', () => {
 				expect.stringContaining('No previous index found'),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -560,7 +560,7 @@ describe('IndexCommand', () => {
 				),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -713,7 +713,7 @@ describe('IndexCommand', () => {
 			// Should not call getProjectState since we're forcing full index
 			// (Note: getProjectState might still be called, but we shouldn't use incremental logic)
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 
@@ -831,7 +831,7 @@ describe('IndexCommand', () => {
 			await testCommand.run(false);
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Indexing complete'),
+				expect.stringContaining('Upload completed'),
 			);
 		});
 	});

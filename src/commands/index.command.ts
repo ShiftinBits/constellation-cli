@@ -175,7 +175,7 @@ export default class IndexCommand extends BaseCommand {
 				minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
 			console.log(
-				`\n${GREEN_CHECK} Indexing completed in ${humanReadableExecTime}!`,
+				`\n${GREEN_CHECK} Upload completed in ${humanReadableExecTime}! Server indexing in progress.`,
 			);
 		} catch (error) {
 			// Provide actionable message for auth failures
@@ -492,9 +492,8 @@ export default class IndexCommand extends BaseCommand {
 					const resolver = plugin.getImportResolver(file.path, buildConfig);
 					if (resolver) {
 						// Extract import resolutions without modifying AST
-						const { ImportExtractor } = await import(
-							'../utils/import-extractor'
-						);
+						const { ImportExtractor } =
+							await import('../utils/import-extractor');
 						const extractor = new ImportExtractor();
 						importResolutions = await extractor.extractImportResolutions(
 							tree,
@@ -588,7 +587,7 @@ export default class IndexCommand extends BaseCommand {
 			throw new Error('Failed to upload data to Constellation Service');
 		}
 		console.log(
-			`${GREEN_CHECK} Successfully uploaded data to Constellation Service`,
+			`${GREEN_CHECK} Data uploaded to Constellation Service, indexing in progress`,
 		);
 	}
 

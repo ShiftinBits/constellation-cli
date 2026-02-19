@@ -147,7 +147,8 @@ export class ConstellationClient {
 				throw new AuthenticationError('Authentication failed');
 			}
 
-			return response.ok === true;
+			// Accept both 200 (legacy) and 202 (async processing)
+			return response.ok === true || response.status === 202;
 		} catch (error: any) {
 			// Re-throw AuthenticationError so callers can handle it
 			if (error instanceof AuthenticationError) {

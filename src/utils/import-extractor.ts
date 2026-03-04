@@ -37,13 +37,28 @@ export class ImportExtractor {
 
 		// Walk the AST to find all import and export statements
 		await this.walkAST(tree.rootNode, async (node: SyntaxNode) => {
-			// Handle import statements for TypeScript/JavaScript
-			if (node.type === 'import_statement') {
-				await this.processImportStatement(node, resolver, resolutions);
-			}
-			// Handle export statements with 'from' clause (barrel exports)
-			if (node.type === 'export_statement') {
-				await this.processExportStatement(node, resolver, resolutions);
+			if (language === 'python') {
+				// Python: import X, import X as Y
+				if (node.type === 'import_statement') {
+					await this.processPythonImportStatement(node, resolver, resolutions);
+				}
+				// Python: from X import Y, from . import utils
+				if (node.type === 'import_from_statement') {
+					await this.processPythonImportFromStatement(
+						node,
+						resolver,
+						resolutions,
+					);
+				}
+			} else {
+				// Handle import statements for TypeScript/JavaScript
+				if (node.type === 'import_statement') {
+					await this.processImportStatement(node, resolver, resolutions);
+				}
+				// Handle export statements with 'from' clause (barrel exports)
+				if (node.type === 'export_statement') {
+					await this.processExportStatement(node, resolver, resolutions);
+				}
 			}
 		});
 
@@ -135,6 +150,122 @@ export class ImportExtractor {
 		);
 
 		// Normalize resolved path to canonical format (project-root-relative without leading ./)
+		const normalizedPath = isExternal
+			? undefined
+			: normalizeGraphPath(resolvedPath);
+
+		resolutions[line.toString()] = {
+			source: importSpecifier,
+			resolvedPath: normalizedPath,
+			isExternal,
+			importType,
+		};
+	}
+
+	/**
+	 * Processes a Python `import` statement (e.g., `import os`, `import os.path`, `import X as Y`)
+	 *
+	 * AST structure:
+	 *   import_statement → [name] dotted_name | aliased_import
+	 *   - dotted_name contains the module path (e.g., "os", "os.path")
+	 *   - aliased_import wraps dotted_name + alias identifier
+	 */
+	private async processPythonImportStatement(
+		node: SyntaxNode,
+		resolver: ImportResolver,
+		resolutions: ImportResolutionMetadata,
+	): Promise<void> {
+		const nameNode = node.childForFieldName('name');
+		if (!nameNode) {
+			return;
+		}
+
+		// For aliased imports (`import os.path as osp`), the name field is an aliased_import
+		// whose own name sub-field is the dotted_name we want
+		let importSpecifier: string;
+		if (nameNode.type === 'aliased_import') {
+			const innerName = nameNode.childForFieldName('name');
+			importSpecifier = innerName ? innerName.text : nameNode.text;
+		} else {
+			// dotted_name — use its text directly (e.g., "os", "os.path")
+			importSpecifier = nameNode.text;
+		}
+
+		const line = node.startPosition.row;
+		const resolvedPath = await resolver.resolve(importSpecifier);
+		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
+		const importType = this.classifyImportType(
+			importSpecifier,
+			resolvedPath,
+			isExternal,
+		);
+
+		const normalizedPath = isExternal
+			? undefined
+			: normalizeGraphPath(resolvedPath);
+
+		resolutions[line.toString()] = {
+			source: importSpecifier,
+			resolvedPath: normalizedPath,
+			isExternal,
+			importType,
+		};
+	}
+
+	/**
+	 * Processes a Python `from ... import ...` statement
+	 * (e.g., `from pathlib import Path`, `from . import utils`, `from ..core import Base`)
+	 *
+	 * AST structure:
+	 *   import_from_statement → [module_name] (dotted_name | relative_import) + [name] ...
+	 *   - module_name is the module being imported from
+	 *   - For relative imports, dots appear as part of a relative_import node or as direct children
+	 *   - Bare relative (`from . import utils`) may have no module_name
+	 */
+	private async processPythonImportFromStatement(
+		node: SyntaxNode,
+		resolver: ImportResolver,
+		resolutions: ImportResolutionMetadata,
+	): Promise<void> {
+		let importSpecifier: string;
+
+		const moduleNameNode = node.childForFieldName('module_name');
+		if (moduleNameNode) {
+			if (moduleNameNode.type === 'relative_import') {
+				// Relative import with module: `from ..core import Base`
+				// The relative_import node text includes dots + module name
+				importSpecifier = moduleNameNode.text;
+			} else {
+				// Absolute import: `from pathlib import Path`
+				importSpecifier = moduleNameNode.text;
+			}
+		} else {
+			// Bare relative import: `from . import utils`
+			// Look for dot tokens between 'from' and 'import' keywords
+			let dots = '';
+			for (let i = 0; i < node.childCount; i++) {
+				const child = node.child(i);
+				if (!child) continue;
+				if (child.type === 'relative_import') {
+					dots = child.text;
+					break;
+				}
+				if (child.type === '.' || child.type === 'import_prefix') {
+					dots += child.text;
+				}
+			}
+			importSpecifier = dots || '.';
+		}
+
+		const line = node.startPosition.row;
+		const resolvedPath = await resolver.resolve(importSpecifier);
+		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
+		const importType = this.classifyImportType(
+			importSpecifier,
+			resolvedPath,
+			isExternal,
+		);
+
 		const normalizedPath = isExternal
 			? undefined
 			: normalizeGraphPath(resolvedPath);

@@ -46,12 +46,13 @@ src/
 
 ## Language Support
 
-| Language   | Status | Extensions |
-| ---------- | ------ | ---------- |
-| TypeScript | ✓      | .ts, .tsx  |
-| JavaScript | ✓      | .js, .jsx  |
+| Language   | Status      | Extensions |
+| ---------- | ----------- | ---------- |
+| TypeScript | ✓           | .ts, .tsx  |
+| JavaScript | ✓           | .js, .jsx  |
+| Python     | CLI parsing | .py, .pyi  |
 
-Plugins: `src/languages/plugins/{typescript,javascript}.plugin.ts`
+Plugins: `src/languages/plugins/{typescript,javascript,python}.plugin.ts`
 
 12 languages defined in `ParserLanguage` type (`src/languages/language.registry.ts`), only TS/JS implemented.
 
@@ -59,7 +60,7 @@ Plugins: `src/languages/plugins/{typescript,javascript}.plugin.ts`
 
 ### Privacy-Preserving AST
 
-`src/utils/ast-serializer.ts` — `textIncludedTypes` array (duplicated in both `serializeNodeToJSON` streaming path and `createSerializedNode` legacy path — keep both in sync). Only these node types include text:
+`src/utils/ast-serializer.ts` — `TEXT_INCLUDED_TYPES` (`ReadonlySet<string>`, single source of truth used by both streaming and legacy serializers). Only these node types include text:
 
 - Identifiers: `identifier`, `property_identifier`, `type_identifier`, `shorthand_property_identifier`
 - Literals: `string`, `number`, `true`, `false`, `null`, `undefined`
@@ -72,7 +73,7 @@ Plugins: `src/languages/plugins/{typescript,javascript}.plugin.ts`
 
 ### Field Name Workaround (`src/utils/ast-serializer.ts`)
 
-`getCommonFieldNames()` hardcodes field-to-node-type mappings as a Tree-sitter workaround. Missing entries cause **silent failures** in Core type extraction, inheritance detection, etc.
+`getCommonFieldNames()` returns field-to-node-type mappings as a Tree-sitter workaround. Fields are organized by language (`JS_TS_FIELD_NAMES`, `PYTHON_FIELD_NAMES`) and merged via `mergeFieldMaps()` into `COMMON_FIELD_NAMES` at module load. Missing entries cause **silent failures** in Core type extraction, inheritance detection, etc.
 
 ### Command DI (`src/commands/command.deps.ts`)
 
@@ -224,8 +225,7 @@ Hooks inject Constellation guidance into AI assistants at lifecycle events (sess
 - **Tree-sitter sync callback**: Large file parsing uses `fs.readSync` inside async callback — unavoidable due to Tree-sitter API (see `parseWithStream()`)
 - **Path normalization**: All paths stored without leading `./` via `normalizeGraphPath()` in `src/utils/path.utils.ts`
 - **POSIX paths only**: Use `toPosixPath()` for cross-platform compatibility (`src/utils/path.utils.ts`)
-- **Field name registry**: Missing entries in `getCommonFieldNames()` cause silent Core extraction failures
-- **Dual textIncludedTypes**: Text inclusion list is duplicated in stream serializer and legacy serializer in `ast-serializer.ts` — keep both in sync
+- **Field name registry**: Missing entries in `getCommonFieldNames()` cause silent Core extraction failures — add new language fields to the appropriate `*_FIELD_NAMES` map in `ast-serializer.ts` (auto-merged into `COMMON_FIELD_NAMES`)
 
 ## Extended Docs
 

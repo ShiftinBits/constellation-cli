@@ -1,6 +1,9 @@
 
 # Claude Local Settings
 .claude/settings.local.json
+.claude/plans
+.claude/worktrees
+
 docs/plans
 
 # Git worktrees

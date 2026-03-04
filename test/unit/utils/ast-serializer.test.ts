@@ -3,7 +3,31 @@ import { SyntaxNode } from 'tree-sitter';
 import {
 	serializeAST,
 	SerializedNode,
+	TEXT_INCLUDED_TYPES,
 } from '../../../src/utils/ast-serializer';
+
+describe('TEXT_INCLUDED_TYPES', () => {
+	it('should be a Set', () => {
+		expect(TEXT_INCLUDED_TYPES).toBeInstanceOf(Set);
+	});
+
+	it('should contain JS/TS identifier types', () => {
+		expect(TEXT_INCLUDED_TYPES.has('identifier')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('property_identifier')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('type_identifier')).toBe(true);
+	});
+
+	it('should contain Python-specific types', () => {
+		expect(TEXT_INCLUDED_TYPES.has('dotted_name')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('None')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('string_content')).toBe(true);
+	});
+
+	it('should contain type annotation types', () => {
+		expect(TEXT_INCLUDED_TYPES.has('type_annotation')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('generic_type')).toBe(true);
+	});
+});
 
 describe('ASTSerializer', () => {
 	describe('serializeAST', () => {

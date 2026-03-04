@@ -21,6 +21,97 @@ export interface SerializedNode {
 }
 
 /**
+ * Node types whose text content should be preserved in the serialized AST.
+ * These are identifiers, keywords, operators, literals, and type annotations
+ * that extractors need for intelligence extraction — NOT source code bodies.
+ *
+ * Used by both the streaming serializer (serializeASTStream) and the legacy
+ * serializer (serializeAST) as a single source of truth.
+ *
+ * Note: Nodes ending with `_keyword` or `_operator` are also included via
+ * suffix checks in the serialization functions (not in this Set).
+ */
+export const TEXT_INCLUDED_TYPES: ReadonlySet<string> = new Set([
+	// Identifiers
+	'identifier',
+	'property_identifier',
+	'type_identifier',
+	'shorthand_property_identifier',
+
+	// Literals and values
+	'string',
+	'string_literal',
+	'template_string',
+	'number',
+	'true',
+	'false',
+	'null',
+	'undefined',
+
+	// Import/Export related
+	'import_specifier',
+	'export_specifier',
+
+	// Type-related nodes (basic)
+	'predefined_type',
+	'type_predicate',
+	'type_alias',
+
+	// Type annotations - needed for extractTypeDependencies to parse type references
+	'type_annotation',
+	'return_type',
+	'type_arguments',
+	'type_parameters',
+	'array_type',
+	'union_type',
+	'intersection_type',
+	'generic_type',
+	'tuple_type',
+	'function_type',
+	'object_type',
+	'mapped_type',
+	'conditional_type',
+	'infer_type',
+
+	// Small structural elements
+	'accessibility_modifier',
+	'readonly',
+	'static',
+	'async',
+	'await',
+	'const',
+	'let',
+	'var',
+
+	// Decorators
+	'decorator', // Decorator nodes (e.g., @Injectable())
+
+	// Operators
+	'=',
+	'=>',
+	'...',
+	'?',
+	'!',
+
+	// Python-specific identifiers and keywords
+	'dotted_name', // Python dotted imports (os.path)
+	'aliased_import', // import X as Y
+	'not_operator', // Python 'not' keyword
+	'boolean_operator', // Python 'and'/'or'
+	'comparison_operator', // Python 'is', 'in', 'not in'
+	'yield', // yield keyword (leaf node)
+	'pass', // pass statement
+	'continue', // continue statement
+	'break', // break statement
+	'None', // Python None literal
+	'True', // Python True literal
+	'False', // Python False literal
+	'ellipsis', // Python ... literal
+	'type', // Python type annotation wrapper
+	'string_content', // Python string content (strings are structured)
+]);
+
+/**
  * Streams AST serialization as JSON chunks to minimize memory usage.
  * Yields chunks directly without building intermediate objects.
  * @param node Tree-sitter SyntaxNode to serialize
@@ -55,74 +146,8 @@ function* serializeNodeToJSON(
 
 	// Include text for specific node types
 	// IMPORTANT: Type annotation nodes need text preserved for type dependency extraction
-	const textIncludedTypes = [
-		'identifier',
-		'property_identifier',
-		'type_identifier',
-		'shorthand_property_identifier',
-		'string',
-		'string_literal',
-		'template_string',
-		'number',
-		'true',
-		'false',
-		'null',
-		'undefined',
-		'import_specifier',
-		'export_specifier',
-		'predefined_type',
-		'type_predicate',
-		'type_alias',
-		'accessibility_modifier',
-		'readonly',
-		'static',
-		'async',
-		'await',
-		'const',
-		'let',
-		'var',
-		'decorator', // Decorator nodes (e.g., @Injectable())
-		'=',
-		'=>',
-		'...',
-		'?',
-		'!',
-		// Type annotations - needed for extractTypeDependencies to parse type references
-		'type_annotation',
-		'return_type',
-		'type_arguments',
-		'type_parameters',
-		'array_type',
-		'union_type',
-		'intersection_type',
-		'generic_type',
-		'tuple_type',
-		'function_type',
-		'object_type',
-		'mapped_type',
-		'conditional_type',
-		'infer_type',
-
-		// Python-specific identifiers and keywords
-		'dotted_name', // Python dotted imports (os.path)
-		'aliased_import', // import X as Y
-		'not_operator', // Python 'not' keyword
-		'boolean_operator', // Python 'and'/'or'
-		'comparison_operator', // Python 'is', 'in', 'not in'
-		'yield', // yield keyword (leaf node)
-		'pass', // pass statement
-		'continue', // continue statement
-		'break', // break statement
-		'None', // Python None literal
-		'True', // Python True literal
-		'False', // Python False literal
-		'ellipsis', // Python ... literal
-		'type', // Python type annotation wrapper
-		'string_content', // Python string content (strings are structured)
-	];
-
 	if (
-		textIncludedTypes.includes(node.type) ||
+		TEXT_INCLUDED_TYPES.has(node.type) ||
 		node.type.endsWith('_keyword') ||
 		node.type.endsWith('_operator')
 	) {
@@ -278,88 +303,8 @@ function createSerializedNode(
 
 	// Include text for node types that extractors need for intelligence extraction
 	// IMPORTANT: Type annotation nodes need text preserved for type dependency extraction
-	const textIncludedTypes = [
-		// Identifiers
-		'identifier',
-		'property_identifier',
-		'type_identifier',
-		'shorthand_property_identifier',
-
-		// Literals and values
-		'string',
-		'string_literal',
-		'template_string',
-		'number',
-		'true',
-		'false',
-		'null',
-		'undefined',
-
-		// Import/Export related
-		'import_specifier',
-		'export_specifier',
-
-		// Type-related nodes (basic)
-		'predefined_type',
-		'type_predicate',
-		'type_alias',
-
-		// Type annotations - needed for extractTypeDependencies to parse type references
-		'type_annotation',
-		'return_type',
-		'type_arguments',
-		'type_parameters',
-		'array_type',
-		'union_type',
-		'intersection_type',
-		'generic_type',
-		'tuple_type',
-		'function_type',
-		'object_type',
-		'mapped_type',
-		'conditional_type',
-		'infer_type',
-
-		// Small structural elements
-		'accessibility_modifier',
-		'readonly',
-		'static',
-		'async',
-		'await',
-		'const',
-		'let',
-		'var',
-
-		// Decorators
-		'decorator', // Decorator nodes (e.g., @Injectable())
-
-		// Operators
-		'=',
-		'=>',
-		'...',
-		'?',
-		'!',
-
-		// Python-specific identifiers and keywords
-		'dotted_name', // Python dotted imports (os.path)
-		'aliased_import', // import X as Y
-		'not_operator', // Python 'not' keyword
-		'boolean_operator', // Python 'and'/'or'
-		'comparison_operator', // Python 'is', 'in', 'not in'
-		'yield', // yield keyword (leaf node)
-		'pass', // pass statement
-		'continue', // continue statement
-		'break', // break statement
-		'None', // Python None literal
-		'True', // Python True literal
-		'False', // Python False literal
-		'ellipsis', // Python ... literal
-		'type', // Python type annotation wrapper
-		'string_content', // Python string content (strings are structured)
-	];
-
 	if (
-		textIncludedTypes.includes(node.type) ||
+		TEXT_INCLUDED_TYPES.has(node.type) ||
 		node.type.endsWith('_keyword') ||
 		node.type.endsWith('_operator')
 	) {

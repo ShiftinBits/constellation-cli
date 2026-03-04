@@ -4,6 +4,17 @@ import type { ImportResolver } from '../../languages/plugins/base-plugin';
 import type { LanguageImportHandlers, ImportTypeClassifier } from './types';
 import { resolveAndStore } from './utils';
 
+/** Python import classifier — handles dot-prefixed relative imports (.utils, ..core, etc.) */
+export const pythonClassifyImportType: ImportTypeClassifier = (
+	specifier: string,
+	_resolved: string,
+	isExternal: boolean,
+): 'relative' | 'workspace' | 'alias' | 'external' | 'builtin' => {
+	if (isExternal) return 'external';
+	if (/^\.+/.test(specifier)) return 'relative';
+	return 'alias';
+};
+
 /**
  * Processes a Python `import` statement (e.g., `import os`, `import os.path as osp`).
  *
@@ -91,5 +102,6 @@ export function createPythonHandlers(): LanguageImportHandlers {
 			['import_statement', processImportStatement],
 			['import_from_statement', processImportFromStatement],
 		]),
+		classifyImportType: pythonClassifyImportType,
 	};
 }

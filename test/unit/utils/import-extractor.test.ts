@@ -321,13 +321,11 @@ describe('ImportExtractor', () => {
 				resolver,
 			);
 
-			// Python relative specifiers use dots without slashes (..core, not ../core),
-			// so classifyImportType returns 'alias' ��� acceptable for Phase 1
 			expect(result['3']).toEqual({
 				source: '..core',
 				resolvedPath: expect.any(String),
 				isExternal: false,
-				importType: 'alias',
+				importType: 'relative',
 			});
 		});
 
@@ -360,14 +358,35 @@ describe('ImportExtractor', () => {
 				resolver,
 			);
 
-			// Python's "." specifier doesn't start with "./" so classifyImportType
-			// returns 'alias' — acceptable for Phase 1
 			expect(result['4']).toEqual({
 				source: '.',
 				resolvedPath: '__init__.py',
 				isExternal: false,
-				importType: 'alias',
+				importType: 'relative',
 			});
+		});
+
+		it('should classify multi-dot relative imports as relative', async () => {
+			// Test: from ...pkg import foo → specifier "...pkg" → should be 'relative'
+			const moduleNameNode = mockNode('dotted_name', '...pkg', { row: 0 });
+			const importFromNode = mockNode(
+				'import_from_statement',
+				'from ...pkg import foo',
+				{
+					row: 0,
+					fields: { module_name: moduleNameNode },
+				},
+			);
+			const tree = mockTree([importFromNode]);
+			const resolver = mockResolver({ '...pkg': '../../pkg/__init__.py' });
+
+			const result = await extractor.extractImportResolutions(
+				tree,
+				'test.py',
+				'python',
+				resolver,
+			);
+			expect(result['0'].importType).toBe('relative');
 		});
 
 		it('should handle dotted absolute from-import (from os.path import join)', async () => {

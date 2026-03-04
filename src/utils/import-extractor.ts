@@ -4,6 +4,16 @@ import type { ImportResolver } from '../languages/plugins/base-plugin';
 import { normalizeGraphPath } from './path.utils';
 
 /**
+ * Processor function that extracts import metadata from a single AST node.
+ * Each language registers processors for the node types it uses for imports.
+ */
+type ImportNodeProcessor = (
+	node: SyntaxNode,
+	resolver: ImportResolver,
+	resolutions: ImportResolutionMetadata,
+) => Promise<void>;
+
+/**
  * Extracts import resolution metadata from AST without modifying it.
  * Uses tree-sitter to traverse AST and resolve imports using CLI resolver.
  *
@@ -11,8 +21,67 @@ import { normalizeGraphPath } from './path.utils';
  * - tsconfig.json / jsconfig.json path mappings
  * - package.json workspace configuration
  * - Build configuration for specific files
+ *
+ * Languages register their import node types and processors via a handler map,
+ * making it straightforward to add new language support without modifying
+ * the core extraction loop.
  */
 export class ImportExtractor {
+	/**
+	 * Per-language map of node types to their import processors.
+	 * Adding a new language = adding an entry here + the processor methods.
+	 */
+	private readonly languageHandlers: Map<
+		string,
+		Map<string, ImportNodeProcessor>
+	>;
+
+	constructor() {
+		this.languageHandlers = new Map();
+		this.registerJavaScriptHandlers();
+		this.registerTypeScriptHandlers();
+		this.registerPythonHandlers();
+	}
+
+	/**
+	 * Registers import node handlers for JavaScript.
+	 */
+	private registerJavaScriptHandlers(): void {
+		const handlers = new Map<string, ImportNodeProcessor>();
+		handlers.set('import_statement', (node, resolver, resolutions) =>
+			this.processJsImportStatement(node, resolver, resolutions),
+		);
+		handlers.set('export_statement', (node, resolver, resolutions) =>
+			this.processJsExportStatement(node, resolver, resolutions),
+		);
+		this.languageHandlers.set('javascript', handlers);
+	}
+
+	/**
+	 * Registers import node handlers for TypeScript (same as JavaScript).
+	 */
+	private registerTypeScriptHandlers(): void {
+		// TypeScript uses the same import/export syntax as JavaScript
+		this.languageHandlers.set(
+			'typescript',
+			this.languageHandlers.get('javascript')!,
+		);
+	}
+
+	/**
+	 * Registers import node handlers for Python.
+	 */
+	private registerPythonHandlers(): void {
+		const handlers = new Map<string, ImportNodeProcessor>();
+		handlers.set('import_statement', (node, resolver, resolutions) =>
+			this.processPythonImportStatement(node, resolver, resolutions),
+		);
+		handlers.set('import_from_statement', (node, resolver, resolutions) =>
+			this.processPythonImportFromStatement(node, resolver, resolutions),
+		);
+		this.languageHandlers.set('python', handlers);
+	}
+
 	/**
 	 * Walks AST to find all import statements and resolves them using CLI resolver.
 	 * Does NOT modify the AST - only extracts metadata.
@@ -33,32 +102,17 @@ export class ImportExtractor {
 			return {};
 		}
 
+		const handlers = this.languageHandlers.get(language);
+		if (!handlers) {
+			return {};
+		}
+
 		const resolutions: ImportResolutionMetadata = {};
 
-		// Walk the AST to find all import and export statements
 		await this.walkAST(tree.rootNode, async (node: SyntaxNode) => {
-			if (language === 'python') {
-				// Python: import X, import X as Y
-				if (node.type === 'import_statement') {
-					await this.processPythonImportStatement(node, resolver, resolutions);
-				}
-				// Python: from X import Y, from . import utils
-				if (node.type === 'import_from_statement') {
-					await this.processPythonImportFromStatement(
-						node,
-						resolver,
-						resolutions,
-					);
-				}
-			} else {
-				// Handle import statements for TypeScript/JavaScript
-				if (node.type === 'import_statement') {
-					await this.processImportStatement(node, resolver, resolutions);
-				}
-				// Handle export statements with 'from' clause (barrel exports)
-				if (node.type === 'export_statement') {
-					await this.processExportStatement(node, resolver, resolutions);
-				}
+			const processor = handlers.get(node.type);
+			if (processor) {
+				await processor(node, resolver, resolutions);
 			}
 		});
 
@@ -82,15 +136,17 @@ export class ImportExtractor {
 		}
 	}
 
+	// ─── JS/TS Processors ────────────────────────────────────────────────
+
 	/**
-	 * Processes a single import statement node
+	 * Processes a JS/TS import statement (e.g., `import { foo } from './bar'`).
+	 * Uses the `source` field to find the module path string.
 	 */
-	private async processImportStatement(
+	private async processJsImportStatement(
 		node: SyntaxNode,
 		resolver: ImportResolver,
 		resolutions: ImportResolutionMetadata,
 	): Promise<void> {
-		// Find the source string node (the imported module path)
 		const sourceNode = node.childForFieldName('source');
 		if (!sourceNode) {
 			return;
@@ -99,76 +155,36 @@ export class ImportExtractor {
 		const line = sourceNode.startPosition.row;
 		const importSpecifier = sourceNode.text.replace(/['"]/g, '');
 
-		// Resolve using CLI resolver (has tsconfig/jsconfig access)
-		const resolvedPath = await resolver.resolve(importSpecifier);
-		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
-		const importType = this.classifyImportType(
-			importSpecifier,
-			resolvedPath,
-			isExternal,
-		);
-
-		// Normalize resolved path to canonical format (project-root-relative without leading ./)
-		const normalizedPath = isExternal
-			? undefined
-			: normalizeGraphPath(resolvedPath);
-
-		resolutions[line.toString()] = {
-			source: importSpecifier,
-			resolvedPath: normalizedPath,
-			isExternal,
-			importType,
-		};
+		await this.resolveAndStore(importSpecifier, line, resolver, resolutions);
 	}
 
 	/**
-	 * Processes a single export statement node with 'from' clause
-	 * Handles barrel exports like: export * from './foo' or export { bar } from './foo'
+	 * Processes a JS/TS export statement with 'from' clause.
+	 * Handles barrel exports like: `export * from './foo'`
 	 */
-	private async processExportStatement(
+	private async processJsExportStatement(
 		node: SyntaxNode,
 		resolver: ImportResolver,
 		resolutions: ImportResolutionMetadata,
 	): Promise<void> {
-		// Find the source string node (the module path after 'from')
 		const sourceNode = node.childForFieldName('source');
 		if (!sourceNode) {
-			// This is an export without 'from' clause (e.g., export const foo = 1)
 			return;
 		}
 
 		const line = sourceNode.startPosition.row;
 		const importSpecifier = sourceNode.text.replace(/['"]/g, '');
 
-		// Resolve using CLI resolver (has tsconfig/jsconfig access)
-		const resolvedPath = await resolver.resolve(importSpecifier);
-		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
-		const importType = this.classifyImportType(
-			importSpecifier,
-			resolvedPath,
-			isExternal,
-		);
-
-		// Normalize resolved path to canonical format (project-root-relative without leading ./)
-		const normalizedPath = isExternal
-			? undefined
-			: normalizeGraphPath(resolvedPath);
-
-		resolutions[line.toString()] = {
-			source: importSpecifier,
-			resolvedPath: normalizedPath,
-			isExternal,
-			importType,
-		};
+		await this.resolveAndStore(importSpecifier, line, resolver, resolutions);
 	}
 
+	// ─── Python Processors ───────────────────────────────────────────────
+
 	/**
-	 * Processes a Python `import` statement (e.g., `import os`, `import os.path`, `import X as Y`)
+	 * Processes a Python `import` statement (e.g., `import os`, `import os.path as osp`).
 	 *
 	 * AST structure:
 	 *   import_statement → [name] dotted_name | aliased_import
-	 *   - dotted_name contains the module path (e.g., "os", "os.path")
-	 *   - aliased_import wraps dotted_name + alias identifier
 	 */
 	private async processPythonImportStatement(
 		node: SyntaxNode,
@@ -187,40 +203,23 @@ export class ImportExtractor {
 			const innerName = nameNode.childForFieldName('name');
 			importSpecifier = innerName ? innerName.text : nameNode.text;
 		} else {
-			// dotted_name — use its text directly (e.g., "os", "os.path")
 			importSpecifier = nameNode.text;
 		}
 
-		const line = node.startPosition.row;
-		const resolvedPath = await resolver.resolve(importSpecifier);
-		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
-		const importType = this.classifyImportType(
+		await this.resolveAndStore(
 			importSpecifier,
-			resolvedPath,
-			isExternal,
+			node.startPosition.row,
+			resolver,
+			resolutions,
 		);
-
-		const normalizedPath = isExternal
-			? undefined
-			: normalizeGraphPath(resolvedPath);
-
-		resolutions[line.toString()] = {
-			source: importSpecifier,
-			resolvedPath: normalizedPath,
-			isExternal,
-			importType,
-		};
 	}
 
 	/**
 	 * Processes a Python `from ... import ...` statement
-	 * (e.g., `from pathlib import Path`, `from . import utils`, `from ..core import Base`)
+	 * (e.g., `from pathlib import Path`, `from . import utils`, `from ..core import Base`).
 	 *
 	 * AST structure:
 	 *   import_from_statement → [module_name] (dotted_name | relative_import) + [name] ...
-	 *   - module_name is the module being imported from
-	 *   - For relative imports, dots appear as part of a relative_import node or as direct children
-	 *   - Bare relative (`from . import utils`) may have no module_name
 	 */
 	private async processPythonImportFromStatement(
 		node: SyntaxNode,
@@ -231,17 +230,11 @@ export class ImportExtractor {
 
 		const moduleNameNode = node.childForFieldName('module_name');
 		if (moduleNameNode) {
-			if (moduleNameNode.type === 'relative_import') {
-				// Relative import with module: `from ..core import Base`
-				// The relative_import node text includes dots + module name
-				importSpecifier = moduleNameNode.text;
-			} else {
-				// Absolute import: `from pathlib import Path`
-				importSpecifier = moduleNameNode.text;
-			}
+			// Both relative (`..core`) and absolute (`pathlib`) — use text directly
+			importSpecifier = moduleNameNode.text;
 		} else {
 			// Bare relative import: `from . import utils`
-			// Look for dot tokens between 'from' and 'import' keywords
+			// Look for relative_import or dot tokens between 'from' and 'import'
 			let dots = '';
 			for (let i = 0; i < node.childCount; i++) {
 				const child = node.child(i);
@@ -257,7 +250,26 @@ export class ImportExtractor {
 			importSpecifier = dots || '.';
 		}
 
-		const line = node.startPosition.row;
+		await this.resolveAndStore(
+			importSpecifier,
+			node.startPosition.row,
+			resolver,
+			resolutions,
+		);
+	}
+
+	// ─── Shared Utilities ────────────────────────────────────────────────
+
+	/**
+	 * Resolves an import specifier and stores the result.
+	 * Shared by all language processors to eliminate duplication.
+	 */
+	private async resolveAndStore(
+		importSpecifier: string,
+		line: number,
+		resolver: ImportResolver,
+		resolutions: ImportResolutionMetadata,
+	): Promise<void> {
 		const resolvedPath = await resolver.resolve(importSpecifier);
 		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
 		const importType = this.classifyImportType(
@@ -315,7 +327,7 @@ export class ImportExtractor {
 	 */
 	private classifyImportType(
 		specifier: string,
-		resolved: string,
+		_resolved: string,
 		isExternal: boolean,
 	): 'relative' | 'workspace' | 'alias' | 'external' | 'builtin' {
 		if (isExternal) {

@@ -102,6 +102,23 @@ function* serializeNodeToJSON(
 		'mapped_type',
 		'conditional_type',
 		'infer_type',
+
+		// Python-specific identifiers and keywords
+		'dotted_name', // Python dotted imports (os.path)
+		'aliased_import', // import X as Y
+		'not_operator', // Python 'not' keyword
+		'boolean_operator', // Python 'and'/'or'
+		'comparison_operator', // Python 'is', 'in', 'not in'
+		'yield', // yield keyword (leaf node)
+		'pass', // pass statement
+		'continue', // continue statement
+		'break', // break statement
+		'None', // Python None literal
+		'True', // Python True literal
+		'False', // Python False literal
+		'ellipsis', // Python ... literal
+		'type', // Python type annotation wrapper
+		'string_content', // Python string content (strings are structured)
 	];
 
 	if (
@@ -322,6 +339,23 @@ function createSerializedNode(
 		'...',
 		'?',
 		'!',
+
+		// Python-specific identifiers and keywords
+		'dotted_name', // Python dotted imports (os.path)
+		'aliased_import', // import X as Y
+		'not_operator', // Python 'not' keyword
+		'boolean_operator', // Python 'and'/'or'
+		'comparison_operator', // Python 'is', 'in', 'not in'
+		'yield', // yield keyword (leaf node)
+		'pass', // pass statement
+		'continue', // continue statement
+		'break', // break statement
+		'None', // Python None literal
+		'True', // Python True literal
+		'False', // Python False literal
+		'ellipsis', // Python ... literal
+		'type', // Python type annotation wrapper
+		'string_content', // Python string content (strings are structured)
 	];
 
 	if (
@@ -406,20 +440,21 @@ function getCommonFieldNames(nodeType: string): string[] {
 		unary_expression: ['operator', 'argument'],
 		ternary_expression: ['condition', 'consequence', 'alternative'],
 
-		// Imports/Exports
-		import_statement: ['source', 'import'],
+		// Imports/Exports (JS: source, import | Python: name)
+		import_statement: ['source', 'import', 'name'],
 		import_specifier: ['name', 'alias'],
 		export_specifier: ['name', 'alias'],
 		export_statement: ['source', 'declaration', 'value'],
 
 		// Control flow
 		if_statement: ['condition', 'consequence', 'alternative'],
-		for_statement: ['init', 'condition', 'update', 'body'],
+		for_statement: ['init', 'condition', 'update', 'body', 'left', 'right'],
 		for_in_statement: ['left', 'right', 'body'],
 		while_statement: ['condition', 'body'],
 		do_statement: ['body', 'condition'],
 		switch_statement: ['value', 'body'],
 		try_statement: ['body', 'handler', 'finalizer'],
+		// Note: Python try_statement only has 'body' as named field; 'handler'/'finalizer' are JS/TS-specific
 		catch_clause: ['parameter', 'body'],
 		return_statement: ['value'],
 		throw_statement: ['value'],
@@ -428,6 +463,62 @@ function getCommonFieldNames(nodeType: string): string[] {
 		type_annotation: ['type'],
 		type_parameter: ['name', 'constraint', 'default'],
 		generic_type: ['name', 'type_arguments'],
+
+		// Python - Definitions
+		function_definition: ['name', 'parameters', 'return_type', 'body'],
+		class_definition: ['name', 'superclasses', 'body'],
+		decorated_definition: ['definition'],
+		lambda: ['parameters', 'body'],
+
+		// Python - Imports
+		// import_statement: merged into JS/TS entry above (added 'name' field)
+		import_from_statement: ['module_name', 'name'],
+		aliased_import: ['name', 'alias'],
+
+		// Python - Assignments
+		assignment: ['left', 'right', 'type'],
+		augmented_assignment: ['left', 'right'],
+
+		// Python - Parameters
+		typed_parameter: ['name', 'type'],
+		default_parameter: ['name', 'value'],
+		typed_default_parameter: ['name', 'type', 'value'],
+
+		// Python - Expressions
+		call: ['function', 'arguments'],
+		attribute: ['object', 'attribute'],
+		binary_operator: ['left', 'right'],
+		unary_operator: ['argument'],
+		not_operator: ['argument'],
+		boolean_operator: ['left', 'right'],
+		comparison_operator: ['operators'],
+		named_expression: ['name', 'value'],
+		keyword_argument: ['name', 'value'],
+
+		// Python - Control flow
+		// if_statement: same fields as JS/TS (condition, consequence, alternative)
+		// for_statement: merged into JS/TS entry above (added 'left', 'right')
+		// while_statement: same fields as JS/TS (condition, body)
+		// try_statement: Python 'body' already covered by JS/TS entry
+		with_statement: ['body'],
+		finally_clause: ['body'],
+		else_clause: ['body'],
+		match_statement: ['subject', 'body'],
+		case_clause: ['pattern', 'guard'],
+		raise_statement: ['cause'],
+
+		// Python - Comprehensions
+		list_comprehension: ['body'],
+		dictionary_comprehension: ['body', 'key', 'value'],
+		set_comprehension: ['body'],
+		generator_expression: ['body'],
+		for_in_clause: ['left', 'right'],
+		if_clause: ['condition'],
+
+		// Python - Other
+		pair: ['key', 'value'],
+		subscript: ['value', 'subscript'],
+		slice: ['start', 'stop', 'step'],
 	};
 
 	return commonFields[nodeType] || [];

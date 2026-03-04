@@ -2,6 +2,7 @@ import { describe, it, expect, jest } from '@jest/globals';
 import { SyntaxNode } from 'tree-sitter';
 import {
 	serializeAST,
+	serializeASTStream,
 	SerializedNode,
 	TEXT_INCLUDED_TYPES,
 	JS_TS_FIELD_NAMES,
@@ -204,6 +205,38 @@ describe('ASTSerializer', () => {
 			expect(result.children![0].type).toBe('string_content');
 			// string_content should also NOT have text (removed from TEXT_INCLUDED_TYPES)
 			expect(result.children![0].text).toBeUndefined();
+		});
+
+		it('should NOT include text for compound string nodes in streaming serializer', () => {
+			const stringContentChild = {
+				type: 'string_content',
+				startPosition: { row: 0, column: 1 },
+				endPosition: { row: 0, column: 18 },
+				text: 'secret-api-key-123',
+				childCount: 0,
+			} as SyntaxNode;
+
+			const mockNode = {
+				type: 'string',
+				startPosition: { row: 0, column: 0 },
+				endPosition: { row: 0, column: 19 },
+				text: '"secret-api-key-123"',
+				childCount: 1,
+				child: jest.fn().mockReturnValue(stringContentChild),
+				childForFieldName: jest.fn().mockReturnValue(null),
+			} as unknown as SyntaxNode;
+
+			const chunks = [...serializeASTStream(mockNode)];
+			const json = chunks.join('');
+			const parsed = JSON.parse(json);
+
+			// Compound string node should NOT have text (privacy)
+			expect(parsed.text).toBeUndefined();
+			// Children should still be serialized
+			expect(parsed.children).toHaveLength(1);
+			expect(parsed.children[0].type).toBe('string_content');
+			// string_content should also NOT have text
+			expect(parsed.children[0].text).toBeUndefined();
 		});
 
 		it('should include text for boolean literals', async () => {

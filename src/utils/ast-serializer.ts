@@ -108,7 +108,6 @@ export const TEXT_INCLUDED_TYPES: ReadonlySet<string> = new Set([
 	'False', // Python False literal
 	'ellipsis', // Python ... literal
 	'type', // Python type annotation wrapper
-	'string_content', // Python string content (strings are structured)
 ]);
 
 /**
@@ -146,10 +145,15 @@ function* serializeNodeToJSON(
 
 	// Include text for specific node types
 	// IMPORTANT: Type annotation nodes need text preserved for type dependency extraction
+	// Guard: In Python, `string` is a compound parent node (children: string_start,
+	// string_content, string_end) whose .text contains the full literal — a privacy leak.
+	// In JS/TS, `string` may be a leaf node (no children) for import paths — preserve that.
+	const isCompoundString = node.type === 'string' && node.childCount > 0;
 	if (
-		TEXT_INCLUDED_TYPES.has(node.type) ||
-		node.type.endsWith('_keyword') ||
-		node.type.endsWith('_operator')
+		!isCompoundString &&
+		(TEXT_INCLUDED_TYPES.has(node.type) ||
+			node.type.endsWith('_keyword') ||
+			node.type.endsWith('_operator'))
 	) {
 		yield `,"text":${JSON.stringify(node.text)}`;
 	}
@@ -303,10 +307,15 @@ function createSerializedNode(
 
 	// Include text for node types that extractors need for intelligence extraction
 	// IMPORTANT: Type annotation nodes need text preserved for type dependency extraction
+	// Guard: In Python, `string` is a compound parent node (children: string_start,
+	// string_content, string_end) whose .text contains the full literal — a privacy leak.
+	// In JS/TS, `string` may be a leaf node (no children) for import paths — preserve that.
+	const isCompoundString = node.type === 'string' && node.childCount > 0;
 	if (
-		TEXT_INCLUDED_TYPES.has(node.type) ||
-		node.type.endsWith('_keyword') ||
-		node.type.endsWith('_operator')
+		!isCompoundString &&
+		(TEXT_INCLUDED_TYPES.has(node.type) ||
+			node.type.endsWith('_keyword') ||
+			node.type.endsWith('_operator'))
 	) {
 		serialized.text = node.text;
 	}

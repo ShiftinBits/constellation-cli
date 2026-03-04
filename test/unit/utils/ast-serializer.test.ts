@@ -24,7 +24,10 @@ describe('TEXT_INCLUDED_TYPES', () => {
 	it('should contain Python-specific types', () => {
 		expect(TEXT_INCLUDED_TYPES.has('dotted_name')).toBe(true);
 		expect(TEXT_INCLUDED_TYPES.has('None')).toBe(true);
-		expect(TEXT_INCLUDED_TYPES.has('string_content')).toBe(true);
+	});
+
+	it('should NOT contain string_content (privacy: leaks Python string literals)', () => {
+		expect(TEXT_INCLUDED_TYPES.has('string_content')).toBe(false);
 	});
 
 	it('should contain type annotation types', () => {
@@ -157,6 +160,50 @@ describe('ASTSerializer', () => {
 			const result = await serializeAST(mockNode);
 
 			expect(result.text).toBe('"hello world"');
+		});
+
+		it('should include text for leaf string nodes (JS/TS import paths)', async () => {
+			const mockNode = {
+				type: 'string',
+				startPosition: { row: 0, column: 0 },
+				endPosition: { row: 0, column: 10 },
+				text: "'./module'",
+				childCount: 0,
+			} as SyntaxNode;
+
+			const result = await serializeAST(mockNode);
+
+			expect(result.text).toBe("'./module'");
+		});
+
+		it('should NOT include text for compound string nodes (Python privacy)', async () => {
+			const stringContentChild = {
+				type: 'string_content',
+				startPosition: { row: 0, column: 1 },
+				endPosition: { row: 0, column: 18 },
+				text: 'secret-api-key-123',
+				childCount: 0,
+			} as SyntaxNode;
+
+			const mockNode = {
+				type: 'string',
+				startPosition: { row: 0, column: 0 },
+				endPosition: { row: 0, column: 19 },
+				text: '"secret-api-key-123"',
+				childCount: 1,
+				child: jest.fn().mockReturnValue(stringContentChild),
+				childForFieldName: jest.fn().mockReturnValue(null),
+			} as unknown as SyntaxNode;
+
+			const result = await serializeAST(mockNode);
+
+			// Compound string node should NOT have text (privacy)
+			expect(result.text).toBeUndefined();
+			// But children should still be serialized (structure preserved)
+			expect(result.children).toHaveLength(1);
+			expect(result.children![0].type).toBe('string_content');
+			// string_content should also NOT have text (removed from TEXT_INCLUDED_TYPES)
+			expect(result.children![0].text).toBeUndefined();
 		});
 
 		it('should include text for boolean literals', async () => {

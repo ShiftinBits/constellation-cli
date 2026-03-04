@@ -261,6 +261,37 @@ describeIfGrammar('Python Vertical Slice Integration', () => {
 			expect(classFields).toContain('body');
 		});
 
+		it('should NOT leak string content in serialized AST (privacy guarantee)', () => {
+			const texts = collectTexts(serialized);
+
+			// Secret values must NOT appear in the serialized AST
+			expect(texts).not.toContain('do-not-leak-this-string');
+
+			// Docstring content must NOT leak
+			expect(texts).not.toContain('A helper that adds two numbers.');
+			expect(texts).not.toContain('Processes data from various sources.');
+
+			// Other string literal values must NOT leak
+			// Note: 'value' and 'key' are also identifiers in the code, so we check
+			// for unambiguous string-only content instead
+			expect(texts).not.toContain('fetch failed');
+			expect(texts).not.toContain('default');
+
+			// Compound `string` nodes (Python) should NOT have text set
+			const stringNodes = findNodes(serialized, 'string');
+			for (const strNode of stringNodes) {
+				if (strNode.children && strNode.children.length > 0) {
+					expect(strNode.text).toBeUndefined();
+				}
+			}
+
+			// `string_content` nodes should NOT have text set
+			const stringContentNodes = findNodes(serialized, 'string_content');
+			for (const scNode of stringContentNodes) {
+				expect(scNode.text).toBeUndefined();
+			}
+		});
+
 		it('should include text for Python-specific textIncludedTypes', () => {
 			const texts = collectTexts(serialized);
 			const nodeTypes = collectNodeTypes(serialized);

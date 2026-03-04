@@ -81,6 +81,39 @@ describe('Language Field Name Maps', () => {
 		expect(PYTHON_FIELD_NAMES['arrow_function']).toBeUndefined();
 	});
 
+	it('PYTHON_FIELD_NAMES should contain if_statement fields', () => {
+		expect(PYTHON_FIELD_NAMES['if_statement']).toEqual(
+			expect.arrayContaining(['condition', 'consequence', 'alternative']),
+		);
+	});
+
+	it('PYTHON_FIELD_NAMES should contain while_statement fields', () => {
+		expect(PYTHON_FIELD_NAMES['while_statement']).toEqual(
+			expect.arrayContaining(['condition', 'body', 'alternative']),
+		);
+	});
+
+	it('PYTHON_FIELD_NAMES should contain try_statement body field', () => {
+		expect(PYTHON_FIELD_NAMES['try_statement']).toEqual(
+			expect.arrayContaining(['body']),
+		);
+	});
+
+	it('PYTHON_FIELD_NAMES should contain with_item value field', () => {
+		expect(PYTHON_FIELD_NAMES['with_item']).toEqual(
+			expect.arrayContaining(['value']),
+		);
+	});
+
+	it('COMMON_FIELD_NAMES should include Python control flow entries', () => {
+		expect(COMMON_FIELD_NAMES['if_statement']).toEqual(
+			expect.arrayContaining(['condition', 'consequence', 'alternative']),
+		);
+		expect(COMMON_FIELD_NAMES['try_statement']).toEqual(
+			expect.arrayContaining(['body']),
+		);
+	});
+
 	it('COMMON_FIELD_NAMES should merge import_statement from both', () => {
 		const fields = COMMON_FIELD_NAMES['import_statement'];
 		expect(fields).toContain('source'); // JS/TS

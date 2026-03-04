@@ -450,8 +450,12 @@ export const PYTHON_FIELD_NAMES: Readonly<Record<string, string[]>> = {
 	keyword_argument: ['name', 'value'],
 
 	// Control flow
+	if_statement: ['condition', 'consequence', 'alternative'],
+	while_statement: ['condition', 'body', 'alternative'],
 	for_statement: ['left', 'right'],
+	try_statement: ['body'],
 	with_statement: ['body'],
+	with_item: ['value'],
 	finally_clause: ['body'],
 	else_clause: ['body'],
 	match_statement: ['subject', 'body'],

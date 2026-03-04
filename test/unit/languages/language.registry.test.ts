@@ -1,9 +1,17 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { LanguageRegistry, LANGUAGE_EXTENSIONS } from '../../../src/languages/language.registry';
-import { ConstellationConfig, IConstellationLanguageConfig } from '../../../src/config/config';
+import {
+	LanguageRegistry,
+	LANGUAGE_EXTENSIONS,
+} from '../../../src/languages/language.registry';
+import {
+	ConstellationConfig,
+	IConstellationLanguageConfig,
+} from '../../../src/config/config';
 
 // Helper function to create test language configurations
-function createTestLanguageConfig(languages: Partial<IConstellationLanguageConfig>): IConstellationLanguageConfig {
+function createTestLanguageConfig(
+	languages: Partial<IConstellationLanguageConfig>,
+): IConstellationLanguageConfig {
 	return languages as IConstellationLanguageConfig;
 }
 
@@ -22,7 +30,7 @@ describe('LanguageRegistry', () => {
 					fileExtensions: ['.ts', '.tsx'],
 				},
 			}),
-			'test-project'
+			'test-project',
 		);
 
 		registry = new LanguageRegistry(config);
@@ -55,9 +63,11 @@ describe('LanguageRegistry', () => {
 			const configWithoutExtensions = new ConstellationConfig(
 				'main',
 				createTestLanguageConfig({}),
-				'test-project'
+				'test-project',
 			);
-			const registryWithDefaults = new LanguageRegistry(configWithoutExtensions);
+			const registryWithDefaults = new LanguageRegistry(
+				configWithoutExtensions,
+			);
 
 			const jsConfig = registryWithDefaults['javascript'];
 			const extensions = jsConfig?.fileExtensions();
@@ -86,9 +96,11 @@ describe('LanguageRegistry', () => {
 			const configWithoutExtensions = new ConstellationConfig(
 				'main',
 				createTestLanguageConfig({}),
-				'test-project'
+				'test-project',
 			);
-			const registryWithDefaults = new LanguageRegistry(configWithoutExtensions);
+			const registryWithDefaults = new LanguageRegistry(
+				configWithoutExtensions,
+			);
 
 			const tsConfig = registryWithDefaults['typescript'];
 			const extensions = tsConfig?.fileExtensions();
@@ -96,11 +108,30 @@ describe('LanguageRegistry', () => {
 		});
 	});
 
-	describe('unimplemented languages', () => {
-		it('should return undefined for python', () => {
-			expect(registry['python']).toBeUndefined();
+	describe('Python language', () => {
+		it('should load Python grammar successfully', () => {
+			const pythonConfig = (registry as any)['python'];
+			expect(pythonConfig).toBeDefined();
+			expect(pythonConfig!.language).toBeInstanceOf(Function);
+			expect(pythonConfig!.language()).toBeDefined();
 		});
 
+		it('should return correct default file extensions', () => {
+			const pythonConfig = (registry as any)['python'];
+			expect(pythonConfig).toBeDefined();
+			expect(pythonConfig!.fileExtensions()).toContain('.py');
+		});
+
+		it('should register Python plugin', () => {
+			const plugin = registry.getPlugin('python');
+			expect(plugin).toBeDefined();
+			expect(plugin!.language).toBe('python');
+			expect(plugin!.extensions).toContain('.py');
+			expect(plugin!.extensions).toContain('.pyi');
+		});
+	});
+
+	describe('unimplemented languages', () => {
 		it('should return undefined for php', () => {
 			expect(registry['php']).toBeUndefined();
 		});
@@ -147,7 +178,7 @@ describe('LanguageRegistry', () => {
 						fileExtensions: ['.mjs', '.cjs'],
 					},
 				}),
-				'test-project'
+				'test-project',
 			);
 			const customRegistry = new LanguageRegistry(customConfig);
 
@@ -164,7 +195,7 @@ describe('LanguageRegistry', () => {
 					},
 					// TypeScript not configured
 				}),
-				'test-project'
+				'test-project',
 			);
 			const minimalRegistry = new LanguageRegistry(minimalConfig);
 
@@ -184,7 +215,7 @@ describe('LANGUAGE_EXTENSIONS', () => {
 	});
 
 	it('should define extensions for python', () => {
-		expect(LANGUAGE_EXTENSIONS['python']).toEqual(['.py']);
+		expect(LANGUAGE_EXTENSIONS['python']).toEqual(['.py', '.pyi']);
 	});
 
 	it('should define extensions for bash', () => {
@@ -200,7 +231,14 @@ describe('LANGUAGE_EXTENSIONS', () => {
 	});
 
 	it('should define extensions for cpp', () => {
-		expect(LANGUAGE_EXTENSIONS['cpp']).toEqual(['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx']);
+		expect(LANGUAGE_EXTENSIONS['cpp']).toEqual([
+			'.cpp',
+			'.cc',
+			'.cxx',
+			'.hpp',
+			'.hh',
+			'.hxx',
+		]);
 	});
 
 	it('should define extensions for go', () => {

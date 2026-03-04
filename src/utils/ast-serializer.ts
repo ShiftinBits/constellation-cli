@@ -21,6 +21,97 @@ export interface SerializedNode {
 }
 
 /**
+ * Node types whose text content should be preserved in the serialized AST.
+ * These are identifiers, keywords, operators, literals, and type annotations
+ * that extractors need for intelligence extraction — NOT source code bodies.
+ *
+ * Used by both the streaming serializer (serializeASTStream) and the legacy
+ * serializer (serializeAST) as a single source of truth.
+ *
+ * Note: Nodes ending with `_keyword` or `_operator` are also included via
+ * suffix checks in the serialization functions (not in this Set).
+ */
+export const TEXT_INCLUDED_TYPES: ReadonlySet<string> = new Set([
+	// Identifiers
+	'identifier',
+	'property_identifier',
+	'type_identifier',
+	'shorthand_property_identifier',
+
+	// Literals and values
+	'string',
+	'string_literal',
+	'template_string',
+	'number',
+	'true',
+	'false',
+	'null',
+	'undefined',
+
+	// Import/Export related
+	'import_specifier',
+	'export_specifier',
+
+	// Type-related nodes (basic)
+	'predefined_type',
+	'type_predicate',
+	'type_alias',
+
+	// Type annotations - needed for extractTypeDependencies to parse type references
+	'type_annotation',
+	'return_type',
+	'type_arguments',
+	'type_parameters',
+	'array_type',
+	'union_type',
+	'intersection_type',
+	'generic_type',
+	'tuple_type',
+	'function_type',
+	'object_type',
+	'mapped_type',
+	'conditional_type',
+	'infer_type',
+
+	// Small structural elements
+	'accessibility_modifier',
+	'readonly',
+	'static',
+	'async',
+	'await',
+	'const',
+	'let',
+	'var',
+
+	// Decorators
+	'decorator', // Decorator nodes (e.g., @Injectable())
+
+	// Operators
+	'=',
+	'=>',
+	'...',
+	'?',
+	'!',
+
+	// Python-specific identifiers and keywords
+	'dotted_name', // Python dotted imports (os.path)
+	'aliased_import', // import X as Y
+	'not_operator', // Python 'not' keyword
+	'boolean_operator', // Python 'and'/'or'
+	'comparison_operator', // Python 'is', 'in', 'not in'
+	'yield', // yield keyword (leaf node)
+	'pass', // pass statement
+	'continue', // continue statement
+	'break', // break statement
+	'None', // Python None literal
+	'True', // Python True literal
+	'False', // Python False literal
+	'ellipsis', // Python ... literal
+	'type', // Python type annotation wrapper
+	'string_content', // Python string content (strings are structured)
+]);
+
+/**
  * Streams AST serialization as JSON chunks to minimize memory usage.
  * Yields chunks directly without building intermediate objects.
  * @param node Tree-sitter SyntaxNode to serialize
@@ -55,57 +146,8 @@ function* serializeNodeToJSON(
 
 	// Include text for specific node types
 	// IMPORTANT: Type annotation nodes need text preserved for type dependency extraction
-	const textIncludedTypes = [
-		'identifier',
-		'property_identifier',
-		'type_identifier',
-		'shorthand_property_identifier',
-		'string',
-		'string_literal',
-		'template_string',
-		'number',
-		'true',
-		'false',
-		'null',
-		'undefined',
-		'import_specifier',
-		'export_specifier',
-		'predefined_type',
-		'type_predicate',
-		'type_alias',
-		'accessibility_modifier',
-		'readonly',
-		'static',
-		'async',
-		'await',
-		'const',
-		'let',
-		'var',
-		'decorator', // Decorator nodes (e.g., @Injectable())
-		'=',
-		'=>',
-		'...',
-		'?',
-		'!',
-		// Type annotations - needed for extractTypeDependencies to parse type references
-		'type_annotation',
-		'return_type',
-		'type_arguments',
-		'type_parameters',
-		'array_type',
-		'union_type',
-		'intersection_type',
-		'generic_type',
-		'tuple_type',
-		'function_type',
-		'object_type',
-		'mapped_type',
-		'conditional_type',
-		'infer_type',
-	];
-
 	if (
-		textIncludedTypes.includes(node.type) ||
+		TEXT_INCLUDED_TYPES.has(node.type) ||
 		node.type.endsWith('_keyword') ||
 		node.type.endsWith('_operator')
 	) {
@@ -261,71 +303,8 @@ function createSerializedNode(
 
 	// Include text for node types that extractors need for intelligence extraction
 	// IMPORTANT: Type annotation nodes need text preserved for type dependency extraction
-	const textIncludedTypes = [
-		// Identifiers
-		'identifier',
-		'property_identifier',
-		'type_identifier',
-		'shorthand_property_identifier',
-
-		// Literals and values
-		'string',
-		'string_literal',
-		'template_string',
-		'number',
-		'true',
-		'false',
-		'null',
-		'undefined',
-
-		// Import/Export related
-		'import_specifier',
-		'export_specifier',
-
-		// Type-related nodes (basic)
-		'predefined_type',
-		'type_predicate',
-		'type_alias',
-
-		// Type annotations - needed for extractTypeDependencies to parse type references
-		'type_annotation',
-		'return_type',
-		'type_arguments',
-		'type_parameters',
-		'array_type',
-		'union_type',
-		'intersection_type',
-		'generic_type',
-		'tuple_type',
-		'function_type',
-		'object_type',
-		'mapped_type',
-		'conditional_type',
-		'infer_type',
-
-		// Small structural elements
-		'accessibility_modifier',
-		'readonly',
-		'static',
-		'async',
-		'await',
-		'const',
-		'let',
-		'var',
-
-		// Decorators
-		'decorator', // Decorator nodes (e.g., @Injectable())
-
-		// Operators
-		'=',
-		'=>',
-		'...',
-		'?',
-		'!',
-	];
-
 	if (
-		textIncludedTypes.includes(node.type) ||
+		TEXT_INCLUDED_TYPES.has(node.type) ||
 		node.type.endsWith('_keyword') ||
 		node.type.endsWith('_operator')
 	) {
@@ -336,6 +315,189 @@ function createSerializedNode(
 }
 
 /**
+ * JS/TS field name mappings for Tree-sitter node types.
+ *
+ * IMPORTANT: Field names must be listed here for the Core extractor to access them
+ * via childForFieldName() on serialized AST nodes. Missing entries cause silent failures
+ * in type extraction, inheritance detection, etc.
+ */
+export const JS_TS_FIELD_NAMES: Readonly<Record<string, string[]>> = {
+	// Functions and methods
+	function_declaration: [
+		'name',
+		'parameters',
+		'body',
+		'return_type',
+		'type_parameters',
+	],
+	function_expression: [
+		'name',
+		'parameters',
+		'body',
+		'return_type',
+		'type_parameters',
+	],
+	arrow_function: ['parameters', 'body', 'return_type', 'type_parameters'],
+	method_definition: [
+		'name',
+		'parameters',
+		'body',
+		'return_type',
+		'type_parameters',
+	],
+	method_signature: ['name', 'parameters', 'return_type', 'type_parameters'],
+	function_signature: ['name', 'parameters', 'return_type', 'type_parameters'],
+
+	// Classes and interfaces
+	class_declaration: ['name', 'body', 'type_parameters', 'heritage'],
+	interface_declaration: ['name', 'body', 'type_parameters'],
+	type_alias_declaration: ['name', 'type_parameters', 'value'],
+
+	// Properties and fields
+	property_signature: ['name', 'type'],
+	field_definition: ['name', 'type', 'value'],
+	public_field_definition: ['name', 'type', 'value'],
+	private_field_definition: ['name', 'type', 'value'],
+
+	// Parameters
+	required_parameter: ['pattern', 'type', 'value'],
+	optional_parameter: ['pattern', 'type', 'value'],
+	rest_parameter: ['pattern', 'type'],
+
+	// Variables
+	variable_declarator: ['name', 'type', 'value'],
+	lexical_declaration: ['kind'],
+
+	// Expressions
+	call_expression: ['function', 'arguments', 'type_arguments'],
+	new_expression: ['constructor', 'arguments', 'type_arguments'],
+	member_expression: ['object', 'property'],
+	assignment_expression: ['left', 'right'],
+	binary_expression: ['left', 'right', 'operator'],
+	unary_expression: ['operator', 'argument'],
+	ternary_expression: ['condition', 'consequence', 'alternative'],
+
+	// Imports/Exports
+	import_statement: ['source', 'import'],
+	import_specifier: ['name', 'alias'],
+	export_specifier: ['name', 'alias'],
+	export_statement: ['source', 'declaration', 'value'],
+
+	// Control flow
+	if_statement: ['condition', 'consequence', 'alternative'],
+	for_statement: ['init', 'condition', 'update', 'body'],
+	for_in_statement: ['left', 'right', 'body'],
+	while_statement: ['condition', 'body'],
+	do_statement: ['body', 'condition'],
+	switch_statement: ['value', 'body'],
+	try_statement: ['body', 'handler', 'finalizer'],
+	catch_clause: ['parameter', 'body'],
+	return_statement: ['value'],
+	throw_statement: ['value'],
+
+	// Type annotations (TypeScript)
+	type_annotation: ['type'],
+	type_parameter: ['name', 'constraint', 'default'],
+	generic_type: ['name', 'type_arguments'],
+};
+
+/**
+ * Python field name mappings for Tree-sitter node types.
+ *
+ * IMPORTANT: Field names must be listed here for the Core extractor to access them
+ * via childForFieldName() on serialized AST nodes. Missing entries cause silent failures
+ * in type extraction, inheritance detection, etc.
+ */
+export const PYTHON_FIELD_NAMES: Readonly<Record<string, string[]>> = {
+	// Definitions
+	function_definition: ['name', 'parameters', 'return_type', 'body'],
+	class_definition: ['name', 'superclasses', 'body'],
+	decorated_definition: ['definition'],
+	lambda: ['parameters', 'body'],
+
+	// Imports
+	import_statement: ['name'],
+	import_from_statement: ['module_name', 'name'],
+	aliased_import: ['name', 'alias'],
+
+	// Assignments
+	assignment: ['left', 'right', 'type'],
+	augmented_assignment: ['left', 'right'],
+
+	// Parameters
+	typed_parameter: ['name', 'type'],
+	default_parameter: ['name', 'value'],
+	typed_default_parameter: ['name', 'type', 'value'],
+
+	// Expressions
+	call: ['function', 'arguments'],
+	attribute: ['object', 'attribute'],
+	binary_operator: ['left', 'right'],
+	unary_operator: ['argument'],
+	not_operator: ['argument'],
+	boolean_operator: ['left', 'right'],
+	comparison_operator: ['operators'],
+	named_expression: ['name', 'value'],
+	keyword_argument: ['name', 'value'],
+
+	// Control flow
+	for_statement: ['left', 'right'],
+	with_statement: ['body'],
+	finally_clause: ['body'],
+	else_clause: ['body'],
+	match_statement: ['subject', 'body'],
+	case_clause: ['pattern', 'guard'],
+	raise_statement: ['cause'],
+
+	// Comprehensions
+	list_comprehension: ['body'],
+	dictionary_comprehension: ['body', 'key', 'value'],
+	set_comprehension: ['body'],
+	generator_expression: ['body'],
+	for_in_clause: ['left', 'right'],
+	if_clause: ['condition'],
+
+	// Other
+	pair: ['key', 'value'],
+	subscript: ['value', 'subscript'],
+	slice: ['start', 'stop', 'step'],
+};
+
+/**
+ * Merges multiple field name maps into one, deduplicating field arrays for shared keys.
+ * Used to combine language-specific maps into a single lookup table.
+ */
+export function mergeFieldMaps(
+	...maps: Readonly<Record<string, string[]>>[]
+): Record<string, string[]> {
+	const result: Record<string, string[]> = {};
+	for (const map of maps) {
+		for (const [nodeType, fields] of Object.entries(map)) {
+			const existing = result[nodeType] || [];
+			const merged = [...existing];
+			for (const field of fields) {
+				if (!merged.includes(field)) {
+					merged.push(field);
+				}
+			}
+			result[nodeType] = merged;
+		}
+	}
+	return result;
+}
+
+/**
+ * Combined field name map for all supported languages.
+ * Merges JS/TS and Python maps with deduplication for shared node types
+ * (e.g., import_statement, for_statement).
+ *
+ * IMPORTANT: This is a workaround for tree-sitter versions that don't expose
+ * field names directly. Missing entries cause silent failures in Core extraction.
+ */
+export const COMMON_FIELD_NAMES: Readonly<Record<string, string[]>> =
+	mergeFieldMaps(JS_TS_FIELD_NAMES, PYTHON_FIELD_NAMES);
+
+/**
  * Get common field names for a node type
  * This is a workaround for tree-sitter versions that don't expose field names directly
  *
@@ -344,91 +506,5 @@ function createSerializedNode(
  * in type extraction, inheritance detection, etc.
  */
 function getCommonFieldNames(nodeType: string): string[] {
-	// Common field names used in many grammars
-	const commonFields: { [key: string]: string[] } = {
-		// Functions and methods
-		function_declaration: [
-			'name',
-			'parameters',
-			'body',
-			'return_type',
-			'type_parameters',
-		],
-		function_expression: [
-			'name',
-			'parameters',
-			'body',
-			'return_type',
-			'type_parameters',
-		],
-		arrow_function: ['parameters', 'body', 'return_type', 'type_parameters'],
-		method_definition: [
-			'name',
-			'parameters',
-			'body',
-			'return_type',
-			'type_parameters',
-		],
-		method_signature: ['name', 'parameters', 'return_type', 'type_parameters'],
-		function_signature: [
-			'name',
-			'parameters',
-			'return_type',
-			'type_parameters',
-		],
-
-		// Classes and interfaces
-		class_declaration: ['name', 'body', 'type_parameters', 'heritage'],
-		interface_declaration: ['name', 'body', 'type_parameters'],
-		type_alias_declaration: ['name', 'type_parameters', 'value'],
-
-		// Properties and fields
-		property_signature: ['name', 'type'],
-		field_definition: ['name', 'type', 'value'],
-		public_field_definition: ['name', 'type', 'value'],
-		private_field_definition: ['name', 'type', 'value'],
-
-		// Parameters
-		required_parameter: ['pattern', 'type', 'value'],
-		optional_parameter: ['pattern', 'type', 'value'],
-		rest_parameter: ['pattern', 'type'],
-
-		// Variables
-		variable_declarator: ['name', 'type', 'value'],
-		lexical_declaration: ['kind'],
-
-		// Expressions
-		call_expression: ['function', 'arguments', 'type_arguments'],
-		new_expression: ['constructor', 'arguments', 'type_arguments'],
-		member_expression: ['object', 'property'],
-		assignment_expression: ['left', 'right'],
-		binary_expression: ['left', 'right', 'operator'],
-		unary_expression: ['operator', 'argument'],
-		ternary_expression: ['condition', 'consequence', 'alternative'],
-
-		// Imports/Exports
-		import_statement: ['source', 'import'],
-		import_specifier: ['name', 'alias'],
-		export_specifier: ['name', 'alias'],
-		export_statement: ['source', 'declaration', 'value'],
-
-		// Control flow
-		if_statement: ['condition', 'consequence', 'alternative'],
-		for_statement: ['init', 'condition', 'update', 'body'],
-		for_in_statement: ['left', 'right', 'body'],
-		while_statement: ['condition', 'body'],
-		do_statement: ['body', 'condition'],
-		switch_statement: ['value', 'body'],
-		try_statement: ['body', 'handler', 'finalizer'],
-		catch_clause: ['parameter', 'body'],
-		return_statement: ['value'],
-		throw_statement: ['value'],
-
-		// Type annotations (TypeScript)
-		type_annotation: ['type'],
-		type_parameter: ['name', 'constraint', 'default'],
-		generic_type: ['name', 'type_arguments'],
-	};
-
-	return commonFields[nodeType] || [];
+	return COMMON_FIELD_NAMES[nodeType] || [];
 }

@@ -1,7 +1,13 @@
 import type { ImportResolutionMetadata } from '@constellationdev/types';
 import { SyntaxNode, Tree } from 'tree-sitter';
 import type { ImportResolver } from '../languages/plugins/base-plugin';
-import { normalizeGraphPath } from './path.utils';
+import type {
+	ImportNodeProcessor,
+	ImportTypeClassifier,
+	LanguageImportHandlers,
+} from './import-handlers/types';
+import { DEFAULT_HANDLERS } from './import-handlers';
+import { defaultClassifyImportType } from './import-handlers/utils';
 
 /**
  * Extracts import resolution metadata from AST without modifying it.
@@ -11,8 +17,36 @@ import { normalizeGraphPath } from './path.utils';
  * - tsconfig.json / jsconfig.json path mappings
  * - package.json workspace configuration
  * - Build configuration for specific files
+ *
+ * Languages register their import node types and processors via handler modules,
+ * making it straightforward to add new language support without modifying
+ * this class. Pass custom handlers to the constructor, or omit to use the
+ * built-in JS/TS/Python handlers.
  */
 export class ImportExtractor {
+	/**
+	 * Per-language map of node types to their import processors.
+	 * Adding a new language = creating a handler module and adding it to DEFAULT_HANDLERS.
+	 */
+	private readonly languageHandlers: Map<
+		string,
+		Map<string, ImportNodeProcessor>
+	>;
+
+	/** Per-language import type classifiers (falls back to defaultClassifyImportType). */
+	private readonly classifiers: Map<string, ImportTypeClassifier>;
+
+	constructor(handlers?: LanguageImportHandlers[]) {
+		this.languageHandlers = new Map();
+		this.classifiers = new Map();
+		for (const reg of handlers ?? DEFAULT_HANDLERS) {
+			this.languageHandlers.set(reg.language, reg.handlers);
+			if (reg.classifyImportType) {
+				this.classifiers.set(reg.language, reg.classifyImportType);
+			}
+		}
+	}
+
 	/**
 	 * Walks AST to find all import statements and resolves them using CLI resolver.
 	 * Does NOT modify the AST - only extracts metadata.
@@ -33,17 +67,19 @@ export class ImportExtractor {
 			return {};
 		}
 
+		const handlers = this.languageHandlers.get(language);
+		if (!handlers) {
+			return {};
+		}
+
+		const classifier =
+			this.classifiers.get(language) ?? defaultClassifyImportType;
 		const resolutions: ImportResolutionMetadata = {};
 
-		// Walk the AST to find all import and export statements
 		await this.walkAST(tree.rootNode, async (node: SyntaxNode) => {
-			// Handle import statements for TypeScript/JavaScript
-			if (node.type === 'import_statement') {
-				await this.processImportStatement(node, resolver, resolutions);
-			}
-			// Handle export statements with 'from' clause (barrel exports)
-			if (node.type === 'export_statement') {
-				await this.processExportStatement(node, resolver, resolutions);
+			const processor = handlers.get(node.type);
+			if (processor) {
+				await processor(node, resolver, resolutions, classifier);
 			}
 		});
 
@@ -65,140 +101,5 @@ export class ImportExtractor {
 				await this.walkAST(child, visitor);
 			}
 		}
-	}
-
-	/**
-	 * Processes a single import statement node
-	 */
-	private async processImportStatement(
-		node: SyntaxNode,
-		resolver: ImportResolver,
-		resolutions: ImportResolutionMetadata,
-	): Promise<void> {
-		// Find the source string node (the imported module path)
-		const sourceNode = node.childForFieldName('source');
-		if (!sourceNode) {
-			return;
-		}
-
-		const line = sourceNode.startPosition.row;
-		const importSpecifier = sourceNode.text.replace(/['"]/g, '');
-
-		// Resolve using CLI resolver (has tsconfig/jsconfig access)
-		const resolvedPath = await resolver.resolve(importSpecifier);
-		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
-		const importType = this.classifyImportType(
-			importSpecifier,
-			resolvedPath,
-			isExternal,
-		);
-
-		// Normalize resolved path to canonical format (project-root-relative without leading ./)
-		const normalizedPath = isExternal
-			? undefined
-			: normalizeGraphPath(resolvedPath);
-
-		resolutions[line.toString()] = {
-			source: importSpecifier,
-			resolvedPath: normalizedPath,
-			isExternal,
-			importType,
-		};
-	}
-
-	/**
-	 * Processes a single export statement node with 'from' clause
-	 * Handles barrel exports like: export * from './foo' or export { bar } from './foo'
-	 */
-	private async processExportStatement(
-		node: SyntaxNode,
-		resolver: ImportResolver,
-		resolutions: ImportResolutionMetadata,
-	): Promise<void> {
-		// Find the source string node (the module path after 'from')
-		const sourceNode = node.childForFieldName('source');
-		if (!sourceNode) {
-			// This is an export without 'from' clause (e.g., export const foo = 1)
-			return;
-		}
-
-		const line = sourceNode.startPosition.row;
-		const importSpecifier = sourceNode.text.replace(/['"]/g, '');
-
-		// Resolve using CLI resolver (has tsconfig/jsconfig access)
-		const resolvedPath = await resolver.resolve(importSpecifier);
-		const isExternal = this.isExternalPackage(importSpecifier, resolvedPath);
-		const importType = this.classifyImportType(
-			importSpecifier,
-			resolvedPath,
-			isExternal,
-		);
-
-		// Normalize resolved path to canonical format (project-root-relative without leading ./)
-		const normalizedPath = isExternal
-			? undefined
-			: normalizeGraphPath(resolvedPath);
-
-		resolutions[line.toString()] = {
-			source: importSpecifier,
-			resolvedPath: normalizedPath,
-			isExternal,
-			importType,
-		};
-	}
-
-	/**
-	 * Determines if import is an external package.
-	 *
-	 * CRITICAL: This logic must distinguish between:
-	 * - External packages: @nestjs/common, lodash, node:fs (return true)
-	 * - Internal workspace packages: @constellation/graph-engine → libs/graph-engine/src/index.ts (return false)
-	 * - Relative imports: ./foo, ../bar (return false)
-	 * - Canonical project paths: libs/..., apps/..., src/... (return false)
-	 */
-	private isExternalPackage(specifier: string, resolved: string): boolean {
-		// If resolution didn't change, it's external (e.g., @nestjs/common → @nestjs/common)
-		if (specifier === resolved) {
-			return true;
-		}
-
-		// ✅ FIX: Project-relative paths without leading ./ or ../ are canonical paths
-		// Examples: "libs/graph-engine/src/index.ts", "apps/intel-api/src/main.ts"
-		// These are internal workspace files, NOT external packages
-		if (!resolved.startsWith('.') && !resolved.startsWith('/')) {
-			// Canonical project-relative path = internal
-			return false;
-		}
-
-		// Relative paths (./foo, ../bar) are internal
-		if (resolved.startsWith('./') || resolved.startsWith('../')) {
-			return false;
-		}
-
-		// Everything else is external (absolute paths, node: prefixes, etc.)
-		return true;
-	}
-
-	/**
-	 * Classifies import type for analytics and debugging
-	 */
-	private classifyImportType(
-		specifier: string,
-		resolved: string,
-		isExternal: boolean,
-	): 'relative' | 'workspace' | 'alias' | 'external' | 'builtin' {
-		if (isExternal) {
-			return specifier.startsWith('node:') ? 'builtin' : 'external';
-		}
-
-		if (specifier.startsWith('./') || specifier.startsWith('../')) {
-			return 'relative';
-		}
-
-		if (specifier.startsWith('@')) {
-			return 'workspace';
-		}
-
-		return 'alias';
 	}
 }

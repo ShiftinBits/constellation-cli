@@ -3,7 +3,93 @@ import { SyntaxNode } from 'tree-sitter';
 import {
 	serializeAST,
 	SerializedNode,
+	TEXT_INCLUDED_TYPES,
+	JS_TS_FIELD_NAMES,
+	PYTHON_FIELD_NAMES,
+	COMMON_FIELD_NAMES,
+	mergeFieldMaps,
 } from '../../../src/utils/ast-serializer';
+
+describe('TEXT_INCLUDED_TYPES', () => {
+	it('should be a Set', () => {
+		expect(TEXT_INCLUDED_TYPES).toBeInstanceOf(Set);
+	});
+
+	it('should contain JS/TS identifier types', () => {
+		expect(TEXT_INCLUDED_TYPES.has('identifier')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('property_identifier')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('type_identifier')).toBe(true);
+	});
+
+	it('should contain Python-specific types', () => {
+		expect(TEXT_INCLUDED_TYPES.has('dotted_name')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('None')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('string_content')).toBe(true);
+	});
+
+	it('should contain type annotation types', () => {
+		expect(TEXT_INCLUDED_TYPES.has('type_annotation')).toBe(true);
+		expect(TEXT_INCLUDED_TYPES.has('generic_type')).toBe(true);
+	});
+});
+
+describe('mergeFieldMaps', () => {
+	it('should union arrays for shared keys with deduplication', () => {
+		const a = { foo: ['a', 'b'] };
+		const b = { foo: ['b', 'c'] };
+		expect(mergeFieldMaps(a, b)['foo']).toEqual(['a', 'b', 'c']);
+	});
+
+	it('should preserve unique keys from each map', () => {
+		const a = { only_a: ['x'] };
+		const b = { only_b: ['y'] };
+		const result = mergeFieldMaps(a, b);
+		expect(result['only_a']).toEqual(['x']);
+		expect(result['only_b']).toEqual(['y']);
+	});
+
+	it('should handle three or more maps', () => {
+		expect(
+			mergeFieldMaps({ s: ['a'] }, { s: ['b'] }, { s: ['c'] })['s'],
+		).toEqual(['a', 'b', 'c']);
+	});
+});
+
+describe('Language Field Name Maps', () => {
+	it('JS_TS_FIELD_NAMES should contain function_declaration', () => {
+		expect(JS_TS_FIELD_NAMES['function_declaration']).toEqual(
+			expect.arrayContaining(['name', 'parameters', 'body']),
+		);
+	});
+
+	it('JS_TS_FIELD_NAMES should NOT contain Python-only types', () => {
+		expect(JS_TS_FIELD_NAMES['function_definition']).toBeUndefined();
+		expect(JS_TS_FIELD_NAMES['class_definition']).toBeUndefined();
+	});
+
+	it('PYTHON_FIELD_NAMES should contain function_definition', () => {
+		expect(PYTHON_FIELD_NAMES['function_definition']).toEqual(
+			expect.arrayContaining(['name', 'parameters', 'body']),
+		);
+	});
+
+	it('PYTHON_FIELD_NAMES should NOT contain JS-only types', () => {
+		expect(PYTHON_FIELD_NAMES['arrow_function']).toBeUndefined();
+	});
+
+	it('COMMON_FIELD_NAMES should merge import_statement from both', () => {
+		const fields = COMMON_FIELD_NAMES['import_statement'];
+		expect(fields).toContain('source'); // JS/TS
+		expect(fields).toContain('name'); // Python
+		expect(fields!.length).toBe(new Set(fields).size); // no duplicates
+	});
+
+	it('COMMON_FIELD_NAMES should merge for_statement from both', () => {
+		const fields = COMMON_FIELD_NAMES['for_statement'];
+		expect(fields).toContain('init'); // JS
+		expect(fields).toContain('left'); // Python
+	});
+});
 
 describe('ASTSerializer', () => {
 	describe('serializeAST', () => {

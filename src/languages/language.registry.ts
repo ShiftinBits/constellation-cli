@@ -1,10 +1,12 @@
 import jsTreeSitter from 'tree-sitter-javascript';
+import pythonTreeSitter from 'tree-sitter-python';
 import tsTreeSitter from 'tree-sitter-typescript';
 
 import { ConstellationConfig } from '../config/config';
 import { LanguagePlugin } from './plugins/base-plugin';
 import { TypeScriptPlugin } from './plugins/typescript.plugin';
 import { JavaScriptPlugin } from './plugins/javascript.plugin';
+import { PythonPlugin } from './plugins/python.plugin';
 
 /**
  * Supported programming languages for Tree-sitter parsing.
@@ -38,7 +40,7 @@ export const LANGUAGE_EXTENSIONS: { [key: string]: string[] } = {
 	javascript: ['.js', '.jsx'],
 	json: ['.json'],
 	php: ['.php'],
-	python: ['.py'],
+	python: ['.py', '.pyi'],
 	ruby: ['.rb'],
 	typescript: ['.ts', '.tsx'],
 };
@@ -75,6 +77,7 @@ export class LanguageRegistry implements ILanguageRegistry {
 		// Register language plugins
 		this.registerPlugin(new TypeScriptPlugin());
 		this.registerPlugin(new JavaScriptPlugin());
+		this.registerPlugin(new PythonPlugin());
 	}
 
 	/**
@@ -114,8 +117,15 @@ export class LanguageRegistry implements ILanguageRegistry {
 			LANGUAGE_EXTENSIONS['typescript'],
 	};
 
-	/** Python language parser (not yet implemented) */
-	['python']: undefined;
+	/** Python language parser configuration */
+	['python'] = {
+		language: () => {
+			return pythonTreeSitter;
+		},
+		fileExtensions: () =>
+			this.config?.languages['python']?.fileExtensions ??
+			LANGUAGE_EXTENSIONS['python'],
+	};
 	/** PHP language parser (not yet implemented) */
 	['php']: undefined;
 	/** JSON language parser (not yet implemented) */

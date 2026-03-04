@@ -509,4 +509,96 @@ describe('ImportExtractor', () => {
 			expect(result['0'].source).toBe('os');
 		});
 	});
+
+	describe('External handler registration', () => {
+		it('should accept custom handlers via constructor', async () => {
+			const customProcessor = jest.fn(
+				async (
+					node: SyntaxNode,
+					resolver: ImportResolver,
+					resolutions: Record<string, unknown>,
+					classifier: (
+						specifier: string,
+						resolved: string,
+						isExternal: boolean,
+					) => string,
+				) => {
+					const resolved = await resolver.resolve('custom-module');
+					resolutions['0'] = {
+						source: 'custom',
+						resolvedPath: resolved,
+						isExternal: false,
+						importType: 'alias',
+					};
+				},
+			);
+			const handlers = {
+				language: 'custom',
+				handlers: new Map([['custom_import', customProcessor]]),
+			};
+			const extractor = new ImportExtractor([handlers]);
+
+			const customImportNode = mockNode('custom_import', 'custom stuff', {
+				row: 0,
+			});
+			const tree = mockTree([customImportNode]);
+			const resolver = mockResolver({ 'custom-module': './custom-resolved' });
+
+			const result = await extractor.extractImportResolutions(
+				tree,
+				'test.custom',
+				'custom',
+				resolver,
+			);
+			expect(customProcessor).toHaveBeenCalled();
+			expect(result['0']).toBeDefined();
+		});
+
+		it('should NOT handle JS/TS/Python when given only custom handlers', async () => {
+			const handlers = {
+				language: 'custom',
+				handlers: new Map(),
+			};
+			const extractor = new ImportExtractor([handlers]);
+
+			const sourceNode = mockNode('string', "'./foo'", { row: 0 });
+			const jsNode = mockNode('import_statement', "import './foo'", {
+				row: 0,
+				fields: { source: sourceNode },
+			});
+			const tree = mockTree([jsNode]);
+			const resolver = mockResolver({ './foo': './foo.js' });
+
+			const result = await extractor.extractImportResolutions(
+				tree,
+				'test.js',
+				'javascript',
+				resolver,
+			);
+			expect(result).toEqual({});
+		});
+
+		it('should use default handlers when constructed with no args', async () => {
+			const extractor = new ImportExtractor();
+			const sourceNode = mockNode('string', "'./helper'", { row: 2 });
+			const importNode = mockNode(
+				'import_statement',
+				"import { foo } from './helper'",
+				{
+					row: 2,
+					fields: { source: sourceNode },
+				},
+			);
+			const tree = mockTree([importNode]);
+			const resolver = mockResolver({ './helper': './helper.js' });
+
+			const result = await extractor.extractImportResolutions(
+				tree,
+				'test.js',
+				'javascript',
+				resolver,
+			);
+			expect(result['2']).toBeDefined();
+		});
+	});
 });

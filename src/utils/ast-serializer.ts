@@ -419,8 +419,14 @@ export const JS_TS_FIELD_NAMES: Readonly<Record<string, string[]>> = {
  */
 export const PYTHON_FIELD_NAMES: Readonly<Record<string, string[]>> = {
 	// Definitions
-	function_definition: ['name', 'parameters', 'return_type', 'body'],
-	class_definition: ['name', 'superclasses', 'body'],
+	function_definition: [
+		'name',
+		'parameters',
+		'return_type',
+		'body',
+		'type_parameters',
+	],
+	class_definition: ['name', 'superclasses', 'body', 'type_parameters'],
 	decorated_definition: ['definition'],
 	lambda: ['parameters', 'body'],
 
@@ -432,6 +438,17 @@ export const PYTHON_FIELD_NAMES: Readonly<Record<string, string[]>> = {
 	// Assignments
 	assignment: ['left', 'right', 'type'],
 	augmented_assignment: ['left', 'right'],
+	type_alias_statement: ['name', 'type_parameters', 'value'],
+
+	// Type annotations
+	annotated_assignment: ['left', 'right', 'type'],
+
+	// Exception handling
+	except_clause: ['cause'],
+
+	// Return/Assert
+	return_statement: ['value'],
+	assert_statement: ['condition', 'message'],
 
 	// Parameters
 	typed_parameter: ['name', 'type'],

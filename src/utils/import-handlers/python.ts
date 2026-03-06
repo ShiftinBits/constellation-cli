@@ -95,12 +95,32 @@ async function processImportFromStatement(
 	);
 }
 
+/**
+ * Processes a Python `from __future__ import ...` statement.
+ * These are informational — resolve __future__ as a builtin module.
+ */
+async function processFutureImportStatement(
+	node: SyntaxNode,
+	resolver: ImportResolver,
+	resolutions: ImportResolutionMetadata,
+	classifier: ImportTypeClassifier,
+): Promise<void> {
+	await resolveAndStore(
+		'__future__',
+		node.startPosition.row,
+		resolver,
+		resolutions,
+		classifier,
+	);
+}
+
 export function createPythonHandlers(): LanguageImportHandlers {
 	return {
 		language: 'python',
 		handlers: new Map([
 			['import_statement', processImportStatement],
 			['import_from_statement', processImportFromStatement],
+			['future_import_statement', processFutureImportStatement],
 		]),
 		classifyImportType: pythonClassifyImportType,
 	};

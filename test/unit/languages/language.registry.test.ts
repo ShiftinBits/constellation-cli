@@ -215,7 +215,7 @@ describe('LANGUAGE_EXTENSIONS', () => {
 	});
 
 	it('should define extensions for python', () => {
-		expect(LANGUAGE_EXTENSIONS['python']).toEqual(['.py', '.pyi']);
+		expect(LANGUAGE_EXTENSIONS['python']).toEqual(['.py', '.pyi', '.pyw']);
 	});
 
 	it('should define extensions for bash', () => {

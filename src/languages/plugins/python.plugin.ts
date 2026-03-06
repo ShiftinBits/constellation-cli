@@ -4,15 +4,16 @@ import {
 	ImportResolver,
 } from './base-plugin';
 import { ParserLanguage } from '../language.registry';
+import { PythonImportResolver } from './resolvers/python-import-resolver';
 
 /**
  * Python language plugin.
- * Provides basic language support. Build configuration and import resolution
- * are not yet implemented for Python.
+ * Provides language support including import resolution.
+ * Build configuration is not yet implemented for Python.
  */
 export class PythonPlugin extends BaseLanguagePlugin {
 	readonly language: ParserLanguage = 'python';
-	readonly extensions: string[] = ['.py', '.pyi'];
+	readonly extensions: string[] = ['.py', '.pyi', '.pyw'];
 
 	/**
 	 * Gets a build configuration manager for Python projects.
@@ -27,12 +28,12 @@ export class PythonPlugin extends BaseLanguagePlugin {
 
 	/**
 	 * Gets an import path resolver for Python files.
-	 * Returns null — Python import resolution is not yet implemented.
+	 * Resolves relative imports, stdlib modules, and local project modules.
 	 */
 	getImportResolver(
 		sourceFilePath: string,
 		buildConfig?: any,
 	): ImportResolver | null {
-		return null;
+		return new PythonImportResolver(sourceFilePath, process.cwd());
 	}
 }

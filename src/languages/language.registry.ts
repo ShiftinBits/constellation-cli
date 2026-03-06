@@ -40,7 +40,7 @@ export const LANGUAGE_EXTENSIONS: { [key: string]: string[] } = {
 	javascript: ['.js', '.jsx'],
 	json: ['.json'],
 	php: ['.php'],
-	python: ['.py', '.pyi'],
+	python: ['.py', '.pyi', '.pyw'],
 	ruby: ['.rb'],
 	typescript: ['.ts', '.tsx'],
 };

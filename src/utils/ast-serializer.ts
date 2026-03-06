@@ -445,10 +445,18 @@ export const PYTHON_FIELD_NAMES: Readonly<Record<string, string[]>> = {
 
 	// Exception handling
 	except_clause: ['cause'],
+	except_group_clause: ['cause'],
 
 	// Return/Assert
 	return_statement: ['value'],
 	assert_statement: ['condition', 'message'],
+
+	// Delete
+	delete_statement: ['target'],
+
+	// Scope declarations
+	global_statement: ['name'],
+	nonlocal_statement: ['name'],
 
 	// Parameters
 	typed_parameter: ['name', 'type'],
@@ -464,6 +472,7 @@ export const PYTHON_FIELD_NAMES: Readonly<Record<string, string[]>> = {
 	boolean_operator: ['left', 'right'],
 	comparison_operator: ['operators'],
 	named_expression: ['name', 'value'],
+	conditional_expression: ['condition', 'consequence', 'alternative'],
 	keyword_argument: ['name', 'value'],
 
 	// Control flow

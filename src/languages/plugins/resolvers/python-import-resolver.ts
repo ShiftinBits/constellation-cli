@@ -62,6 +62,7 @@ export class PythonImportResolver implements ImportResolver {
 		const variations = [
 			`${basePath}.py`,
 			`${basePath}.pyi`,
+			`${basePath}.pyw`,
 			path.join(basePath, '__init__.py'),
 			path.join(basePath, '__init__.pyi'),
 		];

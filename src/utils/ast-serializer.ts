@@ -469,7 +469,7 @@ export const PYTHON_FIELD_NAMES: Readonly<Record<string, string[]>> = {
 	// Control flow
 	if_statement: ['condition', 'consequence', 'alternative'],
 	while_statement: ['condition', 'body', 'alternative'],
-	for_statement: ['left', 'right'],
+	for_statement: ['left', 'right', 'body'],
 	try_statement: ['body'],
 	with_statement: ['body'],
 	with_item: ['value'],

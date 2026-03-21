@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+
+	"configurations": [
+		{
+			"name": "Debug CLI",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceFolder}/src/index.ts",
+			"args": "${input:cmd}",
+			"runtimeExecutable": "tsx",
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "neverOpen",
+			"skipFiles": ["<node_internals>/**", "${workspaceFolder}/node_modules/**"]
+		}
+	],
+	"inputs": [
+		{
+			"id": "cmd",
+			"type": "pickString",
+			"description": "Select CLI command",
+			"options": ["index", "init", "auth"],
+			"default": "index"
+		}
+	]
+}

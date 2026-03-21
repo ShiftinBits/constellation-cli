@@ -1,0 +1,36 @@
+
+# Claude Local Settings
+.claude/settings.local.json
+.claude/plans
+.claude/worktrees
+
+docs/plans
+
+# Git worktrees
+.worktrees/
+
+# TSConfig Composite Build Info
+tsconfig.build.tsbuildinfo
+
+# Temporary Folders
+tmp/
+temp/
+
+coverage/
+
+**/node_modules/**
+**/dist/**
+**/build/**
+**/release/**
+**/releases/**
+
+*-debug.log
+*-error.log
+**/.DS_Store
+/.idea
+/dist
+/tmp
+/node_modules
+
+yarn.lock
+pnpm-lock.yaml

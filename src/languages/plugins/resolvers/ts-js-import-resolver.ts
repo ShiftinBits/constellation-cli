@@ -262,7 +262,7 @@ export class TsJsImportResolver implements ImportResolver {
 		wildcardMatch: string,
 	): Promise<string | null> {
 		// Replace wildcard in substitution
-		const resolvedPath = substitution.replace('*', wildcardMatch);
+		const resolvedPath = substitution.replaceAll('*', wildcardMatch);
 
 		// Resolve relative to tsconfig directory
 		const absolutePath = path.resolve(this.tsconfigDir, resolvedPath);
@@ -512,7 +512,7 @@ export class TsJsImportResolver implements ImportResolver {
 		}
 
 		// Replace wildcard in target path
-		const resolvedPath = targetPath.replace('*', wildcardMatch);
+		const resolvedPath = targetPath.replaceAll('*', wildcardMatch);
 
 		// Resolve relative to package.json directory
 		const absolutePath = path.resolve(this.packageJsonDir, resolvedPath);

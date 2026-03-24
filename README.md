@@ -35,8 +35,9 @@ Currently supports:
 
 - **JavaScript**
 - **TypeScript**
+- **Python**
 
-_Additional languages (C, C++, C#, Go, Java, JSON, PHP, Python, Ruby, Shell) coming soon_
+_Additional languages (C, C++, C#, Go, Java, JSON, PHP, Ruby, Shell) coming soon_
 
 ### Security
 

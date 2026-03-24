@@ -1,7 +1,7 @@
 {
 	"name": "@constellationdev/cli",
 	"description": "Transform your codebase into a constellation of intelligence - secure knowledge extraction and code navigation for AI assistants",
-	"version": "0.0.1",
+	"version": "0.1.1",
 	"author": "ShiftinBits Inc",
 	"main": "dist/index.js",
 	"type": "module",

@@ -69,7 +69,10 @@
 	],
 	"homepage": "https://constellationdev.io",
 	"bugs": "https://github.com/ShiftinBits/constellation-cli/issues",
-	"repository": "https://github.com/ShiftinBits/constellation-cli",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ShiftinBits/constellation-cli.git"
+	},
 	"keywords": [
 		"constellation",
 		"mcp",

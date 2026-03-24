@@ -1155,4 +1155,73 @@ describe('TsJsImportResolver', () => {
 			expect(result).toBe('./shared/utils.ts');
 		});
 	});
+
+	describe('resolve - multi-wildcard replacement (SB-426 regression)', () => {
+		it('should replace all wildcards in path alias substitution', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {
+					compilerOptions: {
+						baseUrl: './',
+						paths: {
+							'@lib/*': ['src/*/index'],
+						},
+					},
+				},
+			} as TSConfckParseResult;
+
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (filePath === '/project/src/utils/index.ts') {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			const resolver = new TsJsImportResolver(
+				'/project/src/index.ts',
+				tsconfig,
+			);
+			const result = await resolver.resolve('@lib/utils');
+
+			expect(result).toBe('./src/utils/index.ts');
+		});
+
+		it('should replace all wildcards in package.json imports substitution', async () => {
+			const tsconfig: TSConfckParseResult = {
+				tsconfigFile: '/project/tsconfig.json',
+				tsconfig: {},
+			} as TSConfckParseResult;
+
+			const packageJsonContent = JSON.stringify({
+				imports: {
+					'#mod/*': './lib/*/mod/*.js',
+				},
+			});
+
+			mockFs.stat.mockImplementation((filePath: any) => {
+				if (
+					filePath === '/project/package.json' ||
+					filePath === '/project/lib/utils/mod/utils.js'
+				) {
+					return Promise.resolve({ isFile: () => true } as any);
+				}
+				return Promise.reject(new Error('not found'));
+			});
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(mockFs.readFile as any).mockResolvedValue(packageJsonContent as any);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(mockFs.realpath as any).mockImplementation((p: any) =>
+				Promise.resolve(p),
+			);
+
+			const resolver = new TsJsImportResolver(
+				'/project/src/index.js',
+				tsconfig,
+			);
+			const result = await resolver.resolve('#mod/utils');
+
+			expect(result).toBe('./lib/utils/mod/utils.js');
+		});
+	});
 });

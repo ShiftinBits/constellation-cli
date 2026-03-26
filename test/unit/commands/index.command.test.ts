@@ -843,7 +843,7 @@ describe('IndexCommand', () => {
 			expect(typeof mockEnv.isCI()).toBe('boolean');
 		});
 
-		it('should default to full index when isCI returns true and no explicit flags', async () => {
+		it('should perform full scan when fullIndex is true in CI environment', async () => {
 			mockEnv.isCI.mockReturnValue(true);
 
 			const command = new IndexCommand({
@@ -853,7 +853,6 @@ describe('IndexCommand', () => {
 				LanguageRegistry: mockLangRegistry,
 			});
 
-			// When CI is detected and run with fullIndex=true, it should do a full scan
 			await command.run(true);
 
 			const FileScanner =
@@ -901,23 +900,6 @@ describe('IndexCommand', () => {
 			expect(consoleLogSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Upload completed'),
 			);
-		});
-
-		it('should return false for isCI when not in CI environment', () => {
-			mockEnv.isCI.mockReturnValue(false);
-			expect(mockEnv.isCI()).toBe(false);
-		});
-
-		it('should return true for isCI when CI env var is set', () => {
-			mockEnv.isCI.mockReturnValue(true);
-			expect(mockEnv.isCI()).toBe(true);
-		});
-
-		it('should return true for isCI when GITHUB_ACTIONS env var is set', () => {
-			// The actual env var detection is tested in env-manager.test.ts
-			// Here we verify the mock integrates correctly with IndexCommand
-			mockEnv.isCI.mockReturnValue(true);
-			expect(mockEnv.isCI()).toBe(true);
 		});
 	});
 });

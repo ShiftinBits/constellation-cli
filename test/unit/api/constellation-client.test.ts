@@ -9,6 +9,7 @@ import {
 import {
 	AuthenticationError,
 	ConstellationClient,
+	IndexingInProgressError,
 	NotFoundError,
 	ProjectValidationError,
 	RetryableError,
@@ -451,6 +452,148 @@ describe('ConstellationClient', () => {
 				),
 			).rejects.toThrow(AuthenticationError);
 		});
+
+		it('should include x-commit-hash header when commitHash provided', async () => {
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield createTestAST();
+				},
+			};
+
+			const mockNdJsonStream = {};
+			(
+				NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>
+			).mockImplementation(() => mockNdJsonStream as any);
+
+			const mockReadable = { toWeb: jest.fn().mockReturnValue({}) };
+			jest.doMock('stream', () => ({ Readable: mockReadable }), {
+				virtual: true,
+			});
+
+			mockUndiciFetch.mockResolvedValue(createMockResponse(200, true));
+
+			await client.streamToApi(
+				mockStream as any,
+				'upload',
+				'test-namespace',
+				'test-branch',
+				false,
+				'abc123def456',
+			);
+
+			expect(mockUndiciFetch).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.objectContaining({
+					headers: expect.objectContaining({
+						'x-commit-hash': 'abc123def456',
+					}),
+				}),
+			);
+		});
+
+		it('should omit x-commit-hash header when commitHash undefined', async () => {
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield createTestAST();
+				},
+			};
+
+			const mockNdJsonStream = {};
+			(
+				NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>
+			).mockImplementation(() => mockNdJsonStream as any);
+
+			const mockReadable = { toWeb: jest.fn().mockReturnValue({}) };
+			jest.doMock('stream', () => ({ Readable: mockReadable }), {
+				virtual: true,
+			});
+
+			mockUndiciFetch.mockResolvedValue(createMockResponse(200, true));
+
+			await client.streamToApi(
+				mockStream as any,
+				'upload',
+				'test-namespace',
+				'test-branch',
+				false,
+			);
+
+			const callHeaders = mockUndiciFetch.mock.calls[0][1].headers;
+			expect(callHeaders).not.toHaveProperty('x-commit-hash');
+		});
+
+		it('should return true on 200 with status current (no-op)', async () => {
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield createTestAST();
+				},
+			};
+
+			const mockNdJsonStream = {};
+			(
+				NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>
+			).mockImplementation(() => mockNdJsonStream as any);
+
+			const mockReadable = { toWeb: jest.fn().mockReturnValue({}) };
+			jest.doMock('stream', () => ({ Readable: mockReadable }), {
+				virtual: true,
+			});
+
+			mockUndiciFetch.mockResolvedValue(
+				createMockResponse(200, true, {
+					status: 'current',
+					commitHash: 'abc123',
+				}),
+			);
+
+			const result = await client.streamToApi(
+				mockStream as any,
+				'upload',
+				'test-namespace',
+				'test-branch',
+				false,
+			);
+
+			expect(result).toBe(true);
+			expect(console.log).toHaveBeenCalledWith(
+				expect.stringContaining('Index already up to date'),
+			);
+		});
+
+		it('should throw IndexingInProgressError on 409 response', async () => {
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield createTestAST();
+				},
+			};
+
+			const mockNdJsonStream = {};
+			(
+				NdJsonStreamWriter as jest.MockedClass<typeof NdJsonStreamWriter>
+			).mockImplementation(() => mockNdJsonStream as any);
+
+			const mockReadable = { toWeb: jest.fn().mockReturnValue({}) };
+			jest.doMock('stream', () => ({ Readable: mockReadable }), {
+				virtual: true,
+			});
+
+			mockUndiciFetch.mockResolvedValue(
+				createMockResponse(409, false, {
+					message: 'Indexing already in progress',
+					details: { branchName: 'main' },
+				}),
+			);
+
+			await expect(
+				client.streamToApi(
+					mockStream as any,
+					'upload',
+					'test-namespace',
+					'test-branch',
+					false,
+				),
+			).rejects.toThrow(IndexingInProgressError);
+		});
 	});
 
 	describe('retry logic', () => {
@@ -690,5 +833,112 @@ describe('ProjectValidationError', () => {
 		);
 
 		expect(error.projectId).toBeUndefined();
+	});
+});
+
+describe('IndexingInProgressError', () => {
+	it('should create error with correct name, message, and branchName', () => {
+		const error = new IndexingInProgressError(
+			'Indexing already in progress',
+			'main',
+		);
+
+		expect(error).toBeInstanceOf(Error);
+		expect(error.name).toBe('IndexingInProgressError');
+		expect(error.message).toBe('Indexing already in progress');
+		expect(error.branchName).toBe('main');
+	});
+
+	it('should work without branchName', () => {
+		const error = new IndexingInProgressError('Indexing in progress');
+
+		expect(error.branchName).toBeUndefined();
+	});
+});
+
+describe('getIndexStatus', () => {
+	let client: ConstellationClient;
+	const mockAccessKey = 'test-access-key';
+	const mockFetchLocal = jest.fn() as jest.MockedFunction<typeof fetch>;
+
+	beforeEach(() => {
+		jest.useFakeTimers();
+		jest.clearAllMocks();
+		global.fetch = mockFetchLocal;
+
+		const mockConfig = {
+			apiUrl: 'https://api.constellation.test',
+			projectId: 'test-project',
+			branch: 'main',
+			languages: {},
+		} as any;
+
+		client = new ConstellationClient(mockConfig, mockAccessKey);
+	});
+
+	afterEach(() => {
+		jest.useRealTimers();
+		jest.restoreAllMocks();
+	});
+
+	it('should call correct URL with branch and commit params', async () => {
+		const mockResponse = {
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			json: jest
+				.fn<() => Promise<Record<string, any>>>()
+				.mockResolvedValue({ status: 'current' }),
+			headers: new Headers(),
+		} as any;
+		mockFetchLocal.mockResolvedValue(mockResponse);
+
+		await client.getIndexStatus('main', 'abc123');
+
+		expect(mockFetchLocal).toHaveBeenCalledWith(
+			'https://api.constellation.test/intel/v1/projects/test-project/index-status?branch=main&commit=abc123',
+			expect.objectContaining({ method: 'GET' }),
+		);
+	});
+
+	it('should return response on 200', async () => {
+		const mockResponse = {
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			json: jest
+				.fn<() => Promise<Record<string, any>>>()
+				.mockResolvedValue({ status: 'current', commitHash: 'abc123' }),
+			headers: new Headers(),
+		} as any;
+		mockFetchLocal.mockResolvedValue(mockResponse);
+
+		const result = await client.getIndexStatus('main', 'abc123');
+
+		// sendRequest returns the Response object
+		expect(result).toBeDefined();
+	});
+
+	it('should return null on network error', async () => {
+		mockFetchLocal.mockRejectedValue(new Error('Network error'));
+
+		const result = await client.getIndexStatus('main');
+
+		expect(result).toBeNull();
+	});
+
+	it('should re-throw AuthenticationError', async () => {
+		const mockResponse = {
+			ok: false,
+			status: 401,
+			statusText: 'Unauthorized',
+			json: jest.fn<() => Promise<Record<string, any>>>().mockResolvedValue({}),
+			headers: new Headers(),
+		} as any;
+		mockFetchLocal.mockResolvedValue(mockResponse);
+
+		await expect(client.getIndexStatus('main')).rejects.toThrow(
+			AuthenticationError,
+		);
 	});
 });

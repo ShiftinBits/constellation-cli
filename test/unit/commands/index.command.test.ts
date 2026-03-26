@@ -13,6 +13,7 @@ import { CrossPlatformEnvironment } from '../../../src/env/env-manager';
 import { GitClient } from '../../../src/utils/git-client';
 import {
 	ConstellationClient,
+	IndexingInProgressError,
 	NotFoundError,
 } from '../../../src/api/constellation-client';
 import { FileScanner } from '../../../src/scanners/file-scanner';
@@ -121,6 +122,8 @@ describe('IndexCommand', () => {
 		mockApiClient = {
 			// @ts-expect-error - Jest mock typing
 			getProjectState: jest.fn().mockResolvedValue(null),
+			// @ts-expect-error - Jest mock typing
+			getIndexStatus: jest.fn().mockResolvedValue(null),
 			// @ts-expect-error - Jest mock typing
 			deleteFiles: jest.fn().mockResolvedValue(undefined),
 			// @ts-expect-error - Jest mock typing
@@ -834,6 +837,177 @@ describe('IndexCommand', () => {
 			expect(consoleLogSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Upload completed'),
 			);
+		});
+	});
+
+	describe('pre-parse freshness check', () => {
+		let command: IndexCommand;
+
+		beforeEach(() => {
+			command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry,
+			});
+		});
+
+		it('should skip parsing when getIndexStatus returns current', async () => {
+			// Set up incremental index scenario
+			mockApiClient.getProjectState.mockResolvedValue({
+				projectId: 'test-project',
+				projectName: 'test-project',
+				branch: 'main',
+				latestCommit: 'old-commit-123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript'],
+			});
+			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
+			mockApiClient.getIndexStatus.mockResolvedValue({
+				status: 'current',
+				commitHash: 'new-commit-456',
+			});
+
+			await command.run(false);
+
+			expect(mockApiClient.getIndexStatus).toHaveBeenCalledWith(
+				'main',
+				'new-commit-456',
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Index already up to date for branch main'),
+			);
+			// Should NOT reach upload
+			expect(mockApiClient.streamToApi).not.toHaveBeenCalled();
+		});
+
+		it('should skip parsing when getIndexStatus returns processing with matching commit', async () => {
+			mockApiClient.getProjectState.mockResolvedValue({
+				projectId: 'test-project',
+				projectName: 'test-project',
+				branch: 'main',
+				latestCommit: 'old-commit-123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript'],
+			});
+			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
+			mockApiClient.getIndexStatus.mockResolvedValue({
+				status: 'processing',
+				commitHash: 'new-commit-456',
+			});
+
+			await command.run(false);
+
+			expect(mockApiClient.streamToApi).not.toHaveBeenCalled();
+		});
+
+		it('should proceed when getIndexStatus returns stale', async () => {
+			mockApiClient.getProjectState.mockResolvedValue({
+				projectId: 'test-project',
+				projectName: 'test-project',
+				branch: 'main',
+				latestCommit: 'old-commit-123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript'],
+			});
+			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
+			mockApiClient.getIndexStatus.mockResolvedValue({
+				status: 'stale',
+				commitHash: 'old-commit-123',
+			});
+
+			await command.run(false);
+
+			expect(mockApiClient.streamToApi).toHaveBeenCalled();
+		});
+
+		it('should proceed when getIndexStatus returns null', async () => {
+			mockApiClient.getProjectState.mockResolvedValue({
+				projectId: 'test-project',
+				projectName: 'test-project',
+				branch: 'main',
+				latestCommit: 'old-commit-123',
+				fileCount: 10,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript'],
+			});
+			mockGit.getLatestCommitHash.mockResolvedValue('new-commit-456');
+			mockApiClient.getIndexStatus.mockResolvedValue(null);
+
+			await command.run(false);
+
+			expect(mockApiClient.streamToApi).toHaveBeenCalled();
+		});
+
+		it('should skip freshness check for full index', async () => {
+			await command.run(true);
+
+			expect(mockApiClient.getIndexStatus).not.toHaveBeenCalled();
+			expect(mockApiClient.streamToApi).toHaveBeenCalled();
+		});
+	});
+
+	describe('IndexingInProgressError handling', () => {
+		it('should display actionable message for IndexingInProgressError', async () => {
+			// Override streamToApi to throw IndexingInProgressError
+			mockApiClient.streamToApi.mockImplementation(() => {
+				return Promise.reject(
+					new IndexingInProgressError('Indexing already in progress', 'main'),
+				);
+			});
+
+			const command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry,
+			});
+
+			let thrownError: Error | undefined;
+			try {
+				await command.run(true);
+			} catch (error) {
+				thrownError = error as Error;
+			}
+
+			// Verify the error was thrown and is the right type
+			expect(thrownError).toBeDefined();
+			expect(thrownError).toBeInstanceOf(IndexingInProgressError);
+
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining(
+					'Another indexing operation is currently in progress',
+				),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining(
+					'Re-run this command after the current operation completes',
+				),
+			);
+		});
+	});
+
+	describe('commit hash passthrough', () => {
+		it('should pass commit hash to streamToApi', async () => {
+			mockGit.getLatestCommitHash.mockResolvedValue('commit-hash-789');
+
+			const command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry,
+			});
+
+			await command.run(false);
+
+			// Verify commit hash is passed as the last argument
+			const streamCall = mockApiClient.streamToApi.mock.calls[0];
+			expect(streamCall[1]).toBe('ast'); // path
+			expect(streamCall[3]).toBe('main'); // branchName
+			expect(streamCall[5]).toBe('commit-hash-789'); // commitHash
 		});
 	});
 

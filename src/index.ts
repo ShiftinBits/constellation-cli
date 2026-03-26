@@ -19,7 +19,7 @@ import { checkForUpdates } from './update';
 import { printBanner } from './utils/constants';
 import { shouldShowBanner } from './utils/environment-detector';
 import { GitClient } from './utils/git-client';
-import { RED_X } from './utils/unicode-chars';
+import { BLUE_INFO, RED_X } from './utils/unicode-chars';
 
 // Read version from package.json
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -131,8 +131,16 @@ program
 				Environment: cpEnvironment,
 			};
 
-			const fullIndex = params.full || false;
+			const isCI = cpEnvironment.isCI();
+			const fullIndex = params.full || (!params.incremental && isCI);
 			const gitDirty = params.dirty || false;
+
+			if (!params.full && !params.incremental && isCI) {
+				console.log(
+					`${BLUE_INFO} CI environment detected — defaulting to full index. Use --incremental to override.`,
+				);
+			}
+
 			const indexCommand = new IndexCommand(commandDeps);
 			await indexCommand.run(fullIndex, gitDirty);
 		} catch (error) {

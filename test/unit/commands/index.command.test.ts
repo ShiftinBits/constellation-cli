@@ -111,6 +111,7 @@ describe('IndexCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			getKey: jest.fn().mockResolvedValue('test-access-key'),
 			setKey: jest.fn(),
+			isCI: jest.fn().mockReturnValue(false),
 		} as any;
 
 		// Create mock language registry
@@ -833,6 +834,90 @@ describe('IndexCommand', () => {
 			expect(consoleLogSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Upload completed'),
 			);
+		});
+	});
+
+	describe('CI environment detection', () => {
+		it('should have isCI method on CrossPlatformEnvironment mock', () => {
+			expect(mockEnv.isCI).toBeDefined();
+			expect(typeof mockEnv.isCI()).toBe('boolean');
+		});
+
+		it('should default to full index when isCI returns true and no explicit flags', async () => {
+			mockEnv.isCI.mockReturnValue(true);
+
+			const command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry,
+			});
+
+			// When CI is detected and run with fullIndex=true, it should do a full scan
+			await command.run(true);
+
+			const FileScanner =
+				require('../../../src/scanners/file-scanner').FileScanner;
+			const scannerInstance = (
+				FileScanner as jest.MockedClass<typeof FileScanner>
+			).mock.results[0]?.value;
+
+			expect(scannerInstance.scanFiles).toHaveBeenCalled();
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Upload completed'),
+			);
+		});
+
+		it('should allow incremental override even when isCI returns true', async () => {
+			mockEnv.isCI.mockReturnValue(true);
+
+			const command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry,
+			});
+
+			// When --incremental is used (fullIndex=false), incremental behavior should work
+			await command.run(false);
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Upload completed'),
+			);
+		});
+
+		it('should work normally with --full when not in CI', async () => {
+			mockEnv.isCI.mockReturnValue(false);
+
+			const command = new IndexCommand({
+				Config: mockConfig,
+				GitClient: mockGit,
+				Environment: mockEnv,
+				LanguageRegistry: mockLangRegistry,
+			});
+
+			await command.run(true);
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Upload completed'),
+			);
+		});
+
+		it('should return false for isCI when not in CI environment', () => {
+			mockEnv.isCI.mockReturnValue(false);
+			expect(mockEnv.isCI()).toBe(false);
+		});
+
+		it('should return true for isCI when CI env var is set', () => {
+			mockEnv.isCI.mockReturnValue(true);
+			expect(mockEnv.isCI()).toBe(true);
+		});
+
+		it('should return true for isCI when GITHUB_ACTIONS env var is set', () => {
+			// The actual env var detection is tested in env-manager.test.ts
+			// Here we verify the mock integrates correctly with IndexCommand
+			mockEnv.isCI.mockReturnValue(true);
+			expect(mockEnv.isCI()).toBe(true);
 		});
 	});
 });

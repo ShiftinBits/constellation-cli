@@ -49,7 +49,8 @@ export class ConstellationConfig implements IConstellationConfig {
 		readonly projectId: string,
 		readonly exclude?: string[],
 	) {
-		this.apiUrl = process.env.CONSTELLATION_API_URL || 'http://localhost:3000';
+		this.apiUrl =
+			process.env.CONSTELLATION_API_URL || 'https://api.constellationdev.io';
 	}
 
 	/**

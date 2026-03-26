@@ -1,10 +1,10 @@
 import {
-	describe,
-	it,
-	expect,
-	jest,
-	beforeEach,
 	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	jest,
 } from '@jest/globals';
 import {
 	ConstellationConfig,
@@ -12,11 +12,7 @@ import {
 	IConstellationLanguageConfig,
 } from '../../../src/config/config';
 import { FileUtils } from '../../../src/utils/file.utils';
-import {
-	createTempDir,
-	cleanupTempDir,
-	createTestFile,
-} from '../../helpers/test-utils';
+import { cleanupTempDir, createTempDir } from '../../helpers/test-utils';
 
 // Helper function to create test language configurations
 function createTestLanguageConfig(
@@ -56,7 +52,7 @@ describe('ConstellationConfig', () => {
 				['node_modules', '.git'],
 			);
 
-			expect(config.apiUrl).toBe('http://localhost:3000');
+			expect(config.apiUrl).toBe('https://api.constellationdev.io');
 			expect(config.branch).toBe('main');
 			expect(config.languages).toBe(languages);
 			expect(config.projectId).toBe('test-project');
@@ -74,7 +70,7 @@ describe('ConstellationConfig', () => {
 				'my-project',
 			);
 
-			expect(config.apiUrl).toBe('http://localhost:3000');
+			expect(config.apiUrl).toBe('https://api.constellationdev.io');
 			expect(config.branch).toBe('develop');
 			expect(config.languages).toBe(languages);
 			expect(config.projectId).toBe('my-project');
@@ -101,7 +97,7 @@ describe('ConstellationConfig', () => {
 				'/path/to/config.json',
 			);
 
-			expect(config.apiUrl).toBe('http://localhost:3000');
+			expect(config.apiUrl).toBe('https://api.constellationdev.io');
 			expect(config.branch).toBe(configData.branch);
 			expect(config.languages).toEqual(configData.languages);
 			expect(config.projectId).toBe(configData.projectId);
@@ -211,7 +207,7 @@ describe('ConstellationConfig', () => {
 				'test-project',
 			);
 
-			expect(config.apiUrl).toBe('http://localhost:3000');
+			expect(config.apiUrl).toBe('https://api.constellationdev.io');
 		});
 
 		it('should throw error if branch is missing', () => {
@@ -448,7 +444,7 @@ describe('ConstellationConfig', () => {
 				'test-project',
 			);
 
-			expect(config.apiUrl).toBe('http://localhost:3000');
+			expect(config.apiUrl).toBe('https://api.constellationdev.io');
 		});
 	});
 });

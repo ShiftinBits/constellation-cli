@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks';
 import {
 	AuthenticationError,
 	ConstellationClient,
+	IndexingInProgressError,
 	NotFoundError,
 	ProjectValidationError,
 } from '../api/constellation-client';
@@ -130,13 +131,33 @@ export default class IndexCommand extends BaseCommand {
 			// Step 5: Determine Index Scope
 			const indexScopeResult = await this.determineIndexScope(forceFullIndex);
 
+			// Get commit hash once for freshness check and upload
+			const currentCommit = await this.git!.getLatestCommitHash();
+
 			// Exit early if already up-to-date
 			if (indexScopeResult.upToDate) {
-				const currentCommit = await this.git!.getLatestCommitHash();
 				console.log(
 					`\n${GREEN_CHECK} Index is already up-to-date for ${this.config!.projectId} on ${this.config!.branch} commit ${currentCommit.substring(0, 8)}`,
 				);
 				return;
+			}
+
+			// Pre-parse freshness check: skip parsing if server already has this commit
+			if (indexScopeResult.isIncremental && currentCommit) {
+				const indexStatus = await this.apiClient!.getIndexStatus(
+					this.config!.branch,
+					currentCommit,
+				);
+				if (
+					indexStatus?.status === 'current' ||
+					(indexStatus?.status === 'processing' &&
+						indexStatus?.commitHash === currentCommit)
+				) {
+					console.log(
+						`${GREEN_CHECK} Index already up to date for branch ${this.config!.branch} at commit ${currentCommit.substring(0, 8)}`,
+					);
+					return;
+				}
 			}
 
 			// Step 6: Analyze Codebase
@@ -162,7 +183,11 @@ export default class IndexCommand extends BaseCommand {
 
 			// Upload to API - mark complete when done (success or failure)
 			try {
-				await this.uploadToAPI(astDataStream, indexScopeResult.isIncremental);
+				await this.uploadToAPI(
+					astDataStream,
+					indexScopeResult.isIncremental,
+					currentCommit,
+				);
 				uploadComplete = true;
 			} catch (error) {
 				uploadComplete = true;
@@ -185,6 +210,16 @@ export default class IndexCommand extends BaseCommand {
 		} catch (error) {
 			// Project validation errors are already displayed by validateProject()
 			if (error instanceof ProjectValidationError) {
+				throw error;
+			}
+			// Provide actionable message for concurrent indexing conflicts
+			if (error instanceof IndexingInProgressError) {
+				console.error(
+					`${RED_X} Indexing failed: Another indexing operation is currently in progress for branch ${error.branchName || this.config?.branch || 'unknown'}.`,
+				);
+				console.log(
+					'  Your index may be out of date. Re-run this command after the current operation completes.',
+				);
 				throw error;
 			}
 			// Provide actionable message for auth failures
@@ -676,6 +711,7 @@ export default class IndexCommand extends BaseCommand {
 	private async uploadToAPI(
 		astDataStream: AsyncGenerator<SerializedAST>,
 		incremental: boolean,
+		commitHash?: string,
 	): Promise<void> {
 		const uploadSuccess = await this.apiClient!.streamToApi(
 			astDataStream,
@@ -683,6 +719,7 @@ export default class IndexCommand extends BaseCommand {
 			this.config!.projectId,
 			this.config!.branch,
 			incremental,
+			commitHash,
 		);
 		if (!uploadSuccess) {
 			throw new Error('Failed to upload data to Constellation Service');

@@ -3,7 +3,7 @@ import { ConstellationConfig } from '../config/config';
 import type { ProjectState, SerializedAST } from '@constellationdev/types';
 import { generateAstId } from '../utils/id.utils';
 import { NdJsonStreamWriter } from '../utils/ndjson-streamwriter';
-import { RED_X } from '../utils/unicode-chars';
+import { GREEN_CHECK, RED_X } from '../utils/unicode-chars';
 
 /**
  * Client for communicating with the Constellation central service.
@@ -134,6 +134,30 @@ export class ConstellationClient {
 	}
 
 	/**
+	 * Queries the index status for a given branch and optional commit.
+	 * @param branch Branch name to check
+	 * @param commit Optional commit hash to check
+	 * @returns Index status object if available, null on error
+	 * @throws AuthenticationError if authentication fails
+	 */
+	async getIndexStatus(
+		branch: string,
+		commit?: string,
+	): Promise<Record<string, any> | null> {
+		const params = new URLSearchParams({ branch });
+		if (commit) params.set('commit', commit);
+		const path = `projects/${encodeURIComponent(this.config.projectId)}/index-status?${params.toString()}`;
+		try {
+			const response = await this.sendRequest(path, null, 'GET');
+			if (!response || !response.ok) return null;
+			return (await response.json()) as Record<string, any>;
+		} catch (error) {
+			if (error instanceof AuthenticationError) throw error;
+			return null;
+		}
+	}
+
+	/**
 	 * Removes AST data for deleted files from the central service.
 	 * @param deletedFiles Array of file paths that have been deleted
 	 * @throws Error if deletion fails for any file
@@ -169,6 +193,7 @@ export class ConstellationClient {
 		projectId: string,
 		branchName: string,
 		incrementalIndex: boolean,
+		commitHash?: string,
 	): Promise<boolean> {
 		try {
 			const { Readable } = await import('stream');
@@ -198,6 +223,7 @@ export class ConstellationClient {
 						'x-branch-name': branchName,
 						'x-constellation-index': incrementalIndex ? 'incremental' : 'full',
 						Authorization: `Bearer ${this.accessKey}`,
+						...(commitHash && { 'x-commit-hash': commitHash }),
 					},
 					body: webStream,
 					duplex: 'half', // Required for streaming requests in fetch
@@ -210,11 +236,44 @@ export class ConstellationClient {
 				throw new AuthenticationError('Authentication failed');
 			}
 
+			// Handle concurrent indexing conflict
+			if (response.status === 409) {
+				let errorMessage = 'Indexing already in progress';
+				let errorBranch: string | undefined;
+				try {
+					const body = (await response.json()) as Record<string, any>;
+					errorMessage = body?.message || errorMessage;
+					errorBranch = body?.details?.branchName;
+				} catch {
+					/* ignore parse errors */
+				}
+				throw new IndexingInProgressError(errorMessage, errorBranch);
+			}
+
+			// Handle 200 no-op when server-side deduplication detects index is current.
+			// Non-"current" 200s (e.g., legacy responses) fall through to the ok check below.
+			if (response.status === 200) {
+				try {
+					const body = (await response.json()) as Record<string, any>;
+					if (body?.status === 'current') {
+						console.log(
+							`${GREEN_CHECK} Index already up to date for ${branchName} at commit ${body.commitHash || 'unknown'}`,
+						);
+						return true;
+					}
+				} catch {
+					/* parse failed — treat as legacy 200, fall through */
+				}
+			}
+
 			// Accept both 200 (legacy) and 202 (async processing)
 			return response.ok === true || response.status === 202;
 		} catch (error: any) {
-			// Re-throw AuthenticationError so callers can handle it
+			// Re-throw known error types so callers can handle them
 			if (error instanceof AuthenticationError) {
+				throw error;
+			}
+			if (error instanceof IndexingInProgressError) {
 				throw error;
 			}
 
@@ -435,5 +494,19 @@ export class ProjectValidationError extends Error {
 	) {
 		super(message);
 		this.name = 'ProjectValidationError';
+	}
+}
+
+/**
+ * Error thrown when an indexing operation is already in progress (409 status code).
+ * Provides the branch name for actionable error messaging.
+ */
+export class IndexingInProgressError extends Error {
+	constructor(
+		message: string,
+		public readonly branchName?: string,
+	) {
+		super(message);
+		this.name = 'IndexingInProgressError';
 	}
 }

@@ -154,7 +154,7 @@ export default class IndexCommand extends BaseCommand {
 						indexStatus?.commitHash === currentCommit)
 				) {
 					console.log(
-						`${GREEN_CHECK} Index already up to date for branch ${this.config!.branch} at commit ${currentCommit.substring(0, 7)}`,
+						`${GREEN_CHECK} Index already up to date for branch ${this.config!.branch} at commit ${currentCommit.substring(0, 8)}`,
 					);
 					return;
 				}

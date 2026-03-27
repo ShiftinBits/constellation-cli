@@ -250,7 +250,8 @@ export class ConstellationClient {
 				throw new IndexingInProgressError(errorMessage, errorBranch);
 			}
 
-			// Handle 200 no-op when index is already current
+			// Handle 200 no-op when server-side deduplication detects index is current.
+			// Non-"current" 200s (e.g., legacy responses) fall through to the ok check below.
 			if (response.status === 200) {
 				try {
 					const body = (await response.json()) as Record<string, any>;
@@ -261,7 +262,7 @@ export class ConstellationClient {
 						return true;
 					}
 				} catch {
-					/* ignore parse errors, fall through */
+					/* parse failed — treat as legacy 200, fall through */
 				}
 			}
 

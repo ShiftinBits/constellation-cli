@@ -148,8 +148,9 @@ export class ConstellationClient {
 		if (commit) params.set('commit', commit);
 		const path = `projects/${encodeURIComponent(this.config.projectId)}/index-status?${params.toString()}`;
 		try {
-			const result = await this.sendRequest(path, null, 'GET');
-			return result as Record<string, any>;
+			const response = await this.sendRequest(path, null, 'GET');
+			if (!response || !response.ok) return null;
+			return (await response.json()) as Record<string, any>;
 		} catch (error) {
 			if (error instanceof AuthenticationError) throw error;
 			return null;

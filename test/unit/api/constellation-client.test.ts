@@ -901,7 +901,7 @@ describe('getIndexStatus', () => {
 		);
 	});
 
-	it('should return response on 200', async () => {
+	it('should return parsed JSON body on 200', async () => {
 		const mockResponse = {
 			ok: true,
 			status: 200,
@@ -915,8 +915,25 @@ describe('getIndexStatus', () => {
 
 		const result = await client.getIndexStatus('main', 'abc123');
 
-		// sendRequest returns the Response object
-		expect(result).toBeDefined();
+		expect(result).toEqual({ status: 'current', commitHash: 'abc123' });
+		expect(mockResponse.json).toHaveBeenCalled();
+	});
+
+	it('should return null on non-ok response', async () => {
+		const mockResponse = {
+			ok: false,
+			status: 404,
+			statusText: 'Not Found',
+			json: jest
+				.fn<() => Promise<Record<string, any>>>()
+				.mockResolvedValue({ code: 'NOT_FOUND' }),
+			headers: new Headers(),
+		} as any;
+		mockFetchLocal.mockResolvedValue(mockResponse);
+
+		const result = await client.getIndexStatus('main');
+
+		expect(result).toBeNull();
 	});
 
 	it('should return null on network error', async () => {

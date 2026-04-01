@@ -494,15 +494,15 @@ export default class InitCommand extends BaseCommand {
 		value: string;
 	}> {
 		const languageList = [
-			{ name: 'C', value: 'c' },
-			{ name: 'C#', value: 'c-sharp' },
-			{ name: 'C++', value: 'cpp' },
-			{ name: 'Go', value: 'go' },
-			{ name: 'Java', value: 'java' },
+			// { name: 'C', value: 'c' },
+			// { name: 'C#', value: 'c-sharp' },
+			// { name: 'C++', value: 'cpp' },
+			// { name: 'Go', value: 'go' },
+			// { name: 'Java', value: 'java' },
 			{ name: 'JavaScript', value: 'javascript' },
-			{ name: 'PHP', value: 'php' },
+			// { name: 'PHP', value: 'php' },
 			{ name: 'Python', value: 'python' },
-			{ name: 'Ruby', value: 'ruby' },
+			// { name: 'Ruby', value: 'ruby' },
 			{ name: 'TypeScript', value: 'typescript' },
 		];
 

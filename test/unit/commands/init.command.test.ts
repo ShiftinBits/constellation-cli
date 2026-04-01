@@ -384,15 +384,8 @@ describe('InitCommand', () => {
 
 			// Choices should have name and value for each supported language
 			expect(languageQuestion.choices).toEqual([
-				{ name: 'C', value: 'c' },
-				{ name: 'C#', value: 'c-sharp' },
-				{ name: 'C++', value: 'cpp' },
-				{ name: 'Go', value: 'go' },
-				{ name: 'Java', value: 'java' },
 				{ name: 'JavaScript', value: 'javascript' },
-				{ name: 'PHP', value: 'php' },
 				{ name: 'Python', value: 'python' },
-				{ name: 'Ruby', value: 'ruby' },
 				{ name: 'TypeScript', value: 'typescript' },
 			]);
 

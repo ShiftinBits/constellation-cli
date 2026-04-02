@@ -138,9 +138,15 @@ export default class AuthCommand extends BaseCommand {
 			console.log(
 				`${GREEN_CHECK} Stored access key in ${ACCESS_KEY_ENV_VAR} user environment variable`,
 			);
-			console.log(
-				`${BLUE_INFO} You must restart this terminal session to properly load the new access key value.`,
-			);
+
+			const sourceFile = this.env.getSourceFile();
+			if (sourceFile) {
+				console.log(
+					`${BLUE_INFO} To activate in this session, run:\n\n` +
+						`    source ${sourceFile}\n\n` +
+						`  New terminal sessions will load it automatically.`,
+				);
+			}
 		} catch (error) {
 			const rawMessage =
 				(error as Error).message ?? 'An unexpected error occurred';

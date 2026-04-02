@@ -11,6 +11,15 @@ abstract class EnvironmentManager {
 		return Promise.resolve(process.env[key]);
 	}
 
+	/**
+	 * Returns the shell config file path that should be sourced to activate
+	 * newly-set environment variables in the current session.
+	 * Returns undefined if sourcing is not needed (e.g., Windows).
+	 */
+	public getSourceFile(): string | undefined {
+		return undefined;
+	}
+
 	public isCIEnvironment(): boolean {
 		return this.isCI();
 	}
@@ -202,6 +211,14 @@ class UnixEnvironmentManager extends EnvironmentManager {
 		];
 	}
 
+	override getSourceFile(): string | undefined {
+		const shell = process.env.SHELL ?? '';
+		if (shell.endsWith('/zsh') || shell.endsWith('/zsh5')) {
+			return this.userConfigFiles.find((f) => f.endsWith('.zshenv'));
+		}
+		return this.userConfigFiles.find((f) => f.endsWith('.profile'));
+	}
+
 	async setVariable(key: string, value: string): Promise<void> {
 		this.validateInput(key, value);
 
@@ -299,5 +316,14 @@ export class CrossPlatformEnvironment {
 	 */
 	isCI(): boolean {
 		return this.manager.isCIEnvironment();
+	}
+
+	/**
+	 * Returns the shell config file path to source for activating
+	 * newly-set environment variables in the current session.
+	 * Returns undefined on Windows (not needed).
+	 */
+	getSourceFile(): string | undefined {
+		return this.manager.getSourceFile();
 	}
 }

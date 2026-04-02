@@ -21,6 +21,20 @@ import { shouldShowBanner } from './utils/environment-detector';
 import { GitClient } from './utils/git-client';
 import { BLUE_INFO, RED_X } from './utils/unicode-chars';
 
+// Enquirer throws ERR_USE_AFTER_CLOSE asynchronously on CTRL+C — exit cleanly.
+process.on('uncaughtException', (error) => {
+	if (
+		error instanceof Error &&
+		(error as NodeJS.ErrnoException).code === 'ERR_USE_AFTER_CLOSE'
+	) {
+		process.exit(0);
+	}
+	console.error(
+		`${RED_X} An unexpected error occurred during the index attempt:\n\t${error?.message ?? String(error)}`,
+	);
+	process.exit(1);
+});
+
 // Read version from package.json
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(__dirname, '..', 'package.json');

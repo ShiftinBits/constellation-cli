@@ -119,9 +119,19 @@ describe('IndexCommand', () => {
 		mockLangRegistry = new LanguageRegistry(mockConfig);
 
 		// Create mock API client
+		// Default: valid project state with no latestCommit (triggers full index in determineIndexScope)
+		// Tests needing incremental behavior override latestCommit to a different commit hash
 		mockApiClient = {
 			// @ts-expect-error - Jest mock typing
-			getProjectState: jest.fn().mockResolvedValue(null),
+			getProjectState: jest.fn().mockResolvedValue({
+				projectId: 'test-project',
+				projectName: 'test-project',
+				branch: 'main',
+				latestCommit: null,
+				fileCount: 0,
+				lastIndexedAt: '2023-01-01T00:00:00.000Z',
+				languages: ['typescript'],
+			}),
 			// @ts-expect-error - Jest mock typing
 			getIndexStatus: jest.fn().mockResolvedValue(null),
 			// @ts-expect-error - Jest mock typing
@@ -458,8 +468,10 @@ describe('IndexCommand', () => {
 		});
 
 		it('should perform full index when no project state exists', async () => {
-			// No previous index found
-			mockApiClient.getProjectState.mockResolvedValue(null);
+			// No previous index — API returns 404 → NotFoundError
+			mockApiClient.getProjectState.mockRejectedValue(
+				new NotFoundError('Project not found - no previous index exists'),
+			);
 
 			await command.run(false);
 
@@ -472,7 +484,7 @@ describe('IndexCommand', () => {
 			// Should call scanFiles for full index
 			expect(scannerInstance.scanFiles).toHaveBeenCalled();
 			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('No previous index found'),
+				expect.stringContaining('Project validated (first index)'),
 			);
 			expect(consoleLogSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Upload completed'),
@@ -615,23 +627,13 @@ describe('IndexCommand', () => {
 			);
 		});
 
-		it('should fallback to full index when getProjectState fails', async () => {
+		it('should fail early when getProjectState throws a connectivity error', async () => {
 			mockApiClient.getProjectState.mockRejectedValue(new Error('API error'));
 
-			await command.run(false);
+			await expect(command.run(false)).rejects.toThrow('API error');
 
-			const FileScanner =
-				require('../../../src/scanners/file-scanner').FileScanner;
-			const scannerInstance = (
-				FileScanner as jest.MockedClass<typeof FileScanner>
-			).mock.results[0]?.value;
-
-			expect(scannerInstance.scanFiles).toHaveBeenCalled();
-			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('Could not determine last index'),
-			);
-			expect(consoleLogSpy).toHaveBeenCalledWith(
-				expect.stringContaining('performing full index'),
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Indexing failed'),
 			);
 		});
 

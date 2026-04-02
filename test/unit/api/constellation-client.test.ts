@@ -200,12 +200,10 @@ describe('ConstellationClient', () => {
 			);
 		});
 
-		it('should return null when request fails', async () => {
+		it('should propagate errors when request fails', async () => {
 			mockFetch.mockRejectedValue(new Error('Network error'));
 
-			const result = await client.getProjectState();
-
-			expect(result).toBeNull();
+			await expect(client.getProjectState()).rejects.toThrow('Network error');
 		});
 
 		it('should throw AuthenticationError when authentication fails', async () => {
@@ -617,9 +615,10 @@ describe('ConstellationClient', () => {
 		it('should not retry on non-retryable errors (4xx)', async () => {
 			mockFetch.mockResolvedValue(createMockResponse(400, false));
 
-			// getProjectState catches all errors and returns null
-			const result = await client.getProjectState();
-			expect(result).toBeNull();
+			// 400 responses are not retried and propagate as errors
+			await expect(client.getProjectState()).rejects.toThrow(
+				'Unexpected API response (400)',
+			);
 
 			expect(mockFetch).toHaveBeenCalledTimes(1);
 		});
@@ -655,12 +654,12 @@ describe('ConstellationClient', () => {
 		it('should exhaust retries and throw final error', async () => {
 			mockFetch.mockResolvedValue(createMockResponse(500, false));
 
-			const promise = client.getProjectState();
+			// Attach rejection handler before advancing timers to prevent unhandled rejection
+			const promise = client.getProjectState().catch((err) => err);
 			await jest.runAllTimersAsync();
 
-			// getProjectState catches all errors and returns null
-			const result = await promise;
-			expect(result).toBeNull();
+			const error = await promise;
+			expect(error).toBeDefined();
 			expect(mockFetch).toHaveBeenCalledTimes(3); // Initial + 2 retries
 		});
 	});
@@ -727,21 +726,19 @@ describe('ConstellationClient', () => {
 	});
 
 	describe('error handling', () => {
-		it('should handle fetch rejections gracefully', async () => {
+		it('should propagate fetch rejections from getProjectState', async () => {
 			mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
 
-			// getProjectState catches all errors and returns null
-			const result = await client.getProjectState();
-			expect(result).toBeNull();
+			// getProjectState now propagates errors to callers
+			await expect(client.getProjectState()).rejects.toThrow('Failed to fetch');
 		});
 
 		it('should log errors when sendRequest fails', async () => {
 			const originalError = new Error('Original error');
 			mockFetch.mockRejectedValue(originalError);
 
-			// getProjectState catches all errors and returns null
-			const result = await client.getProjectState();
-			expect(result).toBeNull();
+			// getProjectState now propagates errors to callers
+			await expect(client.getProjectState()).rejects.toThrow('Original error');
 
 			// Should log the error once (no retries for non-RetryableError)
 			expect(console.log).toHaveBeenCalledWith(
@@ -751,12 +748,11 @@ describe('ConstellationClient', () => {
 			);
 		});
 
-		it('should handle non-Error objects in catch blocks', async () => {
+		it('should propagate non-Error objects from getProjectState', async () => {
 			mockFetch.mockRejectedValue('String error');
 
-			// getProjectState catches all errors and returns null
-			const result = await client.getProjectState();
-			expect(result).toBeNull();
+			// getProjectState now propagates errors to callers
+			await expect(client.getProjectState()).rejects.toBe('String error');
 
 			// Should log the string error once
 			expect(console.log).toHaveBeenCalledWith(

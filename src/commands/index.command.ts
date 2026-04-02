@@ -226,8 +226,16 @@ export default class IndexCommand extends BaseCommand {
 			if (error instanceof AuthenticationError) {
 				console.error(`\n${RED_X} Authentication failed.`);
 				console.log(
-					`${BLUE_INFO} Run 'constellation auth' to set or update your access key.`,
+					`${BLUE_INFO} Your access key may be invalid or expired. Run 'constellation auth'\n` +
+						`  to set or update your access key.`,
 				);
+				throw error;
+			}
+			// Access key not configured — already displayed by getAccessKey()
+			if (
+				error instanceof Error &&
+				error.message === 'Access key not configured'
+			) {
 				throw error;
 			}
 			const errorMessage =
@@ -246,11 +254,12 @@ export default class IndexCommand extends BaseCommand {
 		const accessKey = await this.env!.getKey(ACCESS_KEY_ENV_VAR);
 
 		if (!accessKey) {
-			throw new Error(
-				'Access key not found.\n' +
-					`${BLUE_INFO} To configure your access key, set ${ACCESS_KEY_ENV_VAR} environment\n` +
-					`  variable to the value of your access key or run 'constellation auth'.`,
+			console.error(`\n${RED_X} Access key not found.`);
+			console.log(
+				`${BLUE_INFO} Set the ${ACCESS_KEY_ENV_VAR} environment variable or run\n` +
+					`  'constellation auth' to configure your access key.`,
 			);
+			throw new Error('Access key not configured');
 		}
 		return accessKey;
 	}
@@ -260,6 +269,7 @@ export default class IndexCommand extends BaseCommand {
 	 * for the current user. Exits early with actionable messaging if not.
 	 * @throws ProjectValidationError if project is not registered, inactive, or has invalid ID
 	 * @throws AuthenticationError if authentication fails
+	 * @throws Error if the API is unreachable
 	 */
 	private async validateProject(): Promise<void> {
 		console.log(`${BLUE_INFO} Validating project access...`);
@@ -281,11 +291,23 @@ export default class IndexCommand extends BaseCommand {
 			if (error instanceof AuthenticationError) {
 				throw error;
 			}
-			// Network/other errors — warn but don't block
-			// Connectivity issues will surface later during upload
-			console.log(
-				`${YELLOW_WARN} Could not validate project — will attempt indexing`,
-			);
+			// Connectivity or unexpected errors — fail fast with clear messaging
+			const message = error instanceof Error ? error.message : String(error);
+			const isNetworkError =
+				message === 'fetch failed' ||
+				message.includes('ECONNREFUSED') ||
+				message.includes('ENOTFOUND') ||
+				message.includes('ETIMEDOUT') ||
+				message.includes('EHOSTUNREACH') ||
+				message.includes('ECONNRESET');
+
+			if (isNetworkError) {
+				throw new Error(
+					'Unable to connect to the Constellation service.\n' +
+						`  Verify your network connection and that the API URL is correct.`,
+				);
+			}
+			throw error;
 		}
 	}
 

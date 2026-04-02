@@ -29,45 +29,26 @@ export class ConstellationClient {
 	 * @returns Project state if available, null on error
 	 * @throws NotFoundError if project has not been indexed yet (404 response)
 	 */
-	async getProjectState(): Promise<ProjectState | null> {
-		try {
-			const params = new URLSearchParams({
-				branchName: this.config.branch,
-			});
-			const headers = {
-				'Content-Type': 'application/x-ndjson; charset=utf-8', // Newline-delimited JSON
-				'x-project-id': this.config.projectId,
-				'x-branch-name': this.config.branch,
-				Authorization: `Bearer ${this.accessKey}`,
-			};
-			const response = await this.sendRequest(
-				'project',
-				undefined,
-				'GET',
-				headers,
-			);
+	async getProjectState(): Promise<ProjectState> {
+		const headers = {
+			'Content-Type': 'application/x-ndjson; charset=utf-8', // Newline-delimited JSON
+			'x-project-id': this.config.projectId,
+			'x-branch-name': this.config.branch,
+			Authorization: `Bearer ${this.accessKey}`,
+		};
+		const response = await this.sendRequest(
+			'project',
+			undefined,
+			'GET',
+			headers,
+		);
 
-			// Handle non-OK responses with specific error codes from response body
-			if (response && !response.ok) {
-				await this.handleProjectStateError(response);
-			}
-
-			const state = response?.ok
-				? (response.json() as unknown as ProjectState)
-				: null;
-			return state;
-		} catch (error) {
-			// Re-throw known error types so callers can handle them
-			if (
-				error instanceof NotFoundError ||
-				error instanceof AuthenticationError ||
-				error instanceof ProjectValidationError
-			) {
-				throw error;
-			}
-			console.error(`${RED_X} Failed to query current project state`, error);
-			return null;
+		// Handle non-OK responses with specific error codes from response body
+		if (response && !response.ok) {
+			await this.handleProjectStateError(response);
 		}
+
+		return response!.json() as unknown as ProjectState;
 	}
 
 	/**
@@ -115,7 +96,9 @@ export class ConstellationClient {
 							'Project not found - no previous index exists',
 						);
 					}
-					break;
+					throw new Error(
+						`Unexpected API response (${response.status}): ${body?.message || response.statusText}`,
+					);
 			}
 		} catch (parseError) {
 			// Re-throw our custom errors
@@ -129,7 +112,8 @@ export class ConstellationClient {
 			if (response.status === 404) {
 				throw new NotFoundError('Project not found - no previous index exists');
 			}
-			// Other status codes — fall through to existing handling
+			// JSON parse failed for non-404 — throw with status info
+			throw new Error(`Unexpected API response (${response.status})`);
 		}
 	}
 

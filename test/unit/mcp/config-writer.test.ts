@@ -157,15 +157,13 @@ describe('ConfigWriter', () => {
 			// Check marketplace configuration
 			expect(settings.extraKnownMarketplaces).toBeDefined();
 			expect(
-				settings.extraKnownMarketplaces['constellation-marketplace'],
+				settings.extraKnownMarketplaces['constellation-plugins'],
 			).toBeDefined();
 			expect(
-				settings.extraKnownMarketplaces['constellation-marketplace'].source
-					.source,
+				settings.extraKnownMarketplaces['constellation-plugins'].source.source,
 			).toBe('github');
 			expect(
-				settings.extraKnownMarketplaces['constellation-marketplace'].source
-					.repo,
+				settings.extraKnownMarketplaces['constellation-plugins'].source.repo,
 			).toBe('ShiftinBits/constellation-claude');
 
 			// Check enabled plugins
@@ -224,7 +222,7 @@ describe('ConfigWriter', () => {
 
 			// Should add new marketplace
 			expect(
-				settings.extraKnownMarketplaces['constellation-marketplace'],
+				settings.extraKnownMarketplaces['constellation-plugins'],
 			).toBeDefined();
 
 			// Should preserve existing enabled plugin

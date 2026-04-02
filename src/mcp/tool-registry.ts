@@ -23,7 +23,7 @@ export const CONSTELLATION_MCP_CONFIG: MCPServerConfig = {
  */
 export const CLAUDE_CODE_MARKETPLACE_CONFIG = {
 	extraKnownMarketplaces: {
-		'constellation-marketplace': {
+		'constellation-plugins': {
 			source: {
 				source: 'github',
 				repo: 'ShiftinBits/constellation-claude',

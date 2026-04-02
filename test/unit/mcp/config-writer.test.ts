@@ -128,11 +128,11 @@ describe('ConfigWriter', () => {
 			const claudeCode = AI_TOOLS.find((t) => t.id === 'claude-code')!;
 			await writer.configureTool(claudeCode);
 
-			// Should have three write calls: config, permissions, and marketplace
-			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(3);
+			// Should have two write calls: permissions and marketplace (no .mcp.json)
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(2);
 
 			// Check permissions file was written with correct structure
-			const permissionsCall = mockFileUtils.writeFile.mock.calls[1];
+			const permissionsCall = mockFileUtils.writeFile.mock.calls[0];
 			const settings = JSON.parse(permissionsCall[1] as string);
 			expect(settings.permissions.allow).toContain(
 				'mcp__plugin_constellation_*',
@@ -147,11 +147,11 @@ describe('ConfigWriter', () => {
 			const claudeCode = AI_TOOLS.find((t) => t.id === 'claude-code')!;
 			await writer.configureTool(claudeCode);
 
-			// Should have three write calls: config, permissions, and marketplace
-			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(3);
+			// Should have two write calls: permissions and marketplace (no .mcp.json)
+			expect(mockFileUtils.writeFile).toHaveBeenCalledTimes(2);
 
 			// Find the marketplace write call (last one to .claude/settings.json)
-			const marketplaceCall = mockFileUtils.writeFile.mock.calls[2];
+			const marketplaceCall = mockFileUtils.writeFile.mock.calls[1];
 			const settings = JSON.parse(marketplaceCall[1] as string);
 
 			// Check marketplace configuration

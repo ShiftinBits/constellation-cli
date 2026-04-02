@@ -103,39 +103,45 @@ export class ConfigWriter {
 		try {
 			const configPath = path.join(this.cwd, tool.configPath);
 
-			// Ensure directory exists
-			await this.ensureDirectoryExists(configPath);
+			// Only read/write the main config file if there's something to put in it
+			const needsMainConfigWrite =
+				!tool.skipMcpServer || !!tool.pluginConfig || !!tool.configDefaults;
 
-			// Read existing config or create new
-			let config = await this.readConfig(configPath, tool.format);
+			if (needsMainConfigWrite) {
+				// Ensure directory exists
+				await this.ensureDirectoryExists(configPath);
 
-			// Apply root-level config defaults (e.g., $schema) — only for missing keys
-			if (tool.configDefaults) {
-				for (const [key, value] of Object.entries(tool.configDefaults)) {
-					if (!(key in config)) {
-						config[key] = value;
+				// Read existing config or create new
+				let config = await this.readConfig(configPath, tool.format);
+
+				// Apply root-level config defaults (e.g., $schema) — only for missing keys
+				if (tool.configDefaults) {
+					for (const [key, value] of Object.entries(tool.configDefaults)) {
+						if (!(key in config)) {
+							config[key] = value;
+						}
 					}
 				}
+
+				// Handle plugin configuration (if configured)
+				if (tool.pluginConfig) {
+					config = this.addPluginToArray(config, tool.pluginConfig);
+				}
+
+				// Add Constellation MCP server (unless skipped for plugin-only tools)
+				if (!tool.skipMcpServer) {
+					config = this.addConstellationServer(config, tool);
+
+					// Handle environment policy whitelist if configured
+					await this.configureEnvPolicy(config, tool);
+				}
+
+				// Write updated config
+				await this.writeConfig(configPath, config, tool.format);
 			}
 
-			// Handle plugin configuration (if configured)
-			if (tool.pluginConfig) {
-				config = this.addPluginToArray(config, tool.pluginConfig);
-			}
-
-			// Add Constellation MCP server (unless skipped for plugin-only tools)
-			if (!tool.skipMcpServer) {
-				config = this.addConstellationServer(config, tool);
-
-				// Handle environment policy whitelist if configured
-				await this.configureEnvPolicy(config, tool);
-			}
-
-			// Write updated config
-			await this.writeConfig(configPath, config, tool.format);
-
-			// Handle permissions if configured (only for MCP-configured tools)
-			if (!tool.skipMcpServer && tool.permissionsConfig) {
+			// Handle permissions if configured
+			if (tool.permissionsConfig) {
 				await this.configurePermissions(tool.permissionsConfig);
 			}
 
@@ -144,10 +150,22 @@ export class ConfigWriter {
 				await this.configureMarketplace(tool.marketplaceConfig);
 			}
 
+			// Return the most relevant configured path
+			let resultPath: string;
+			if (needsMainConfigWrite) {
+				resultPath = configPath;
+			} else if (tool.permissionsConfig) {
+				resultPath = path.join(this.cwd, tool.permissionsConfig.filePath);
+			} else if (tool.marketplaceConfig) {
+				resultPath = path.join(this.cwd, tool.marketplaceConfig.filePath);
+			} else {
+				resultPath = configPath;
+			}
+
 			return {
 				tool,
 				success: true,
-				configuredPath: configPath,
+				configuredPath: resultPath,
 			};
 		} catch (error) {
 			return {

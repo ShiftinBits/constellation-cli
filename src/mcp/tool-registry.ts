@@ -45,6 +45,7 @@ export const AI_TOOLS: AITool[] = [
 		displayName: 'Claude Code',
 		configPath: '.mcp.json',
 		format: 'json',
+		skipMcpServer: true,
 		permissionsConfig: {
 			filePath: '.claude/settings.json',
 			allowKeyPath: ['permissions', 'allow'],

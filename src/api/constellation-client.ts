@@ -251,7 +251,23 @@ export class ConstellationClient {
 			}
 
 			// Accept both 200 (legacy) and 202 (async processing)
-			return response.ok === true || response.status === 202;
+			if (response.ok || response.status === 202) {
+				return true;
+			}
+
+			// Non-ok response — extract server error details for the user
+			let serverMessage = `Server returned ${response.status}`;
+			try {
+				const body = (await response.json()) as Record<string, any>;
+				if (body?.message) {
+					serverMessage = Array.isArray(body.message)
+						? body.message.join('; ')
+						: body.message;
+				}
+			} catch {
+				/* response body not JSON — use status-based message */
+			}
+			throw new Error(serverMessage);
 		} catch (error: any) {
 			// Re-throw known error types so callers can handle them
 			if (error instanceof AuthenticationError) {

@@ -325,7 +325,7 @@ describe('ConstellationClient', () => {
 			);
 		});
 
-		it('should return false when response is not ok', async () => {
+		it('should throw error with server message when response is not ok', async () => {
 			const mockStream = {
 				async *[Symbol.asyncIterator]() {
 					yield createTestAST();
@@ -345,17 +345,25 @@ describe('ConstellationClient', () => {
 				virtual: true,
 			});
 
-			mockUndiciFetch.mockResolvedValue(createMockResponse(400, false));
-
-			const result = await client.streamToApi(
-				mockStream as any,
-				'upload',
-				'test-namespace',
-				'test-branch',
-				false,
+			mockUndiciFetch.mockResolvedValue(
+				createMockResponse(400, false, {
+					message:
+						'Invalid AST structure for app/[...all]/route.ts: Invalid file path',
+					code: 'INVALID_AST_STRUCTURE',
+				}),
 			);
 
-			expect(result).toBe(false);
+			await expect(
+				client.streamToApi(
+					mockStream as any,
+					'upload',
+					'test-namespace',
+					'test-branch',
+					false,
+				),
+			).rejects.toThrow(
+				'Invalid AST structure for app/[...all]/route.ts: Invalid file path',
+			);
 		});
 
 		it('should throw enhanced error on stream failure', async () => {

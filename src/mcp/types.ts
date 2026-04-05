@@ -134,4 +134,6 @@ export interface ToolConfigResult {
 export interface InitOptions {
 	/** Skip MCP server configuration */
 	skipMcp?: boolean;
+	/** Skip CI/CD pipeline configuration */
+	skipCi?: boolean;
 }

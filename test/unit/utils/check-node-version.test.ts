@@ -63,4 +63,24 @@ describe('checkNodeVersion', () => {
 			expect(result.compatible).toBe(true);
 		});
 	});
+
+	describe('unsupported format handling', () => {
+		it('should return compatible for caret range format', () => {
+			const result = checkNodeVersion('^24.0.0', 'v20.0.0');
+
+			expect(result.compatible).toBe(true);
+		});
+
+		it('should return compatible for tilde range format', () => {
+			const result = checkNodeVersion('~24.0.0', 'v20.0.0');
+
+			expect(result.compatible).toBe(true);
+		});
+
+		it('should return compatible for OR range format', () => {
+			const result = checkNodeVersion('>=18.0.0 || >=24.0.0', 'v20.0.0');
+
+			expect(result.compatible).toBe(true);
+		});
+	});
 });

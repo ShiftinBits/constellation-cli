@@ -14,8 +14,14 @@ export interface NodeVersionCheck {
 	required: string;
 }
 
+const SEMVER_GTE_PATTERN = /^>=\s*\d+\.\d+\.\d+$/;
+
 /**
  * Checks whether the current Node.js version satisfies the engines.node requirement.
+ *
+ * Only supports the `>=X.Y.Z` format (e.g., `>=24.0.0`). Other semver range
+ * operators (^, ~, ||, etc.) are not supported — if the format is unrecognized,
+ * the check is skipped and `compatible` returns true.
  *
  * @param enginesNode - The engines.node string from package.json (e.g., ">=24.0.0")
  * @param currentVersion - Override for testing (defaults to process.version)
@@ -25,6 +31,10 @@ export function checkNodeVersion(
 	enginesNode: string,
 	currentVersion: string = process.version,
 ): NodeVersionCheck {
+	if (!SEMVER_GTE_PATTERN.test(enginesNode)) {
+		return { compatible: true, current: currentVersion, required: enginesNode };
+	}
+
 	const requiredVersion = enginesNode.replace(/^>=\s*/, '');
 	const current = currentVersion.replace(/^v/, '');
 

@@ -244,12 +244,16 @@ export class FileScanner {
 		dirPath: string,
 		baseDir?: string,
 		projectRealPath?: string,
+		visitedPaths?: Set<string>,
 	): Promise<FileInfo[]> {
 		const files: FileInfo[] = [];
 		const base = baseDir || dirPath;
 
 		// Get canonical project root path on first call for security validation
 		const projectRoot = projectRealPath || (await fs.realpath(this.rootPath));
+
+		// Initialize visited paths tracking on first call to detect symlink cycles
+		const visited = visitedPaths || new Set<string>([projectRoot]);
 
 		try {
 			const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -264,11 +268,12 @@ export class FileScanner {
 						continue;
 					}
 
-					// Recursively walk subdirectories, passing down projectRoot
+					// Recursively walk subdirectories, passing down projectRoot and visited paths
 					const subFiles = await this.walkDirectory(
 						fullPath,
 						base,
 						projectRoot,
+						visited,
 					);
 					files.push(...subFiles);
 				} else if (entry.isFile()) {
@@ -308,11 +313,18 @@ export class FileScanner {
 								continue;
 							}
 
+							// Cycle detection: skip if we've already visited this real path
+							if (visited.has(realPath)) {
+								continue;
+							}
+							visited.add(realPath);
+
 							// Recursively walk symlinked directories
 							const subFiles = await this.walkDirectory(
 								fullPath,
 								base,
 								projectRoot,
+								visited,
 							);
 							files.push(...subFiles);
 						} else if (stats.isFile()) {

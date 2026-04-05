@@ -878,6 +878,58 @@ describe('FileScanner', () => {
 			consoleWarnSpy.mockRestore();
 		});
 
+		it('should detect and break symlink cycles to prevent stack overflow', async () => {
+			const mockDirent = (name: string, opts: any = {}) => ({
+				name,
+				isFile: () => opts.isFile || false,
+				isDirectory: () => opts.isDirectory || false,
+				isSymbolicLink: () => opts.isSymbolicLink || false,
+			});
+
+			// Root dir contains dir-a with a symlink back to root
+			mockFs.readdir.mockResolvedValueOnce([
+				mockDirent('dir-a', { isDirectory: true }),
+			] as any);
+
+			// dir-a contains a symlink pointing back to root (cycle)
+			mockFs.readdir.mockResolvedValueOnce([
+				mockDirent('link-to-root', { isSymbolicLink: true }),
+				mockDirent('file.ts', { isFile: true }),
+			] as any);
+
+			// Mock realpath: project root resolves to itself, symlink resolves to root (cycle)
+			(mockFs.realpath as jest.Mock).mockImplementation(
+				async (filePath: any) => {
+					if (filePath === tempDir) {
+						return tempDir;
+					}
+					if (filePath.includes('link-to-root')) {
+						return tempDir; // Cycle: symlink points back to project root
+					}
+					return filePath;
+				},
+			);
+
+			mockFs.stat.mockImplementation(async (filePath: any) => {
+				if (filePath.includes('link-to-root')) {
+					return { isDirectory: () => true, isFile: () => false } as any;
+				}
+				return {
+					size: 1024,
+					isFile: () => true,
+					isDirectory: () => false,
+				} as any;
+			});
+
+			mockFileUtils.fileIsReadable.mockResolvedValue(false);
+
+			const result = await fileScanner.scanFiles(mockConfig);
+
+			// Should include file.ts but NOT recurse infinitely through the symlink cycle
+			expect(result.some((f) => f.path.includes('file.ts'))).toBe(true);
+			// The key assertion: we got here without stack overflow
+		});
+
 		it('should handle symlinked directories pointing within project', async () => {
 			const mockDirent = (name: string, opts: any = {}) => ({
 				name,

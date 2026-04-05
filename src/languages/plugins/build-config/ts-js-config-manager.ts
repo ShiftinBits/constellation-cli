@@ -1,4 +1,4 @@
-import { findAll, parse, TSConfckParseResult } from 'tsconfck';
+import { find, findAll, parse, TSConfckParseResult } from 'tsconfck';
 import { IConstellationLanguageConfig } from '../../../config/config';
 import { YELLOW_WARN } from '../../../utils/unicode-chars';
 import { BuildConfigManager } from '../base-plugin';
@@ -14,6 +14,9 @@ export class TsJsConfigManager implements BuildConfigManager {
 
 	/** Cache of parsed config results by file path */
 	private parseCache: Map<string, TSConfckParseResult | null> = new Map();
+
+	/** Config files that failed to parse (e.g., unresolvable extends) — avoids repeated attempts and noisy logs */
+	private failedConfigFiles: Set<string> = new Set();
 
 	/** Whether config discovery has been performed */
 	private initialized = false;
@@ -124,10 +127,7 @@ export class TsJsConfigManager implements BuildConfigManager {
 
 			// For TypeScript files, use tsconfig.json
 			if (isTypeScriptFile && this.isTypeScriptEnabled) {
-				const result = await parse(filePath, {
-					root: this.projectRoot,
-					configName: 'tsconfig.json',
-				});
+				const result = await this.findAndParse(filePath, 'tsconfig.json');
 				this.parseCache.set(filePath, result);
 				return result;
 			}
@@ -137,19 +137,13 @@ export class TsJsConfigManager implements BuildConfigManager {
 				// Try jsconfig.json first if JavaScript is enabled
 				if (this.isJavaScriptEnabled) {
 					try {
-						const result = await parse(filePath, {
-							root: this.projectRoot,
-							configName: 'jsconfig.json',
-						});
+						const result = await this.findAndParse(filePath, 'jsconfig.json');
 						this.parseCache.set(filePath, result);
 						return result;
 					} catch (jsconfigError) {
 						// jsconfig.json not found, try tsconfig.json as fallback
 						if (this.isTypeScriptEnabled) {
-							const result = await parse(filePath, {
-								root: this.projectRoot,
-								configName: 'tsconfig.json',
-							});
+							const result = await this.findAndParse(filePath, 'tsconfig.json');
 							this.parseCache.set(filePath, result);
 							return result;
 						}
@@ -160,10 +154,7 @@ export class TsJsConfigManager implements BuildConfigManager {
 
 				// JavaScript enabled but no jsconfig, try tsconfig as fallback
 				if (this.isTypeScriptEnabled) {
-					const result = await parse(filePath, {
-						root: this.projectRoot,
-						configName: 'tsconfig.json',
-					});
+					const result = await this.findAndParse(filePath, 'tsconfig.json');
 					this.parseCache.set(filePath, result);
 					return result;
 				}
@@ -173,10 +164,7 @@ export class TsJsConfigManager implements BuildConfigManager {
 			this.parseCache.set(filePath, null);
 			return null;
 		} catch (error) {
-			console.warn(
-				`${YELLOW_WARN} Failed to parse config for ${filePath}:`,
-				error,
-			);
+			this.handleConfigError(filePath, error);
 			this.parseCache.set(filePath, null);
 			return null;
 		}
@@ -214,5 +202,70 @@ export class TsJsConfigManager implements BuildConfigManager {
 	 */
 	clearCache(): void {
 		this.parseCache.clear();
+		this.failedConfigFiles.clear();
+	}
+
+	/**
+	 * Finds the applicable config file for a source file and parses it,
+	 * skipping parse if the config is already known to be broken.
+	 * @param filePath Absolute path to the source file
+	 * @param configName Config file name to search for (tsconfig.json or jsconfig.json)
+	 * @returns Parsed config result or null if config is known-broken
+	 */
+	private async findAndParse(
+		filePath: string,
+		configName: string,
+	): Promise<TSConfckParseResult | null> {
+		// Use find() to cheaply locate the applicable config file
+		const configPath = await find(filePath, {
+			root: this.projectRoot,
+			configName,
+		});
+
+		// If no config found, return null
+		if (!configPath) {
+			return null;
+		}
+
+		// Skip parse if this config already failed (e.g., unresolvable extends)
+		if (this.failedConfigFiles.has(configPath)) {
+			return null;
+		}
+
+		return parse(filePath, {
+			root: this.projectRoot,
+			configName,
+		});
+	}
+
+	/**
+	 * Handles config parse errors with concise logging.
+	 * Logs a one-line warning per unique config file instead of full stack traces per source file.
+	 * @param filePath Source file that triggered the error
+	 * @param error The error from tsconfck parse
+	 */
+	private handleConfigError(filePath: string, error: unknown): void {
+		// Extract the tsconfig file path from TSConfckParseError if available
+		const tsconfigFile =
+			error && typeof error === 'object' && 'tsconfigFile' in error
+				? (error as { tsconfigFile: string }).tsconfigFile
+				: null;
+
+		if (tsconfigFile && !this.failedConfigFiles.has(tsconfigFile)) {
+			// First failure for this config — log a concise warning
+			this.failedConfigFiles.add(tsconfigFile);
+			const reason = error instanceof Error ? error.message : String(error);
+			console.warn(`${YELLOW_WARN} Failed to parse ${tsconfigFile}: ${reason}`);
+			console.warn(
+				`${YELLOW_WARN} Path alias resolution will be skipped for files using this config`,
+			);
+		} else if (!tsconfigFile) {
+			// Unknown error type — log with file path for debugging
+			console.warn(
+				`${YELLOW_WARN} Failed to parse config for ${filePath}:`,
+				error instanceof Error ? error.message : error,
+			);
+		}
+		// Subsequent failures for the same config file are silently skipped
 	}
 }

@@ -3,6 +3,7 @@ import { IConstellationLanguageConfig } from '../../../../../src/config/config';
 
 // Mock tsconfck BEFORE importing TsJsConfigManager
 jest.mock('tsconfck', () => ({
+	find: jest.fn(async () => '/mock/tsconfig.json'),
 	findAll: jest.fn(async () => []),
 	parse: jest.fn(async () => ({
 		tsconfigFile: '/mock/tsconfig.json',
@@ -20,11 +21,13 @@ import * as tsconfck from 'tsconfck';
 
 describe('TsJsConfigManager', () => {
 	const mockProjectRoot = '/test/project';
+	let mockFind: jest.MockedFunction<typeof tsconfck.find>;
 	let mockFindAll: jest.MockedFunction<typeof tsconfck.findAll>;
 	let mockParse: jest.MockedFunction<typeof tsconfck.parse>;
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		mockFind = tsconfck.find as jest.MockedFunction<typeof tsconfck.find>;
 		mockFindAll = tsconfck.findAll as jest.MockedFunction<
 			typeof tsconfck.findAll
 		>;
@@ -248,6 +251,7 @@ describe('TsJsConfigManager', () => {
 			const consoleWarnSpy = jest
 				.spyOn(console, 'warn')
 				.mockImplementation(() => {});
+			mockFind.mockResolvedValue('/test/project/tsconfig.json');
 			mockParse.mockRejectedValue(new Error('Parse error'));
 
 			const manager = new TsJsConfigManager(mockProjectRoot, languages);
@@ -258,6 +262,67 @@ describe('TsJsConfigManager', () => {
 			expect(result).toBeNull();
 			expect(consoleWarnSpy).toHaveBeenCalled();
 			consoleWarnSpy.mockRestore();
+		});
+
+		it('should deduplicate warnings for the same broken tsconfig', async () => {
+			const languages: IConstellationLanguageConfig = {
+				typescript: { fileExtensions: ['.ts'] },
+			} as IConstellationLanguageConfig;
+
+			const consoleWarnSpy = jest
+				.spyOn(console, 'warn')
+				.mockImplementation(() => {});
+
+			// Simulate TSConfckParseError with tsconfigFile property
+			const parseError = Object.assign(
+				new Error(
+					'failed to resolve "extends":"expo/tsconfig.base" in /test/project/demo/tsconfig.json',
+				),
+				{
+					code: 'EXTENDS_RESOLVE',
+					tsconfigFile: '/test/project/demo/tsconfig.json',
+				},
+			);
+
+			mockFind.mockResolvedValue('/test/project/demo/tsconfig.json');
+			mockParse.mockRejectedValue(parseError);
+
+			const manager = new TsJsConfigManager(mockProjectRoot, languages);
+
+			// First file — should log warning
+			await manager.getConfigForFile('/test/project/demo/app/index.tsx');
+			const warnsAfterFirst = consoleWarnSpy.mock.calls.length;
+			expect(warnsAfterFirst).toBeGreaterThan(0);
+
+			// Second file using same broken tsconfig — should NOT log again or call parse
+			mockParse.mockClear();
+			await manager.getConfigForFile('/test/project/demo/app/other.tsx');
+			expect(consoleWarnSpy.mock.calls.length).toBe(warnsAfterFirst);
+			expect(mockParse).not.toHaveBeenCalled();
+
+			// Third file — also silent
+			await manager.getConfigForFile(
+				'/test/project/demo/components/Button.tsx',
+			);
+			expect(consoleWarnSpy.mock.calls.length).toBe(warnsAfterFirst);
+
+			consoleWarnSpy.mockRestore();
+		});
+
+		it('should return null when find() returns no config path', async () => {
+			const languages: IConstellationLanguageConfig = {
+				typescript: { fileExtensions: ['.ts'] },
+			} as IConstellationLanguageConfig;
+
+			mockFind.mockResolvedValue('');
+
+			const manager = new TsJsConfigManager(mockProjectRoot, languages);
+			const result = await manager.getConfigForFile(
+				'/test/project/src/index.ts',
+			);
+
+			expect(result).toBeNull();
+			expect(mockParse).not.toHaveBeenCalled();
 		});
 	});
 
@@ -310,7 +375,7 @@ describe('TsJsConfigManager', () => {
 	});
 
 	describe('clearCache', () => {
-		it('should clear the parse cache', async () => {
+		it('should clear the parse cache and failed config tracking', async () => {
 			const languages: IConstellationLanguageConfig = {
 				typescript: { fileExtensions: ['.ts'] },
 			} as IConstellationLanguageConfig;
@@ -320,6 +385,7 @@ describe('TsJsConfigManager', () => {
 				tsconfig: { compilerOptions: {} },
 			};
 
+			mockFind.mockResolvedValue('/test/project/tsconfig.json');
 			mockParse.mockResolvedValue(mockTsConfig as any);
 
 			const manager = new TsJsConfigManager(mockProjectRoot, languages);

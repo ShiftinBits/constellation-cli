@@ -504,7 +504,7 @@ describe('AuthCommand', () => {
 			}
 		});
 
-		it('should fall back to localhost:4200 when CONSTELLATION_WEB_URL is not set', async () => {
+		it('should fall back to production URL when CONSTELLATION_WEB_URL is not set', async () => {
 			const originalEnv = process.env.CONSTELLATION_WEB_URL;
 			delete process.env.CONSTELLATION_WEB_URL;
 
@@ -516,7 +516,7 @@ describe('AuthCommand', () => {
 			await authCommand.run();
 
 			expect(openBrowser).toHaveBeenCalledWith(
-				expect.stringContaining('http://localhost:4200/auth/cli'),
+				expect.stringContaining('https://app.constellationdev.io/auth/cli'),
 			);
 
 			// Restore

@@ -27,15 +27,23 @@ jest.mock('../../../src/utils/file.utils');
 describe('ConstellationConfig', () => {
 	let tempDir: string;
 	const mockFileUtils = FileUtils as jest.Mocked<typeof FileUtils>;
+	let savedApiUrl: string | undefined;
 
 	beforeEach(async () => {
 		jest.clearAllMocks();
 		tempDir = await createTempDir();
+		savedApiUrl = process.env.CONSTELLATION_API_URL;
+		delete process.env.CONSTELLATION_API_URL;
 	});
 
 	afterEach(async () => {
 		await cleanupTempDir(tempDir);
 		jest.restoreAllMocks();
+		if (savedApiUrl !== undefined) {
+			process.env.CONSTELLATION_API_URL = savedApiUrl;
+		} else {
+			delete process.env.CONSTELLATION_API_URL;
+		}
 	});
 
 	describe('constructor', () => {

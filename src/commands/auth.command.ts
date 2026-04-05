@@ -3,8 +3,8 @@ import { randomBytes } from 'node:crypto';
 import pkg from 'enquirer';
 const { prompt } = pkg;
 
-import { startCallbackServer } from '../auth/callback-server';
 import { openBrowser } from '../auth/browser-opener';
+import { startCallbackServer } from '../auth/callback-server';
 import {
 	ACCESS_KEY_ENV_VAR,
 	CONSTELLATION_WEB_URL_ENV_VAR,
@@ -174,7 +174,8 @@ export default class AuthCommand extends BaseCommand {
 		const { port, waitForCallback } = await startCallbackServer();
 
 		const webUrl =
-			process.env[CONSTELLATION_WEB_URL_ENV_VAR] || 'http://localhost:4200';
+			process.env[CONSTELLATION_WEB_URL_ENV_VAR] ||
+			'https://app.constellationdev.io';
 		const authUrl = `${webUrl}/auth/cli?callback_port=${port}&state=${state}`;
 
 		console.log(`${BLUE_INFO} Opening browser for authentication...`);
@@ -198,7 +199,7 @@ export default class AuthCommand extends BaseCommand {
 		} catch {
 			console.error(
 				`${RED_X} Authentication timed out.\n` +
-					`  Try again or use ${YELLOW_WARN}constellation auth --manual${RED_X} to paste your key directly.`,
+					`  Try again or use \`constellation auth --manual\` to paste your key directly.`,
 			);
 		}
 	}

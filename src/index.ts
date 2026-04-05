@@ -16,6 +16,7 @@ import { CrossPlatformEnvironment } from './env/env-manager';
 import { LanguageDetector } from './languages/language.detector';
 import { LanguageRegistry } from './languages/language.registry';
 import { checkForUpdates } from './update';
+import { SKIP_COMMANDS } from './utils/cli-constants';
 import { printBanner } from './utils/constants';
 import { shouldShowBanner } from './utils/environment-detector';
 import { GitClient } from './utils/git-client';
@@ -35,16 +36,18 @@ process.on('uncaughtException', (error) => {
 	process.exit(1);
 });
 
-// Read version from package.json
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const packageJsonPath = path.join(__dirname, '..', 'package.json');
-const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
-	version: string;
-};
-const VERSION = packageJson.version;
-
-// Commands that should skip update checking
-const SKIP_UPDATE_COMMANDS = ['help', '--help', '-h', '--version', '-V', '-v'];
+// Read version — prefer the value passed by main.ts to avoid re-reading package.json
+const VERSION =
+	((globalThis as Record<string, unknown>).__constellationVersion as string) ??
+	(() => {
+		const __dirname = path.dirname(fileURLToPath(import.meta.url));
+		const packageJsonPath = path.join(__dirname, '..', 'package.json');
+		return (
+			JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
+				version: string;
+			}
+		).version;
+	})();
 
 // Print Constellation banner and check for updates (only in interactive sessions)
 if (shouldShowBanner()) {
@@ -56,7 +59,7 @@ if (shouldShowBanner()) {
 	}
 
 	// Check for updates (skip for help/version commands)
-	if (!SKIP_UPDATE_COMMANDS.includes(cmdStr)) {
+	if (!SKIP_COMMANDS.includes(cmdStr)) {
 		const shouldExit = await checkForUpdates(VERSION);
 		if (shouldExit) {
 			process.exit(0);

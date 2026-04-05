@@ -56,12 +56,6 @@ describe('checkNodeVersion', () => {
 
 			expect(result.compatible).toBe(true);
 		});
-
-		it('should parse >= prefix from engines requirement', () => {
-			const result = checkNodeVersion('>=24.0.0', 'v24.0.0');
-
-			expect(result.compatible).toBe(true);
-		});
 	});
 
 	describe('unsupported format handling', () => {

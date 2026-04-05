@@ -76,3 +76,4 @@ export enum SupportedLanguages {
 }
 
 export const ACCESS_KEY_ENV_VAR = 'CONSTELLATION_ACCESS_KEY';
+export const CONSTELLATION_WEB_URL_ENV_VAR = 'CONSTELLATION_WEB_URL';

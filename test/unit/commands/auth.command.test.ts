@@ -18,10 +18,15 @@ jest.mock('enquirer', () => ({
 	},
 }));
 jest.mock('../../../src/env/env-manager');
+jest.mock('../../../src/auth/callback-server');
+jest.mock('../../../src/auth/browser-opener');
 
 // Import mocked modules
 import pkg from 'enquirer';
 const { prompt } = pkg;
+
+import { startCallbackServer } from '../../../src/auth/callback-server';
+import { openBrowser } from '../../../src/auth/browser-opener';
 
 // Valid access key format for tests (ak: prefix + 32 hex chars, no dashes)
 const VALID_ACCESS_KEY = 'ak:00000000000040008000000000000002';
@@ -32,6 +37,8 @@ describe('AuthCommand', () => {
 	let mockEnv: jest.Mocked<CrossPlatformEnvironment>;
 	let consoleLogSpy: jest.SpiedFunction<typeof console.log>;
 	let consoleErrorSpy: jest.SpiedFunction<typeof console.error>;
+	let mockWaitForCallback: jest.Mock<() => Promise<string>>;
+	let mockClose: jest.Mock;
 
 	beforeEach(() => {
 		// Create mock environment manager with all required methods
@@ -39,7 +46,24 @@ describe('AuthCommand', () => {
 			getKey: jest.fn<() => Promise<string | undefined>>(),
 			setKey: jest.fn<() => Promise<void>>(),
 			isCI: jest.fn<() => boolean>().mockReturnValue(false),
+			getSourceFile: jest.fn<() => string | undefined>(),
 		} as unknown as jest.Mocked<CrossPlatformEnvironment>;
+
+		// Create mock callback server
+		mockWaitForCallback = jest.fn();
+		mockClose = jest.fn();
+		(
+			startCallbackServer as jest.MockedFunction<typeof startCallbackServer>
+		).mockResolvedValue({
+			port: 12345,
+			waitForCallback: mockWaitForCallback,
+			close: mockClose,
+		});
+
+		// Mock browser opener
+		(openBrowser as jest.MockedFunction<typeof openBrowser>).mockResolvedValue(
+			true,
+		);
 
 		// Spy on console methods
 		consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -59,15 +83,15 @@ describe('AuthCommand', () => {
 		consoleErrorSpy.mockRestore();
 	});
 
-	describe('run', () => {
-		it('should prompt for access key when no existing key', async () => {
+	describe('run (manual flow)', () => {
+		it('should prompt for access key when --manual flag is set', async () => {
 			mockEnv.isCI.mockReturnValue(false);
 			mockEnv.getKey.mockResolvedValue(undefined);
 			mockEnv.setKey.mockResolvedValue(undefined);
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockResolvedValue({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(mockEnv.getKey).toHaveBeenCalledWith(ACCESS_KEY_ENV_VAR);
 			expect(prompt).toHaveBeenCalledWith(
@@ -98,7 +122,7 @@ describe('AuthCommand', () => {
 				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(prompt).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -123,7 +147,7 @@ describe('AuthCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockResolvedValue({ replaceKey: false });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(mockEnv.setKey).not.toHaveBeenCalled();
 			expect(consoleLogSpy).toHaveBeenCalledWith(
@@ -138,7 +162,7 @@ describe('AuthCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockResolvedValue({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Configuring access key authentication'),
@@ -149,7 +173,7 @@ describe('AuthCommand', () => {
 			mockEnv.isCI.mockReturnValue(false);
 			mockEnv.getKey.mockRejectedValue(new Error('Failed to read env'));
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Failed to store Constellation access key'),
@@ -166,7 +190,7 @@ describe('AuthCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockResolvedValue({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Failed to store Constellation access key'),
@@ -182,7 +206,7 @@ describe('AuthCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockRejectedValue(new Error('User cancelled'));
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Failed to store Constellation access key'),
@@ -197,7 +221,7 @@ describe('AuthCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockResolvedValue({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(
 				expect.stringContaining(ACCESS_KEY_ENV_VAR),
@@ -208,7 +232,7 @@ describe('AuthCommand', () => {
 			mockEnv.isCI.mockReturnValue(false);
 			mockEnv.getKey.mockRejectedValue('String error');
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Failed to store Constellation access key'),
@@ -219,7 +243,7 @@ describe('AuthCommand', () => {
 		});
 	});
 
-	describe('access key validation', () => {
+	describe('access key validation (manual flow)', () => {
 		it('should accept valid access key format', async () => {
 			mockEnv.isCI.mockReturnValue(false);
 			mockEnv.getKey.mockResolvedValue(undefined);
@@ -227,7 +251,7 @@ describe('AuthCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockResolvedValue({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(mockEnv.setKey).toHaveBeenCalledWith(
 				ACCESS_KEY_ENV_VAR,
@@ -246,7 +270,7 @@ describe('AuthCommand', () => {
 				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Invalid access key format'),
@@ -269,7 +293,7 @@ describe('AuthCommand', () => {
 				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce({ accessKey: INVALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Invalid access key format after 3 attempts'),
@@ -290,7 +314,7 @@ describe('AuthCommand', () => {
 				// @ts-expect-error - Jest mock typing
 				.mockResolvedValueOnce({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleLogSpy).toHaveBeenCalledWith(
 				expect.stringContaining('Access key cannot be empty'),
@@ -310,7 +334,7 @@ describe('AuthCommand', () => {
 				accessKey: `  ${VALID_ACCESS_KEY}  `,
 			});
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(mockEnv.setKey).toHaveBeenCalledWith(
 				ACCESS_KEY_ENV_VAR,
@@ -329,7 +353,7 @@ describe('AuthCommand', () => {
 			// @ts-expect-error - Jest mock typing
 			(prompt as jest.Mock).mockResolvedValue({ accessKey: VALID_ACCESS_KEY });
 
-			await authCommand.run();
+			await authCommand.run(true);
 
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
 				expect.stringContaining('[REDACTED]'),
@@ -377,6 +401,162 @@ describe('AuthCommand', () => {
 			);
 			expect(consoleErrorSpy).toHaveBeenCalledWith(
 				expect.stringContaining('GitLab CI'),
+			);
+		});
+	});
+
+	describe('browser auth flow', () => {
+		it('should use browser flow by default (no manual flag)', async () => {
+			mockEnv.isCI.mockReturnValue(false);
+			mockEnv.getKey.mockResolvedValue(undefined);
+			mockEnv.setKey.mockResolvedValue(undefined);
+			mockWaitForCallback.mockResolvedValue(VALID_ACCESS_KEY);
+
+			await authCommand.run();
+
+			expect(startCallbackServer).toHaveBeenCalled();
+			expect(openBrowser).toHaveBeenCalledWith(
+				expect.stringContaining('/auth/cli?callback_port=12345&state='),
+			);
+			expect(mockEnv.setKey).toHaveBeenCalledWith(
+				ACCESS_KEY_ENV_VAR,
+				VALID_ACCESS_KEY,
+			);
+		});
+
+		it('should use browser flow when manual is false', async () => {
+			mockEnv.isCI.mockReturnValue(false);
+			mockEnv.getKey.mockResolvedValue(undefined);
+			mockEnv.setKey.mockResolvedValue(undefined);
+			mockWaitForCallback.mockResolvedValue(VALID_ACCESS_KEY);
+
+			await authCommand.run(false);
+
+			expect(startCallbackServer).toHaveBeenCalled();
+			expect(openBrowser).toHaveBeenCalled();
+			expect(mockEnv.setKey).toHaveBeenCalledWith(
+				ACCESS_KEY_ENV_VAR,
+				VALID_ACCESS_KEY,
+			);
+		});
+
+		it('should print URL when browser fails to open', async () => {
+			mockEnv.isCI.mockReturnValue(false);
+			mockEnv.getKey.mockResolvedValue(undefined);
+			mockEnv.setKey.mockResolvedValue(undefined);
+			(
+				openBrowser as jest.MockedFunction<typeof openBrowser>
+			).mockResolvedValue(false);
+			mockWaitForCallback.mockResolvedValue(VALID_ACCESS_KEY);
+
+			await authCommand.run();
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Could not open browser automatically'),
+			);
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('/auth/cli?callback_port=12345&state='),
+			);
+			// Should still wait and succeed
+			expect(mockEnv.setKey).toHaveBeenCalledWith(
+				ACCESS_KEY_ENV_VAR,
+				VALID_ACCESS_KEY,
+			);
+		});
+
+		it('should suggest --manual on timeout', async () => {
+			mockEnv.isCI.mockReturnValue(false);
+			mockEnv.getKey.mockResolvedValue(undefined);
+			mockWaitForCallback.mockRejectedValue(
+				new Error('Authentication timed out'),
+			);
+
+			await authCommand.run();
+
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Authentication timed out'),
+			);
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				expect.stringContaining('--manual'),
+			);
+		});
+
+		it('should use CONSTELLATION_WEB_URL env var when set', async () => {
+			const originalEnv = process.env.CONSTELLATION_WEB_URL;
+			process.env.CONSTELLATION_WEB_URL = 'https://app.constellation.io';
+
+			mockEnv.isCI.mockReturnValue(false);
+			mockEnv.getKey.mockResolvedValue(undefined);
+			mockEnv.setKey.mockResolvedValue(undefined);
+			mockWaitForCallback.mockResolvedValue(VALID_ACCESS_KEY);
+
+			await authCommand.run();
+
+			expect(openBrowser).toHaveBeenCalledWith(
+				expect.stringContaining('https://app.constellation.io/auth/cli'),
+			);
+
+			// Restore
+			if (originalEnv === undefined) {
+				delete process.env.CONSTELLATION_WEB_URL;
+			} else {
+				process.env.CONSTELLATION_WEB_URL = originalEnv;
+			}
+		});
+
+		it('should fall back to production URL when CONSTELLATION_WEB_URL is not set', async () => {
+			const originalEnv = process.env.CONSTELLATION_WEB_URL;
+			delete process.env.CONSTELLATION_WEB_URL;
+
+			mockEnv.isCI.mockReturnValue(false);
+			mockEnv.getKey.mockResolvedValue(undefined);
+			mockEnv.setKey.mockResolvedValue(undefined);
+			mockWaitForCallback.mockResolvedValue(VALID_ACCESS_KEY);
+
+			await authCommand.run();
+
+			expect(openBrowser).toHaveBeenCalledWith(
+				expect.stringContaining('https://app.constellationdev.io/auth/cli'),
+			);
+
+			// Restore
+			if (originalEnv !== undefined) {
+				process.env.CONSTELLATION_WEB_URL = originalEnv;
+			}
+		});
+
+		it('should print success message after browser flow completes', async () => {
+			mockEnv.isCI.mockReturnValue(false);
+			mockEnv.getKey.mockResolvedValue(undefined);
+			mockEnv.setKey.mockResolvedValue(undefined);
+			mockWaitForCallback.mockResolvedValue(VALID_ACCESS_KEY);
+
+			await authCommand.run();
+
+			expect(consoleLogSpy).toHaveBeenCalledWith(
+				expect.stringContaining('Stored access key'),
+			);
+		});
+
+		it('should handle existing key replacement with browser flow', async () => {
+			mockEnv.isCI.mockReturnValue(false);
+			mockEnv.getKey.mockResolvedValue('existing-key');
+			mockEnv.setKey.mockResolvedValue(undefined);
+			// @ts-expect-error - Jest mock typing
+			(prompt as jest.Mock).mockResolvedValue({ replaceKey: true });
+			mockWaitForCallback.mockResolvedValue(VALID_ACCESS_KEY);
+
+			await authCommand.run();
+
+			expect(prompt).toHaveBeenCalledWith(
+				expect.objectContaining({
+					message: 'Replace existing Constellation access key?',
+				}),
+			);
+			expect(startCallbackServer).toHaveBeenCalled();
+			expect(mockEnv.setKey).toHaveBeenCalledWith(
+				ACCESS_KEY_ENV_VAR,
+				VALID_ACCESS_KEY,
 			);
 		});
 	});

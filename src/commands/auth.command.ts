@@ -1,7 +1,14 @@
+import { randomBytes } from 'node:crypto';
+
 import pkg from 'enquirer';
 const { prompt } = pkg;
 
-import { ACCESS_KEY_ENV_VAR } from '../utils/constants';
+import { openBrowser } from '../auth/browser-opener';
+import { startCallbackServer } from '../auth/callback-server';
+import {
+	ACCESS_KEY_ENV_VAR,
+	CONSTELLATION_WEB_URL_ENV_VAR,
+} from '../utils/constants';
 import {
 	BLUE_INFO,
 	GREEN_CHECK,
@@ -43,10 +50,12 @@ function sanitizeErrorMessage(message: string): string {
 export default class AuthCommand extends BaseCommand {
 	/**
 	 * Executes the access key storage process.
-	 * Stores access key in user-level environment variables.
+	 * When manual is true or omitted with --manual flag, uses the paste-based flow.
+	 * Otherwise uses the browser-based OAuth-style flow.
+	 * @param manual If true, uses the manual paste-based flow instead of browser flow
 	 * @throws Error if unable to store value in environment variables.
 	 */
-	public async run(): Promise<void> {
+	public async run(manual?: boolean): Promise<void> {
 		try {
 			// Verify required dependency is available
 			if (!this.env) {
@@ -89,63 +98,11 @@ export default class AuthCommand extends BaseCommand {
 				}
 			}
 
-			// 3. Prompt for access key with validation
-			let accessKey: string;
-			let attempts = 0;
-			const maxAttempts = 3;
-
-			while (attempts < maxAttempts) {
-				const response = await prompt<{ accessKey: string }>({
-					message: 'Constellation Access Key:',
-					name: 'accessKey',
-					type: 'password',
-					required: true,
-				});
-
-				accessKey = response.accessKey.trim();
-
-				// Validate format
-				if (!accessKey) {
-					console.log(`${YELLOW_WARN} Access key cannot be empty.\n`);
-					attempts++;
-					continue;
-				}
-
-				if (!isValidAccessKeyFormat(accessKey)) {
-					attempts++;
-					if (attempts < maxAttempts) {
-						console.log(
-							`${YELLOW_WARN} Invalid access key format. Expected format: ak:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n` +
-								`  Attempts remaining: ${maxAttempts - attempts}\n`,
-						);
-					} else {
-						console.error(
-							`${RED_X} Invalid access key format after ${maxAttempts} attempts.\n` +
-								`  Please verify your access key and try again.`,
-						);
-						return;
-					}
-					continue;
-				}
-
-				// Valid key format, proceed
-				break;
-			}
-
-			// 4. Set user env var value
-			await this.env.setKey(ACCESS_KEY_ENV_VAR, accessKey!);
-
-			console.log(
-				`${GREEN_CHECK} Stored access key in ${ACCESS_KEY_ENV_VAR} user environment variable`,
-			);
-
-			const sourceFile = this.env.getSourceFile();
-			if (sourceFile) {
-				console.log(
-					`${BLUE_INFO} To activate in this session, run:\n\n` +
-						`    source ${sourceFile}\n\n` +
-						`  New terminal sessions will load it automatically.`,
-				);
+			// 3. Route to the appropriate auth flow
+			if (manual) {
+				await this.manualAuthFlow();
+			} else {
+				await this.browserAuthFlow();
 			}
 		} catch (error) {
 			const rawMessage =
@@ -153,6 +110,117 @@ export default class AuthCommand extends BaseCommand {
 			const safeMessage = sanitizeErrorMessage(rawMessage);
 			console.error(
 				`${RED_X} Failed to store Constellation access key\n  ${safeMessage}`,
+			);
+		}
+	}
+
+	/**
+	 * Manual paste-based auth flow (original behavior).
+	 * Prompts the user to paste their access key with format validation and retries.
+	 */
+	private async manualAuthFlow(): Promise<void> {
+		let accessKey: string;
+		let attempts = 0;
+		const maxAttempts = 3;
+
+		while (attempts < maxAttempts) {
+			const response = await prompt<{ accessKey: string }>({
+				message: 'Constellation Access Key:',
+				name: 'accessKey',
+				type: 'password',
+				required: true,
+			});
+
+			accessKey = response.accessKey.trim();
+
+			// Validate format
+			if (!accessKey) {
+				console.log(`${YELLOW_WARN} Access key cannot be empty.\n`);
+				attempts++;
+				continue;
+			}
+
+			if (!isValidAccessKeyFormat(accessKey)) {
+				attempts++;
+				if (attempts < maxAttempts) {
+					console.log(
+						`${YELLOW_WARN} Invalid access key format. Expected format: ak:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n` +
+							`  Attempts remaining: ${maxAttempts - attempts}\n`,
+					);
+				} else {
+					console.error(
+						`${RED_X} Invalid access key format after ${maxAttempts} attempts.\n` +
+							`  Please verify your access key and try again.`,
+					);
+					return;
+				}
+				continue;
+			}
+
+			// Valid key format, proceed
+			break;
+		}
+
+		await this.storeKey(accessKey!);
+	}
+
+	/**
+	 * Browser-based OAuth-style auth flow.
+	 * Opens a browser to the Constellation web app for authentication,
+	 * then receives the access key via a localhost callback.
+	 */
+	private async browserAuthFlow(): Promise<void> {
+		const state = randomBytes(16).toString('hex');
+		const { port, waitForCallback } = await startCallbackServer();
+
+		const webUrl =
+			process.env[CONSTELLATION_WEB_URL_ENV_VAR] ||
+			'https://app.constellationdev.io';
+		const authUrl = `${webUrl}/auth/cli?callback_port=${port}&state=${state}`;
+
+		console.log(`${BLUE_INFO} Opening browser for authentication...`);
+
+		const opened = await openBrowser(authUrl);
+		if (!opened) {
+			console.log(
+				`${YELLOW_WARN} Could not open browser automatically.\n` +
+					`  Please open this URL manually:\n\n` +
+					`    ${authUrl}\n`,
+			);
+		}
+
+		console.log(
+			`${BLUE_INFO} Waiting for authentication... (press Ctrl+C to cancel)\n`,
+		);
+
+		try {
+			const accessKey = await waitForCallback(state);
+			await this.storeKey(accessKey);
+		} catch {
+			console.error(
+				`${RED_X} Authentication timed out.\n` +
+					`  Try again or use \`constellation auth --manual\` to paste your key directly.`,
+			);
+		}
+	}
+
+	/**
+	 * Stores the access key and prints success messaging.
+	 * Shared between manual and browser auth flows.
+	 */
+	private async storeKey(accessKey: string): Promise<void> {
+		await this.env!.setKey(ACCESS_KEY_ENV_VAR, accessKey);
+
+		console.log(
+			`${GREEN_CHECK} Stored access key in ${ACCESS_KEY_ENV_VAR} user environment variable`,
+		);
+
+		const sourceFile = this.env!.getSourceFile();
+		if (sourceFile) {
+			console.log(
+				`${BLUE_INFO} To activate in this session, run:\n\n` +
+					`    source ${sourceFile}\n\n` +
+					`  New terminal sessions will load it automatically.`,
 			);
 		}
 	}

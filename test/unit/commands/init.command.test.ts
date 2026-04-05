@@ -7,6 +7,7 @@ import {
 	jest,
 } from '@jest/globals';
 import InitCommand from '../../../src/commands/init.command';
+import { CICDConfigurator } from '../../../src/cicd/cicd-configurator';
 import { LANGUAGE_EXTENSIONS } from '../../../src/languages/language.registry';
 import { FileUtils } from '../../../src/utils/file.utils';
 import { GitClient } from '../../../src/utils/git-client';
@@ -15,12 +16,19 @@ import { GitClient } from '../../../src/utils/git-client';
 jest.mock('enquirer', () => {
 	// Create the mock function inside the factory
 	const promptMock = jest.fn();
-	// Export it so we can access it in tests
+	// Static prompt mock for destructured `const { prompt } = Enquirer`
+	const staticPromptMock = jest
+		.fn<() => Promise<Record<string, unknown>>>()
+		.mockResolvedValue({});
+	// Export them so we can access in tests
 	(global as any).__enquirerMockPrompt = promptMock;
+	(global as any).__enquirerStaticPrompt = staticPromptMock;
 	// Create a mock class that has prompt as instance method
 	const MockEnquirer = jest.fn().mockImplementation(() => ({
 		prompt: promptMock,
-	}));
+	})) as any;
+	// Expose static prompt for `const { prompt } = Enquirer` destructuring
+	MockEnquirer.prompt = staticPromptMock;
 	return {
 		__esModule: true,
 		default: MockEnquirer,
@@ -30,6 +38,7 @@ jest.mock('enquirer', () => {
 // Mock dependencies
 jest.mock('../../../src/utils/git-client');
 jest.mock('../../../src/utils/file.utils');
+jest.mock('../../../src/cicd/cicd-configurator');
 
 describe('InitCommand', () => {
 	let mockGit: jest.Mocked<GitClient>;
@@ -37,10 +46,12 @@ describe('InitCommand', () => {
 	let consoleErrorSpy: jest.SpiedFunction<typeof console.error>;
 	let command: InitCommand;
 	let mockPrompt: jest.Mock;
+	let staticPromptMock: jest.Mock<() => Promise<Record<string, unknown>>>;
 
 	beforeEach(async () => {
-		// Get the mock prompt from global (set by mock factory)
+		// Get the mock prompts from global (set by mock factory)
 		mockPrompt = (global as any).__enquirerMockPrompt;
+		staticPromptMock = (global as any).__enquirerStaticPrompt;
 
 		// Spy on console methods
 		consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -706,6 +717,265 @@ describe('InitCommand', () => {
 
 			// Only one stageFile call (constellation.json, no MCP-related staging)
 			expect(mockGit.stageFile).toHaveBeenCalledTimes(1);
+		});
+
+		describe('CI/CD configuration', () => {
+			let mockConfigurator: jest.Mocked<CICDConfigurator>;
+
+			beforeEach(() => {
+				// Set up the mock CICDConfigurator instance
+				mockConfigurator = {
+					detectPlatforms: jest
+						.fn<() => Promise<string[]>>()
+						.mockResolvedValue([]),
+					githubWorkflowExists: jest
+						.fn<() => Promise<boolean>>()
+						.mockResolvedValue(false),
+					gitlabJobExists: jest
+						.fn<() => Promise<boolean>>()
+						.mockResolvedValue(false),
+					createGitHubWorkflow: jest
+						.fn<() => Promise<string>>()
+						.mockResolvedValue(
+							'/test/repo/.github/workflows/constellation-index.yml',
+						),
+					createOrMergeGitLabCI: jest
+						.fn<() => Promise<string>>()
+						.mockResolvedValue('/test/repo/.gitlab-ci.yml'),
+				} as unknown as jest.Mocked<CICDConfigurator>;
+
+				// Mock CICDConfigurator constructor to return our mock
+				(CICDConfigurator as jest.Mock).mockImplementation(
+					() => mockConfigurator,
+				);
+			});
+
+			it('should skip CI/CD when --skip-ci is true', async () => {
+				await command.run({ skipMcp: true, skipCi: true });
+
+				expect(CICDConfigurator).not.toHaveBeenCalled();
+			});
+
+			it('should skip CI/CD when user declines the initial prompt', async () => {
+				// Static prompt: setupCicd = false
+				staticPromptMock.mockResolvedValueOnce({ setupCicd: false });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.detectPlatforms).not.toHaveBeenCalled();
+			});
+
+			it('should auto-detect GitHub Actions and confirm with user', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+
+				// Static prompt chain: setupCicd → useDetected
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.detectPlatforms).toHaveBeenCalled();
+				expect(mockConfigurator.createGitHubWorkflow).toHaveBeenCalledWith(
+					'main',
+				);
+			});
+
+			it('should auto-detect GitLab CI and confirm with user', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['gitlab']);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.createOrMergeGitLabCI).toHaveBeenCalledWith(
+					'main',
+				);
+			});
+
+			it('should skip when user declines detected platform', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: false });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.createGitHubWorkflow).not.toHaveBeenCalled();
+			});
+
+			it('should let user choose when both platforms detected', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue([
+					'github',
+					'gitlab',
+				]);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ platform: 'github' });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.createGitHubWorkflow).toHaveBeenCalledWith(
+					'main',
+				);
+			});
+
+			it('should let user choose when no platform detected', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue([]);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ platform: 'gitlab' });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.createOrMergeGitLabCI).toHaveBeenCalledWith(
+					'main',
+				);
+			});
+
+			it('should offer overwrite when workflow already exists', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+				mockConfigurator.githubWorkflowExists.mockResolvedValue(true);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true })
+					.mockResolvedValueOnce({ overwrite: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.createGitHubWorkflow).toHaveBeenCalled();
+			});
+
+			it('should skip when user declines overwrite', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+				mockConfigurator.githubWorkflowExists.mockResolvedValue(true);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true })
+					.mockResolvedValueOnce({ overwrite: false });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.createGitHubWorkflow).not.toHaveBeenCalled();
+				expect(consoleLogSpy).toHaveBeenCalledWith(
+					expect.stringContaining('Skipping CI/CD configuration'),
+				);
+			});
+
+			it('should stage created files in git', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockGit.stageFile).toHaveBeenCalledWith(
+					'/test/repo/.github/workflows/constellation-index.yml',
+				);
+			});
+
+			it('should print GitHub setup guidance', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(consoleLogSpy).toHaveBeenCalledWith(
+					expect.stringContaining('repository secret'),
+				);
+				expect(consoleLogSpy).toHaveBeenCalledWith(
+					expect.stringContaining('CONSTELLATION_ACCESS_KEY'),
+				);
+			});
+
+			it('should print GitLab setup guidance', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['gitlab']);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(consoleLogSpy).toHaveBeenCalledWith(
+					expect.stringContaining('CI/CD variable'),
+				);
+				expect(consoleLogSpy).toHaveBeenCalledWith(
+					expect.stringContaining('CONSTELLATION_ACCESS_KEY'),
+				);
+			});
+
+			it('should handle file creation errors gracefully', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+				mockConfigurator.createGitHubWorkflow.mockRejectedValue(
+					new Error('Permission denied'),
+				);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(consoleLogSpy).toHaveBeenCalledWith(
+					expect.stringContaining('Failed to configure CI/CD pipeline'),
+				);
+				// Should not crash — command completes
+				expect(mockGit.stageFile).not.toHaveBeenCalledWith(
+					expect.stringContaining('constellation-index.yml'),
+				);
+			});
+
+			it('should handle git staging errors gracefully', async () => {
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+				// First call (constellation.json) succeeds, second call (CI file) fails
+				mockGit.stageFile
+					.mockResolvedValueOnce(undefined)
+					.mockRejectedValueOnce(new Error('Git add failed'));
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(consoleLogSpy).toHaveBeenCalledWith(
+					expect.stringContaining('Could not stage'),
+				);
+			});
+
+			it('should pass the correct branch to the configurator', async () => {
+				// @ts-expect-error - Jest mock typing
+				mockPrompt.mockResolvedValue({
+					projectId: 'test-project',
+					branch: 'develop',
+					languages: ['typescript'],
+				});
+
+				mockConfigurator.detectPlatforms.mockResolvedValue(['github']);
+
+				staticPromptMock
+					.mockResolvedValueOnce({ setupCicd: true })
+					.mockResolvedValueOnce({ useDetected: true });
+
+				await command.run({ skipMcp: true });
+
+				expect(mockConfigurator.createGitHubWorkflow).toHaveBeenCalledWith(
+					'develop',
+				);
+			});
 		});
 	});
 });

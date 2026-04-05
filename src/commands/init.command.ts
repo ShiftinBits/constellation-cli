@@ -20,6 +20,7 @@ import {
 	YELLOW_LIGHTNING,
 	YELLOW_WARN,
 } from '../utils/unicode-chars';
+import { CICDConfigurator, type CICDPlatform } from '../cicd';
 import { BaseCommand } from './base.command';
 
 /**
@@ -215,6 +216,11 @@ export default class InitCommand extends BaseCommand {
 			// Configure MCP servers for AI coding assistants (unless skipped)
 			if (!options.skipMcp) {
 				await this.configureMCPServers();
+			}
+
+			// Configure CI/CD pipeline (unless skipped)
+			if (!options.skipCi && gitRoot) {
+				await this.configureCICD(answers.branch, gitRoot);
 			}
 		} catch (error) {
 			const errorMessage =
@@ -481,6 +487,135 @@ export default class InitCommand extends BaseCommand {
 			console.log(
 				`${GREEN_CHECK} Hooks configuration complete: ${hooksSuccessful} configured`,
 			);
+		}
+	}
+
+	/**
+	 * Configure CI/CD pipeline for automatic project indexing.
+	 * Detects platform (GitHub Actions / GitLab CI), creates workflow files, and stages in git.
+	 */
+	private async configureCICD(branch: string, gitRoot: string): Promise<void> {
+		const { setupCicd } = await prompt<{ setupCicd: boolean }>({
+			type: 'confirm',
+			name: 'setupCicd',
+			message: 'Set up a CI/CD pipeline to automatically index your project?',
+			initial: true,
+		});
+
+		if (!setupCicd) {
+			return;
+		}
+
+		const configurator = new CICDConfigurator(gitRoot);
+		const detectedPlatforms = await configurator.detectPlatforms();
+
+		let selectedPlatform: CICDPlatform;
+
+		if (detectedPlatforms.length === 1) {
+			// One platform detected — confirm with user
+			const platformName =
+				detectedPlatforms[0] === 'github' ? 'GitHub Actions' : 'GitLab CI';
+			const { useDetected } = await prompt<{ useDetected: boolean }>({
+				type: 'confirm',
+				name: 'useDetected',
+				message: `Detected ${platformName}. Configure Constellation CI/CD for this platform?`,
+				initial: true,
+			});
+
+			if (!useDetected) {
+				return;
+			}
+			selectedPlatform = detectedPlatforms[0];
+		} else {
+			// Both detected or neither — let user choose
+			const choices = [
+				{ name: 'GitHub Actions', value: 'github' },
+				{ name: 'GitLab CI', value: 'gitlab' },
+			];
+
+			const { platform } = await prompt<{ platform: string }>({
+				type: 'select',
+				name: 'platform',
+				message: 'Select CI/CD platform:',
+				choices,
+				result(names: string[]) {
+					const name = Array.isArray(names) ? names[0] : names;
+					const choice = this.choices.find(
+						(c: { name: string; value: string }) => c.name === name,
+					);
+					return choice?.value ?? name;
+				},
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			} as any);
+
+			selectedPlatform = platform as CICDPlatform;
+		}
+
+		// Check if CI config already exists (re-init case)
+		const alreadyExists =
+			selectedPlatform === 'github'
+				? await configurator.githubWorkflowExists()
+				: await configurator.gitlabJobExists();
+
+		if (alreadyExists) {
+			const { overwrite } = await prompt<{ overwrite: boolean }>({
+				type: 'confirm',
+				name: 'overwrite',
+				message: 'Constellation CI/CD configuration already exists. Overwrite?',
+				initial: false,
+			});
+
+			if (!overwrite) {
+				console.log(`${BLUE_INFO} Skipping CI/CD configuration`);
+				return;
+			}
+		}
+
+		// Create the CI/CD files
+		let createdFilePath: string;
+		try {
+			createdFilePath =
+				selectedPlatform === 'github'
+					? await configurator.createGitHubWorkflow(branch)
+					: await configurator.createOrMergeGitLabCI(branch);
+		} catch (error) {
+			console.log(
+				`${YELLOW_WARN} Failed to configure CI/CD pipeline: ${(error as Error).message}`,
+			);
+			return;
+		}
+
+		const displayPath = toDisplayPath(createdFilePath, process.cwd());
+
+		if (selectedPlatform === 'github') {
+			console.log(`${GREEN_CHECK} Created ${displayPath}`);
+		} else {
+			console.log(
+				`${GREEN_CHECK} ${alreadyExists ? 'Updated' : 'Created'} ${displayPath} with Constellation indexing`,
+			);
+		}
+
+		// Stage in git
+		try {
+			await this.git!.stageFile(createdFilePath);
+			console.log(
+				`${GREEN_CHECK} Added ${displayPath} to staged changes in git`,
+			);
+		} catch {
+			console.log(`${YELLOW_WARN} Could not stage ${displayPath} in git`);
+		}
+
+		// Post-setup guidance
+		if (selectedPlatform === 'github') {
+			console.log(`${BLUE_INFO} Add your access key as a repository secret:`);
+			console.log(
+				`  Settings → Secrets and variables → Actions → New repository secret`,
+			);
+			console.log(`  Name: CONSTELLATION_ACCESS_KEY`);
+		} else {
+			console.log(`${BLUE_INFO} Add your access key as a CI/CD variable:`);
+			console.log(`  Settings → CI/CD → Variables → Add variable`);
+			console.log(`  Key: CONSTELLATION_ACCESS_KEY`);
 		}
 	}
 

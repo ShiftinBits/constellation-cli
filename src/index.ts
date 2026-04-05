@@ -80,7 +80,8 @@ program
 	.command('init')
 	.description('Initialize a new constellation project configuration')
 	.option('--skip-mcp', 'Skip MCP server configuration for AI coding tools')
-	.action(async (options: { skipMcp?: boolean }) => {
+	.option('--skip-ci', 'Skip CI/CD pipeline configuration')
+	.action(async (options: { skipMcp?: boolean; skipCi?: boolean }) => {
 		try {
 			const git = new GitClient(cwd);
 			// Create minimal deps for init command
@@ -88,7 +89,10 @@ program
 				GitClient: git,
 			};
 			const initCommand = new InitCommand(initDeps);
-			await initCommand.run({ skipMcp: options.skipMcp });
+			await initCommand.run({
+				skipMcp: options.skipMcp,
+				skipCi: options.skipCi,
+			});
 		} catch (error) {
 			console.error(
 				`${RED_X} Failed to initialize project: ${error instanceof Error ? error.message : String(error)}`,

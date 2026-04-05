@@ -105,6 +105,10 @@ export default class AuthCommand extends BaseCommand {
 				await this.browserAuthFlow();
 			}
 		} catch (error) {
+			// Enquirer rejects with empty string when user presses ESC — exit gracefully
+			if (error === '') {
+				return;
+			}
 			const rawMessage =
 				(error as Error).message ?? 'An unexpected error occurred';
 			const safeMessage = sanitizeErrorMessage(rawMessage);

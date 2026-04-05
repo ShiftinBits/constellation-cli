@@ -223,6 +223,10 @@ export default class InitCommand extends BaseCommand {
 				await this.configureCICD(answers.branch, gitRoot);
 			}
 		} catch (error) {
+			// Enquirer rejects with empty string when user presses ESC — exit gracefully
+			if (error === '') {
+				return;
+			}
 			const errorMessage =
 				(error as Error).message ?? 'An unexpected error occurred';
 			console.error(

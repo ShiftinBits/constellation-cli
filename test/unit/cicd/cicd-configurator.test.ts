@@ -157,7 +157,7 @@ describe('CICDConfigurator', () => {
 			);
 			expect(mockWriteFile).toHaveBeenCalledWith(
 				path.join(gitRoot, '.github', 'workflows', 'constellation-index.yml'),
-				expect.stringContaining('branches: [main]'),
+				expect.stringContaining('branches: ["main"]'),
 			);
 			expect(filePath).toBe(
 				path.join(gitRoot, '.github', 'workflows', 'constellation-index.yml'),
@@ -169,7 +169,7 @@ describe('CICDConfigurator', () => {
 
 			expect(mockWriteFile).toHaveBeenCalledWith(
 				expect.any(String),
-				expect.stringContaining('branches: [develop]'),
+				expect.stringContaining('branches: ["develop"]'),
 			);
 		});
 	});

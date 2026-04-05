@@ -13,7 +13,7 @@ export function getGitHubActionsWorkflow(branch: string): string {
 
 on:
   push:
-    branches: [${branch}]
+    branches: ["${branch}"]
 
 permissions:
   contents: read

@@ -10,20 +10,20 @@ describe('CI/CD Templates', () => {
 		it('should return workflow with correct branch', () => {
 			const result = getGitHubActionsWorkflow('main');
 
-			expect(result).toContain('branches: [main]');
+			expect(result).toContain('branches: ["main"]');
 		});
 
 		it('should substitute branch name correctly', () => {
 			const result = getGitHubActionsWorkflow('develop');
 
-			expect(result).toContain('branches: [develop]');
-			expect(result).not.toContain('branches: [main]');
+			expect(result).toContain('branches: ["develop"]');
+			expect(result).not.toContain('branches: ["main"]');
 		});
 
 		it('should handle branch names with slashes', () => {
 			const result = getGitHubActionsWorkflow('release/1.0');
 
-			expect(result).toContain('branches: [release/1.0]');
+			expect(result).toContain('branches: ["release/1.0"]');
 		});
 
 		it('should include the Constellation GitHub Action', () => {

@@ -16,14 +16,6 @@ import {
 
 export type CICDPlatform = 'github' | 'gitlab';
 
-export interface CICDConfigResult {
-	success: boolean;
-	platform?: CICDPlatform;
-	createdFiles: string[];
-	overwrote?: boolean;
-	error?: string;
-}
-
 /**
  * Detects CI/CD platforms, creates workflow files, and merges GitLab CI config.
  */

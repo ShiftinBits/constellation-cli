@@ -1,5 +1,5 @@
 export { CICDConfigurator } from './cicd-configurator';
-export type { CICDPlatform, CICDConfigResult } from './cicd-configurator';
+export type { CICDPlatform } from './cicd-configurator';
 export {
 	getGitHubActionsWorkflow,
 	getGitLabCIConfig,

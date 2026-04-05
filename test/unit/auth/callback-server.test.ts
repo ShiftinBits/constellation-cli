@@ -111,6 +111,39 @@ describe('callback-server', () => {
 		});
 	});
 
+	describe('return_url redirect', () => {
+		it('should respond with 302 redirect when return_url is provided', async () => {
+			result = await startCallbackServer();
+			const promise = result.waitForCallback('test-nonce');
+
+			const resp = await fetch(
+				`http://127.0.0.1:${result.port}/callback?key=ak:00112233445566778899aabbccddeeff&state=test-nonce&return_url=${encodeURIComponent('http://localhost:4200/auth/cli?success=true')}`,
+				{ redirect: 'manual' },
+			);
+
+			expect(resp.status).toBe(302);
+			expect(resp.headers.get('location')).toBe(
+				'http://localhost:4200/auth/cli?success=true',
+			);
+
+			const key = await promise;
+			expect(key).toBe('ak:00112233445566778899aabbccddeeff');
+		});
+
+		it('should respond with HTML when return_url is not provided', async () => {
+			result = await startCallbackServer();
+			const promise = result.waitForCallback('test-nonce');
+
+			const resp = await fetch(
+				`http://127.0.0.1:${result.port}/callback?key=ak:00112233445566778899aabbccddeeff&state=test-nonce`,
+			);
+
+			expect(resp.status).toBe(200);
+			expect(resp.headers.get('content-type')).toContain('text/html');
+			await promise;
+		});
+	});
+
 	describe('server lifecycle', () => {
 		it('should close the server after a successful callback', async () => {
 			result = await startCallbackServer();

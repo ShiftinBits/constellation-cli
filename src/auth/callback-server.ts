@@ -81,10 +81,16 @@ export function startCallbackServer(): Promise<CallbackServerResult> {
 								if (settled) return;
 								settled = true;
 
-								resp.writeHead(200, {
-									'Content-Type': 'text/html; charset=utf-8',
-								});
-								resp.end(SUCCESS_HTML);
+								const returnUrl = url.searchParams.get('return_url');
+								if (returnUrl) {
+									resp.writeHead(302, { Location: returnUrl });
+									resp.end();
+								} else {
+									resp.writeHead(200, {
+										'Content-Type': 'text/html; charset=utf-8',
+									});
+									resp.end(SUCCESS_HTML);
+								}
 
 								if (pendingTimer) {
 									clearTimeout(pendingTimer);

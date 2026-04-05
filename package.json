@@ -1,7 +1,7 @@
 {
 	"name": "@constellationdev/cli",
 	"description": "Code Intelligence Platform for AI Coding Agents",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"author": "ShiftinBits Inc",
 	"main": "dist/main.js",
 	"type": "module",

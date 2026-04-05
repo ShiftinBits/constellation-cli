@@ -20,6 +20,8 @@ const SUCCESS_HTML = `<!DOCTYPE html>
 export function startCallbackServer(): Promise<CallbackServerResult> {
 	return new Promise((resolve, reject) => {
 		const server: Server = createServer();
+		let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+		let settled = false;
 
 		server.listen(0, '127.0.0.1', () => {
 			const addr = server.address();
@@ -32,11 +34,17 @@ export function startCallbackServer(): Promise<CallbackServerResult> {
 			resolve({
 				port: addr.port,
 				close() {
+					if (pendingTimer) {
+						clearTimeout(pendingTimer);
+						pendingTimer = undefined;
+					}
 					server.close();
 				},
 				waitForCallback(state: string, timeout = 300_000): Promise<string> {
 					return new Promise<string>((res, rej) => {
-						const timer = setTimeout(() => {
+						pendingTimer = setTimeout(() => {
+							pendingTimer = undefined;
+							settled = true;
 							server.close();
 							rej(new Error('Authentication timed out'));
 						}, timeout);
@@ -70,12 +78,18 @@ export function startCallbackServer(): Promise<CallbackServerResult> {
 									return;
 								}
 
+								if (settled) return;
+								settled = true;
+
 								resp.writeHead(200, {
 									'Content-Type': 'text/html; charset=utf-8',
 								});
 								resp.end(SUCCESS_HTML);
 
-								clearTimeout(timer);
+								if (pendingTimer) {
+									clearTimeout(pendingTimer);
+									pendingTimer = undefined;
+								}
 								server.close();
 								res(key);
 							},

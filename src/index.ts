@@ -104,13 +104,17 @@ program
 program
 	.command('auth')
 	.description('Configure authentication for the Constellation CLI')
-	.action(async () => {
+	.option(
+		'--manual',
+		'Use manual access key entry instead of browser-based authentication',
+	)
+	.action(async (options: { manual?: boolean }) => {
 		try {
 			const commandDeps: CommandDeps = {
 				Environment: cpEnvironment,
 			};
 			const authCommand = new AuthCommand(commandDeps);
-			await authCommand.run();
+			await authCommand.run(options.manual);
 		} catch (error) {
 			console.error(
 				`${RED_X} Failed to configure authentication: ${error instanceof Error ? error.message : String(error)}`,

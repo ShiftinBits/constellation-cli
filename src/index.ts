@@ -19,7 +19,6 @@ import { checkForUpdates } from './update';
 import { printBanner } from './utils/constants';
 import { shouldShowBanner } from './utils/environment-detector';
 import { GitClient } from './utils/git-client';
-import { checkNodeVersion } from './utils/check-node-version';
 import { BLUE_INFO, RED_X } from './utils/unicode-chars';
 
 // Enquirer throws ERR_USE_AFTER_CLOSE asynchronously on CTRL+C — exit cleanly.
@@ -41,7 +40,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
 	version: string;
-	engines?: { node?: string };
 };
 const VERSION = packageJson.version;
 
@@ -63,21 +61,6 @@ if (shouldShowBanner()) {
 		if (shouldExit) {
 			process.exit(0);
 		}
-	}
-}
-
-// Check Node.js version compatibility (skip for help/version commands)
-const cmdArg = process.argv[2];
-if (!SKIP_UPDATE_COMMANDS.includes(cmdArg) && packageJson.engines?.node) {
-	const versionCheck = checkNodeVersion(packageJson.engines.node);
-	if (!versionCheck.compatible) {
-		console.error(
-			`${RED_X} Constellation CLI requires Node.js ${versionCheck.required} (current: ${versionCheck.current})`,
-		);
-		console.error(
-			'  Please upgrade to the latest LTS version: https://nodejs.org',
-		);
-		process.exit(1);
 	}
 }
 
